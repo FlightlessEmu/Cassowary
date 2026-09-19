@@ -39,9 +39,13 @@
 
 #import <objc/runtime.h>
 
+#if TARGET_OS_OSX
+// Wii Remote discovery and pairing uses the Mac's Bluetooth stack directly.
+// iOS pairs controllers through the system, so none of this is needed there.
 #import <IOBluetooth/IOBluetooth.h>
 #import <IOBluetooth/objc/IOBluetoothDeviceInquiry.h>
 #import <IOBluetooth/objc/IOBluetoothDevice.h>
+#endif
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -62,6 +66,7 @@ NSString *const OEDeviceManagerDeviceHandlerUserInfoKey           = @"OEDeviceMa
 
 static void OEHandle_DeviceMatchingCallback(void *inContext, IOReturn inResult, void *inSender, IOHIDDeviceRef inIOHIDDeviceRef);
 
+#if TARGET_OS_OSX
 static const void * kOEBluetoothDevicePairSyncStyleKey = &kOEBluetoothDevicePairSyncStyleKey;
 
 @interface IOBluetoothDevicePair (SyncStyle)
@@ -81,8 +86,12 @@ static const void * kOEBluetoothDevicePairSyncStyleKey = &kOEBluetoothDevicePair
 }
 
 @end
+#endif
 
-@interface OEDeviceManager () <IOBluetoothDeviceInquiryDelegate>
+@interface OEDeviceManager ()
+#if TARGET_OS_OSX
+<IOBluetoothDeviceInquiryDelegate>
+#endif
 @end
 
 @interface OEDeviceHandler ()
@@ -102,7 +111,9 @@ static const void * kOEBluetoothDevicePairSyncStyleKey = &kOEBluetoothDevicePair
     id _keyEventMonitor;
     id _modifierMaskMonitor;
 
+#if TARGET_OS_OSX
     IOBluetoothDeviceInquiry *_inquiry;
+#endif
 
     NSUInteger _lastAttributedDeviceIdentifier;
     NSUInteger _lastAttributedMultiDeviceIdentifier;
@@ -214,10 +225,13 @@ static const void * kOEBluetoothDevicePairSyncStyleKey = &kOEBluetoothDevicePair
     }];
     
     BOOL addKeyboard = YES;
+#if TARGET_OS_OSX
+    // Monitoring the keyboard needs an explicit user grant on modern macOS.
     if (@available(macOS 10.15, *))
     {
         addKeyboard = self.accessType == OEDeviceAccessTypeGranted;
     }
+#endif
     
     if (addKeyboard)
     {
@@ -230,7 +244,7 @@ static const void * kOEBluetoothDevicePairSyncStyleKey = &kOEBluetoothDevicePair
     IOHIDManagerSetDeviceMatchingMultiple(_hidManager, (__bridge CFArrayRef)matchingTypes);
 
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(OE_wiimoteDeviceDidDisconnect:) name:OEWiimoteDeviceHandlerDidDisconnectNotification object:nil];
-    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(OE_applicationWillTerminate:) name:NSApplicationWillTerminateNotification object:nil];
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(OE_applicationWillTerminate:) name:OEApplicationWillTerminateNotification object:nil];
 }
 
 - (void)OE_applicationWillTerminate:(NSNotification *)notification;
@@ -257,10 +271,12 @@ static const void * kOEBluetoothDevicePairSyncStyleKey = &kOEBluetoothDevicePair
     for(OEDeviceHandler *handler in [_deviceHandlers copy])
         [self OE_removeDeviceHandler:handler];
 
+#if TARGET_OS_OSX
     [NSEvent removeMonitor:_keyEventMonitor];
     [NSEvent removeMonitor:_modifierMaskMonitor];
     _keyEventMonitor = nil;
     _modifierMaskMonitor = nil;
+#endif
 
     if(_hidManager)
         CFRelease(_hidManager);
@@ -392,6 +408,10 @@ static const void * kOEBluetoothDevicePairSyncStyleKey = &kOEBluetoothDevicePair
 
 - (void)OE_addKeyboardEventMonitor;
 {
+#if TARGET_OS_OSX
+    // Key events come from the keyboard device handlers, which only exist on
+    // macOS. iOS delivers keyboard input through UIKey, handled by the app.
+
     _keyEventMonitor = [NSEvent addLocalMonitorForEventsMatchingMask:NSEventMaskKeyDown | NSEventMaskKeyUp handler:^ NSEvent * (NSEvent *anEvent) {
         /* Events with a process ID of 0 comes from the system, that is from the physical keyboard.
          * These events are already managed by their own device handler.
@@ -436,6 +456,7 @@ static const void * kOEBluetoothDevicePairSyncStyleKey = &kOEBluetoothDevicePair
 
         return anEvent;
     }];
+#endif
 }
 
 #pragma mark - IOHIDDevice management
@@ -589,17 +610,24 @@ static const void * kOEBluetoothDevicePairSyncStyleKey = &kOEBluetoothDevicePair
 
 - (BOOL)isBluetoothEnabled
 {
+#if TARGET_OS_OSX
     BOOL powered = NO;
     IOBluetoothHostController *controller = [IOBluetoothHostController defaultController];
-    
+
     if (controller != nil)
         powered = ([controller powerState] == kBluetoothHCIPowerStateON);
 
     return powered;
+#else
+    // iOS does not let an app query the Bluetooth radio state, and it is not
+    // needed: controllers the user has paired show up through GameController.
+    return YES;
+#endif
 }
 
 - (void)startWiimoteSearch;
 {
+#if TARGET_OS_OSX
     @synchronized(self) {
         //NSLog(@"Searching for Wiimotes");
 
@@ -615,17 +643,23 @@ static const void * kOEBluetoothDevicePairSyncStyleKey = &kOEBluetoothDevicePair
         _inquiry = nil;
         NSLog(@"Error: Inquiry did not start, error %d", status);
     }
+#else
+    // Controllers are discovered by GameController, not by this class.
+#endif
 }
 
 - (void)stopWiimoteSearch;
 {
+#if TARGET_OS_OSX
     @synchronized(self) {
         [_inquiry stop];
         [_inquiry setDelegate:nil];
         _inquiry = nil;
     }
+#endif
 }
 
+#if TARGET_OS_OSX
 #pragma mark - IOBluetoothDeviceInquiry Delegates
 
 - (void)deviceInquiryDeviceFound:(IOBluetoothDeviceInquiry *)sender device:(IOBluetoothDevice *)device
@@ -695,6 +729,7 @@ static const void * kOEBluetoothDevicePairSyncStyleKey = &kOEBluetoothDevicePair
 
     NSLog(@"Pairing finished %@: %x", sender, error);
 }
+#endif
 
 @end
 

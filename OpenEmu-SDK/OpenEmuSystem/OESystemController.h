@@ -25,6 +25,7 @@
  */
 
 #import <Foundation/Foundation.h>
+#import <OpenEmuBase/OEPlatform.h>
 
 @class OEFile;
 @class OEGlobalKeyBindingDescription;
@@ -131,7 +132,7 @@ typedef NS_ENUM(NSInteger, OEFileSupport) {
 
 @property(readonly) NSString *systemType;
 @property(readonly) NSArray<NSString *> *systemMedia;
-@property(readonly) NSImage *systemIcon;
+@property(readonly) OEPlatformImage *systemIcon;
 
 + (NSDictionary<NSString *, OEGlobalKeyBindingDescription *> *)globalKeyBindingDescriptions;
 @property(readonly) NSDictionary<NSString *, OEGlobalKeyBindingDescription *> *globalKeyBindingDescriptions;
@@ -148,8 +149,8 @@ typedef NS_ENUM(NSInteger, OEFileSupport) {
 @property(readonly, copy) NSString *controllerImageName;
 @property(readonly, copy) NSString *controllerImageMaskName;
 
-@property(readonly, copy) NSImage *controllerImage;
-@property(readonly, copy) NSImage *controllerImageMask;
+@property(readonly, copy) OEPlatformImage *controllerImage;
+@property(readonly, copy) OEPlatformImage *controllerImageMask;
 
 @property(readonly) CGFloat coverAspectRatio;
 

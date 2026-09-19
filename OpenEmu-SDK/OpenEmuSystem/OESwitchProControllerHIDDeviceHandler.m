@@ -396,7 +396,7 @@ static CGFloat OEHACScaleValueWithCalibration(
 
 - (BOOL)connect
 {
-    NSString *transport = IOHIDDeviceGetProperty([self device], CFSTR(kIOHIDTransportKey));
+    NSString *transport = (__bridge NSString *)IOHIDDeviceGetProperty([self device], CFSTR(kIOHIDTransportKey));
     if ([transport isEqualToString:@kIOHIDTransportUSBValue]) {
         _isUSB = YES;
         [self _enableUSBmode];

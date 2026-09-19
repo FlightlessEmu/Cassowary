@@ -27,9 +27,7 @@
 #import <TargetConditionals.h>
 #import <Foundation/Foundation.h>
 #import <Metal/Metal.h>
-#if TARGET_OS_OSX
-#import <Cocoa/Cocoa.h>
-#endif
+#import <OpenEmuBase/OEPlatform.h>
 #import <OpenEmuBase/OESystemResponderClient.h>
 #import <OpenEmuBase/OEGeometry.h>
 #import <OpenEmuBase/OEDiffQueue.h>

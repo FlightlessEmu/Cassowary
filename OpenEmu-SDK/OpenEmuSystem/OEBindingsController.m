@@ -25,7 +25,7 @@
   SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#import <Cocoa/Cocoa.h>
+#import <OpenEmuBase/OEPlatform.h>
 #import "OEBindingsController.h"
 #import "OESystemController.h"
 #import "OEBindingsController_Internal.h"
@@ -160,8 +160,8 @@ static NSURL *configurationsFolder;
 - (void)OE_setupNotificationObservation;
 {
     NSNotificationCenter *nc = [NSNotificationCenter defaultCenter];
-    [nc addObserver:self selector:@selector(OE_applicationDidChangeState:) name:NSApplicationWillResignActiveNotification object:NSApp];
-    [nc addObserver:self selector:@selector(OE_applicationDidChangeState:) name:NSApplicationWillTerminateNotification object:NSApp];
+    [nc addObserver:self selector:@selector(OE_applicationDidChangeState:) name:OEApplicationWillResignActiveNotification object:nil];
+    [nc addObserver:self selector:@selector(OE_applicationDidChangeState:) name:OEApplicationWillTerminateNotification object:nil];
     
     [nc addObserver:self selector:@selector(OE_HIDManagerDidAddDeviceNotification:) name:OEDeviceManagerDidAddDeviceHandlerNotification object:nil];
     [nc addObserver:self selector:@selector(OE_HIDManagerDidRemoveDeviceNotification:) name:OEDeviceManagerDidRemoveDeviceHandlerNotification object:nil];

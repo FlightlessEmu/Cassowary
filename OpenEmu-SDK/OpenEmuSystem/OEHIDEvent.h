@@ -26,6 +26,7 @@
  */
 
 #import <Foundation/Foundation.h>
+#import <OpenEmuSystem/OEHID_iOS.h>
 
 #define OEGlobalEventsKey @"OEGlobalEventsKey"
 

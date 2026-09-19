@@ -37,11 +37,11 @@ static NSString *const OEEventTypeKey = @"OEEventType";
     return nil;
 }
 
-- (instancetype)initWithMouseEvent:(NSEvent *)anEvent withLocationInGameView:(OEIntPoint)aLocation;
+- (instancetype)initWithMouseEvent:(OEPlatformMouseEvent *)anEvent withLocationInGameView:(OEIntPoint)aLocation;
 {
     if((self = [super init]))
     {
-        _type = anEvent.type;
+        _type = OEPlatformMouseEventTypeForEvent(anEvent);
         _locationInGameView = aLocation;
     }
 

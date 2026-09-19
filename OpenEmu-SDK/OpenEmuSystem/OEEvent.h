@@ -24,14 +24,7 @@
   SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#import <TargetConditionals.h>
-#if TARGET_OS_OSX
-#import <Cocoa/Cocoa.h>
-#elif TARGET_OS_IOS
-#import <UIKit/UIKit.h>
-#else
-#error "Unsupported OS"
-#endif
+#import <OpenEmuBase/OEPlatform.h>
 
 #import <OpenEmuBase/OpenEmuBase.h>
 
@@ -39,13 +32,16 @@ NS_ASSUME_NONNULL_BEGIN
 
 @interface OEEvent : NSObject <NSSecureCoding>
 
-- (instancetype)initWithMouseEvent:(NSEvent *)event withLocationInGameView:(OEIntPoint)location NS_SWIFT_NAME(init(mouseEvent:locationInGameView:));
+/// Wraps a platform mouse event. macOS passes an `NSEvent`; iOS passes a
+/// `UIGestureRecognizer`-driven touch, which the app reduces to the same two
+/// facts the responder needs: where it happened and whether it went down or up.
+- (instancetype)initWithMouseEvent:(OEPlatformMouseEvent *)event withLocationInGameView:(OEIntPoint)location NS_SWIFT_NAME(init(mouseEvent:locationInGameView:));
 - (instancetype)init NS_UNAVAILABLE;
 
 @property (nonatomic, readonly) OEIntPoint locationInGameView;
-#if TARGET_OS_OSX
-@property (nonatomic, readonly) NSEventType type;
-#endif
+
+/// The kind of mouse event. On iOS this is derived from the touch phase.
+@property (nonatomic, readonly) OEPlatformMouseEventType type;
 
 @end
 

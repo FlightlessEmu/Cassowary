@@ -7,6 +7,11 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		D272EA7943DB486C93B79605 /* OECarbonKeyCodes_iOS.h in Headers */ = {isa = PBXBuildFile; fileRef = 756ADA7C8C8F470A89D25DA6 /* OECarbonKeyCodes_iOS.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		92B513B14ECA4A02998B318A /* OEHIDUsageTables_iOS.h in Headers */ = {isa = PBXBuildFile; fileRef = F8FB7716A6F8492186AD405A /* OEHIDUsageTables_iOS.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		009C521980B7466096AD95D8 /* OEHID_iOS.m in Sources */ = {isa = PBXBuildFile; fileRef = E65913599C42420CAFE32412 /* OEHID_iOS.m */; };
+		3FFDB07442F948B2B00815DA /* OEHID_iOS.h in Headers */ = {isa = PBXBuildFile; fileRef = B6AFCD908E764C6896D94FA4 /* OEHID_iOS.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		020F5406695D4672B74AC6BD /* OEPlatform.h in Headers */ = {isa = PBXBuildFile; fileRef = 3C87DC9A82624A7B838F995C /* OEPlatform.h */; settings = {ATTRIBUTES = (Public, ); }; };
 		0109BBA5209F25EB002419C1 /* OEDiffQueueTests.m in Sources */ = {isa = PBXBuildFile; fileRef = 0109BBA4209F25EB002419C1 /* OEDiffQueueTests.m */; };
 		0109BBA7209F25EB002419C1 /* OpenEmuBase.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C6772A261710A4BA00ED580A /* OpenEmuBase.framework */; };
 		011829A720ACA8AA0030B347 /* OEAudioBuffer.h in Headers */ = {isa = PBXBuildFile; fileRef = 011829A620ACA8AA0030B347 /* OEAudioBuffer.h */; settings = {ATTRIBUTES = (Public, ); }; };
@@ -150,6 +155,11 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		756ADA7C8C8F470A89D25DA6 /* OECarbonKeyCodes_iOS.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = OECarbonKeyCodes_iOS.h; sourceTree = "<group>"; };
+		F8FB7716A6F8492186AD405A /* OEHIDUsageTables_iOS.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = OEHIDUsageTables_iOS.h; sourceTree = "<group>"; };
+		E65913599C42420CAFE32412 /* OEHID_iOS.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = OEHID_iOS.m; sourceTree = "<group>"; };
+		B6AFCD908E764C6896D94FA4 /* OEHID_iOS.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = OEHID_iOS.h; sourceTree = "<group>"; };
+		3C87DC9A82624A7B838F995C /* OEPlatform.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = OEPlatform.h; sourceTree = "<group>"; };
 		0109BBA2209F25EB002419C1 /* OpenEmuBaseTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = OpenEmuBaseTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		0109BBA4209F25EB002419C1 /* OEDiffQueueTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = OEDiffQueueTests.m; sourceTree = "<group>"; };
 		011829A620ACA8AA0030B347 /* OEAudioBuffer.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = OEAudioBuffer.h; sourceTree = "<group>"; };
@@ -365,6 +375,7 @@
 		C6772A2F1710A4BA00ED580A /* OpenEmuBase */ = {
 			isa = PBXGroup;
 			children = (
+				3C87DC9A82624A7B838F995C /* OEPlatform.h */,
 				C6772A601710BD6200ED580A /* OpenEmuBase.h */,
 				C6772A611710BD6200ED580A /* OESystemResponderClient.h */,
 				C6772A621710BD6200ED580A /* OEGameCore.h */,
@@ -405,6 +416,10 @@
 		C6772A8E1710CD7E00ED580A /* OpenEmuSystem */ = {
 			isa = PBXGroup;
 			children = (
+				756ADA7C8C8F470A89D25DA6 /* OECarbonKeyCodes_iOS.h */,
+				F8FB7716A6F8492186AD405A /* OEHIDUsageTables_iOS.h */,
+				E65913599C42420CAFE32412 /* OEHID_iOS.m */,
+				B6AFCD908E764C6896D94FA4 /* OEHID_iOS.h */,
 				C6772B6B1710E21800ED580A /* OpenEmuSystem.h */,
 				C6772B6C1710E21800ED580A /* OESystemController.h */,
 				C6772B6D1710E21900ED580A /* OESystemController.m */,
@@ -549,6 +564,7 @@
 			isa = PBXHeadersBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				020F5406695D4672B74AC6BD /* OEPlatform.h in Headers */,
 				C6772A6E1710BD6200ED580A /* OpenEmuBase.h in Headers */,
 				C6772A721710BD6200ED580A /* OEAbstractAdditions.h in Headers */,
 				C6772A701710BD6200ED580A /* OEGameCore.h in Headers */,
@@ -574,6 +590,9 @@
 			isa = PBXHeadersBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D272EA7943DB486C93B79605 /* OECarbonKeyCodes_iOS.h in Headers */,
+				92B513B14ECA4A02998B318A /* OEHIDUsageTables_iOS.h in Headers */,
+				3FFDB07442F948B2B00815DA /* OEHID_iOS.h in Headers */,
 				C6772BC41710E28900ED580A /* NSResponder+OEHIDAdditions.h in Headers */,
 				C6772B781710E21900ED580A /* OpenEmuSystem.h in Headers */,
 				C6772B811710E21900ED580A /* OEBindingMap.h in Headers */,
@@ -814,6 +833,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				009C521980B7466096AD95D8 /* OEHID_iOS.m in Sources */,
 				C6772B7A1710E21900ED580A /* OESystemController.m in Sources */,
 				C6772B7C1710E21900ED580A /* OESystemResponder.mm in Sources */,
 				C6772B821710E21900ED580A /* OEBindingMap.m in Sources */,

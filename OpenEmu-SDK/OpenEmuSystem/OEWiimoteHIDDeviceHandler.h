@@ -24,7 +24,7 @@
   SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#import <Cocoa/Cocoa.h>
+#import <OpenEmuBase/OEPlatform.h>
 #import "OEHIDDeviceHandler.h"
 
 NS_ASSUME_NONNULL_BEGIN

@@ -28,8 +28,6 @@
 #import "OEHIDEvent.h"
 #import "OEDeviceHandler.h"
 #import "OEDeviceManager.h"
-#import <IOKit/hid/IOHIDUsageTables.h>
-#import <Carbon/Carbon.h>
 #import "OEHIDUsageToVK.h"
 #import "OEHIDDeviceHandler.h"
 #import "OEWiimoteHIDDeviceHandler.h"
@@ -58,7 +56,7 @@ static _OEHIDVirtualKeyCodeNameTriplet const * OEHIDUsageToTriplet(NSUInteger ch
     return ch <= 0xFF ? codes[ch] : &OEEmptyTriplet;
 }
 
-static _OEHIDVirtualKeyCodeNameTriplet const * OECGKeyCodeToTriplet(CGKeyCode ch)
+static _OEHIDVirtualKeyCodeNameTriplet const * OECGKeyCodeToTriplet(OEPlatformVirtualKeyCode ch)
 {
     static _OEHIDVirtualKeyCodeNameTriplet const *codes[0xff];
     
@@ -81,7 +79,7 @@ static _OEHIDVirtualKeyCodeNameTriplet const * OECGKeyCodeToTriplet(CGKeyCode ch
     return ch <= 0xFF ? codes[ch] : &OEEmptyTriplet;
 }
 
-const NSEventModifierFlags OENSEventModifierFlagFunctionKey = 1 << 24;
+const OEPlatformModifierFlags OENSEventModifierFlagFunctionKey = 1 << 24;
 
 static OEHIDEventType _OEHIDEventTypeFromIOHIDElementPageUsage(IOHIDElementRef elem, uint64_t page, uint64_t usage);
 
@@ -357,8 +355,10 @@ static inline BOOL _OEFloatEqual(CGFloat v1, CGFloat v2)
     OEHIDEventType          _type;
     NSTimeInterval          _timestamp;
     NSUInteger              _cookie;
+#if TARGET_OS_OSX
     CGEventRef              _keyboardEvent;
     NSEvent                *_cachedKeyboardEvent;
+#endif
 
     union {
         // Axis and Trigger events share the same structure.
@@ -395,14 +395,18 @@ static inline BOOL _OEFloatEqual(CGFloat v1, CGFloat v2)
 
 @implementation OEHIDEvent
 
+#if TARGET_OS_OSX
 static CGEventSourceRef _keyboardEventSource;
+#endif
 
 + (void)initialize
 {
     if (self != [OEHIDEvent class])
         return;
 
+#if TARGET_OS_OSX
     _keyboardEventSource = CGEventSourceCreate(kCGEventSourceStateHIDSystemState);
+#endif
 }
 
 + (BOOL)supportsSecureCoding
@@ -410,7 +414,7 @@ static CGEventSourceRef _keyboardEventSource;
     return YES;
 }
 
-+ (NSUInteger)keyCodeForVirtualKey:(CGCharCode)charCode
++ (NSUInteger)keyCodeForVirtualKey:(OEPlatformVirtualKeyCode)charCode
 {
     return OECGKeyCodeToTriplet(charCode)->hidCode;
 }
@@ -420,8 +424,11 @@ static CGEventSourceRef _keyboardEventSource;
     _OEHIDVirtualKeyCodeNameTriplet const *entry = OEHIDUsageToTriplet(hidCode);
     if (entry->string != nil)
         return entry->string;
-    CGKeyCode keyCode = entry->vkCode;
+    OEPlatformVirtualKeyCode keyCode = entry->vkCode;
 
+#if TARGET_OS_OSX
+    // Ask the current keyboard layout what this key prints. This is what makes
+    // the binding list show the key the user actually has, not the US layout.
     TISInputSourceRef currentKeyboard = TISCopyCurrentKeyboardInputSource();
     CFDataRef uchr = (CFDataRef)TISGetInputSourceProperty(currentKeyboard, kTISPropertyUnicodeKeyLayoutData);
     if(currentKeyboard != nil) CFRelease(currentKeyboard);
@@ -459,6 +466,11 @@ static CGEventSourceRef _keyboardEventSource;
             return [lowercaseString uppercaseString];
         }
     }
+#else
+    // iOS has no keyboard layout service. Use the US layout name from the
+    // table, which is what an external keyboard sends anyway.
+    (void)keyCode;
+#endif
 
     return [NSString stringWithFormat:NSLocalizedString(@"Keycode 0x%lX", @"Fallback for unknown keys"), hidCode];
 }
@@ -624,8 +636,10 @@ static CGEventSourceRef _keyboardEventSource;
     ret->_cookie = OEUndefinedCookie;
     ret->_data.key.keycode = keyCode;
     ret->_data.key.state = state;
+#if TARGET_OS_OSX
     CGKeyCode vk = OEHIDUsageToTriplet(keyCode)->vkCode;
     ret->_keyboardEvent = CGEventCreateKeyboardEvent(_keyboardEventSource, vk, state);
+#endif
 
     return ret;
 }
@@ -686,8 +700,10 @@ static CGEventSourceRef _keyboardEventSource;
 
 - (void)dealloc
 {
+#if TARGET_OS_OSX
     if (_keyboardEvent)
         CFRelease(_keyboardEvent);
+#endif
 }
 
 - (id)copyWithZone:(nullable NSZone *)zone
@@ -850,7 +866,9 @@ static CGEventSourceRef _keyboardEventSource;
         case OEHIDEventTypeKeyboard :
             _data.key.state = !!value;
             _data.key.isFunctionKeyPressed = aDeviceHandler.isFunctionKeyPressed;
+#if TARGET_OS_OSX
             _keyboardEvent = CGEventCreateKeyboardEvent(_keyboardEventSource, OEHIDUsageToTriplet(_data.key.keycode)->vkCode, _data.key.state);
+#endif
             break;
     }
 
@@ -990,6 +1008,7 @@ static CGEventSourceRef _keyboardEventSource;
     return [self type] == OEHIDEventTypeKeyboard && _data.key.keycode == kHIDUsage_KeyboardEscape;
 }
 
+#if TARGET_OS_OSX
 - (NSEvent *)keyboardEvent
 {
     NSAssert1([self type] == OEHIDEventTypeKeyboard, @"Invalid message sent to event \"%@\"", self);
@@ -999,26 +1018,45 @@ static CGEventSourceRef _keyboardEventSource;
 
     return _cachedKeyboardEvent;
 }
+#endif
 
 - (NSString *)characters
 {
+#if TARGET_OS_OSX
     NSEvent *event = [self keyboardEvent];
     return ([event type] == NSEventTypeKeyDown || [event type] == NSEventTypeKeyUp) ? [event characters] : @"";
+#else
+    // iOS keyboard events carry the HID usage directly; the display name comes
+    // from the same table the Mac build uses for its key names.
+    return [OEHIDEvent stringForHIDKeyCode:_data.key.keycode] ?: @"";
+#endif
 }
 
 - (NSString *)charactersIgnoringModifiers
 {
+#if TARGET_OS_OSX
     NSEvent *event = [self keyboardEvent];
     return ([event type] == NSEventTypeKeyDown || [event type] == NSEventTypeKeyUp) ? [event charactersIgnoringModifiers] : @"";
+#else
+    return [self characters];
+#endif
 }
 
-- (NSEventModifierFlags)modifierFlags
+- (OEPlatformModifierFlags)modifierFlags
 {
+#if TARGET_OS_OSX
     NSEventModifierFlags flags = [[self keyboardEvent] modifierFlags];
     if (_data.key.isFunctionKeyPressed)
         flags |= OENSEventModifierFlagFunctionKey;
 
     return flags;
+#else
+    OEPlatformModifierFlags flags = 0;
+    if (_data.key.isFunctionKeyPressed)
+        flags |= OENSEventModifierFlagFunctionKey;
+
+    return flags;
+#endif
 }
 
 - (NSUInteger)cookie
@@ -1030,7 +1068,7 @@ static CGEventSourceRef _keyboardEventSource;
 {
     NSString *subs = @"UNKNOWN TYPE";
 
-#define STATE_STR(state) (state == NSControlStateValueOn ? "On" : "Off")
+#define STATE_STR(state) (state == OEHIDEventStateOn ? "On" : "Off")
 #define DIT_STR(dir) (dir == OEHIDEventAxisDirectionNegative ? "Neg" : (dir == OEHIDEventAxisDirectionPositive ? "Pos" : "Nul"))
 
     switch(_type)
@@ -1552,6 +1590,7 @@ static NSString *OEHIDEventIsFunctionPressedKey  = @"OEHIDEventIsFunctionPressed
 
 @end
 
+#if TARGET_OS_OSX
 @implementation NSEvent (OEEventConversion)
 
 + (NSEvent *)eventWithKeyCode:(unsigned short)keyCode
@@ -1634,11 +1673,17 @@ static NSString *OEHIDEventIsFunctionPressedKey  = @"OEHIDEventIsFunctionPressed
 
 @end
 
+#endif
+
 @implementation NSNumber (OEEventConversion)
 
 - (NSString *)displayDescription
 {
+#if TARGET_OS_OSX
     return [NSEvent displayDescriptionForKeyCode:[self unsignedShortValue]];
+#else
+    return [OEHIDEvent stringForHIDKeyCode:[self unsignedIntegerValue]];
+#endif
 }
 
 @end

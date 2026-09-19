@@ -25,9 +25,8 @@
  */
 
 #import <Foundation/Foundation.h>
+#import <OpenEmuSystem/OEHID_iOS.h>
 
-#import <IOKit/hid/IOHIDLib.h>
-#import <IOKit/hid/IOHIDUsageTables.h>
 
 NS_ASSUME_NONNULL_BEGIN
 

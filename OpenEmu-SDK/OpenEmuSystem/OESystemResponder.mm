@@ -868,6 +868,9 @@ else dispatch_async(dispatch_get_main_queue(), blk); \
     if(key != nil) _OEBasicSystemResponderReleaseSystemKey(self, key, [key isAnalogic]);
 }
 
+#if TARGET_OS_OSX
+// Escape is the one key the responder chain still handles itself: it leaves
+// full screen. On iOS that is a gesture, so there is nothing to pass on.
 - (void)keyDown:(NSEvent *)theEvent
 {
     if(_handlesEscapeKey) return;
@@ -885,6 +888,7 @@ else dispatch_async(dispatch_get_main_queue(), blk); \
     if([characters length] > 0 && [characters characterAtIndex:0] == 0x1B)
         [super keyUp:theEvent];
 }
+#endif
 
 - (void)axisMoved:(OEHIDEvent *)anEvent
 {
@@ -1018,21 +1022,19 @@ else dispatch_async(dispatch_get_main_queue(), blk); \
     [_client performBlock:^{
         switch(event.type)
         {
-            case NSEventTypeLeftMouseDown :
-            case NSEventTypeLeftMouseDragged :
+            case OEPlatformMouseEventTypeLeftMouseDown :
                 [self mouseDownAtPoint:point];
                 break;
-            case NSEventTypeLeftMouseUp :
+            case OEPlatformMouseEventTypeLeftMouseUp :
                 [self mouseUpAtPoint];
                 break;
-            case NSEventTypeRightMouseDown :
-            case NSEventTypeRightMouseDragged :
+            case OEPlatformMouseEventTypeRightMouseDown :
                 [self rightMouseDownAtPoint:point];
                 break;
-            case NSEventTypeRightMouseUp :
+            case OEPlatformMouseEventTypeRightMouseUp :
                 [self rightMouseUpAtPoint];
                 break;
-            case NSEventTypeMouseMoved :
+            case OEPlatformMouseEventTypeMouseMoved :
                 [self mouseMovedAtPoint:point];
                 break;
             default :

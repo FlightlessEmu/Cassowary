@@ -24,9 +24,6 @@
   SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#import <IOKit/hid/IOHIDLib.h>
-#import <IOKit/hid/IOHIDUsageTables.h>
-#import <ForceFeedback/ForceFeedback.h>
 
 #import "OEDeviceHandler.h"
 #import "OEDeviceDescription.h"

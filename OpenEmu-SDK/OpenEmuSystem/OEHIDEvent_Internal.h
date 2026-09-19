@@ -7,8 +7,8 @@
 //
 
 #import <OpenEmuSystem/OpenEmuSystem.h>
+#import <OpenEmuSystem/OEHID_iOS.h>
 #import <OpenEmuBase/OEPropertyList.h>
-#import <IOKit/hid/IOHIDLib.h>
 
 @class OEDeviceHandler, OEHIDDeviceHandler, OEWiimoteHIDDeviceHandler;
 
@@ -24,7 +24,7 @@ extern NSString *NSStringFromIOHIDElement(IOHIDElementRef elem);
 extern OEHIDEventType OEHIDEventTypeFromIOHIDElement(IOHIDElementRef elem);
 extern BOOL OEIOHIDElementIsTrigger(IOHIDElementRef elem);
 
-extern const NSEventModifierFlags OENSEventModifierFlagFunctionKey;
+extern const OEPlatformModifierFlags OENSEventModifierFlagFunctionKey;
 
 enum {
     OEUndefinedCookie = 0ULL,
@@ -43,12 +43,14 @@ enum {
 @property(readonly) NSUInteger              cookie;
 @property(readonly) NSUInteger              usage;
 
+#if TARGET_OS_OSX
 @property(readonly) NSEvent                *keyboardEvent;
-@property(readonly) NSEventModifierFlags    modifierFlags;
+#endif
+@property(readonly) OEPlatformModifierFlags modifierFlags;
 @property(readonly, copy) NSString         *characters;
 @property(readonly, copy) NSString         *charactersIgnoringModifiers;
 
-+ (NSUInteger)keyCodeForVirtualKey:(CGCharCode)charCode;
++ (NSUInteger)keyCodeForVirtualKey:(OEPlatformVirtualKeyCode)charCode;
 + (instancetype)eventWithDeviceHandler:(OEDeviceHandler *)aDeviceHandler value:(IOHIDValueRef)aValue;
 + (instancetype)axisEventWithDeviceHandler:(OEDeviceHandler *)aDeviceHandler timestamp:(NSTimeInterval)timestamp axis:(OEHIDEventAxis)axis direction:(OEHIDEventAxisDirection)direction cookie:(NSUInteger)cookie;
 + (instancetype)axisEventWithDeviceHandler:(OEDeviceHandler *)aDeviceHandler timestamp:(NSTimeInterval)timestamp axis:(OEHIDEventAxis)axis value:(CGFloat)value cookie:(NSUInteger)cookie;
@@ -92,6 +94,7 @@ enum {
 
 @end
 
+#if TARGET_OS_OSX
 @interface NSEvent (OEEventConversion)
 + (NSEvent *)eventWithKeyCode:(unsigned short)keyCode;
 + (NSEvent *)eventWithKeyCode:(unsigned short)keyCode keyIsDown:(BOOL)keyDown;
@@ -101,6 +104,7 @@ enum {
 + (NSString *)displayDescriptionForKeyCode:(unsigned short)keyCode;
 @property(readonly) NSString *displayDescription;
 @end
+#endif
 
 @interface NSNumber (OEEventConversion)
 @property(readonly) NSString *displayDescription;

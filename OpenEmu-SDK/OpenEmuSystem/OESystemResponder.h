@@ -24,15 +24,7 @@
   SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#import <TargetConditionals.h>
-
-#if TARGET_OS_OSX
-#import <Cocoa/Cocoa.h>
-#elif TARGET_OS_IOS
-#import <UIKit/UIKit.h>
-#else
-#error "Unsupported platform"
-#endif
+#import <OpenEmuBase/OEPlatform.h>
 #import <OpenEmuBase/OEGameCore.h>
 #import <OpenEmuSystem/OEBindingMap.h>
 #import <OpenEmuSystem/OEKeyBindingDescription.h>

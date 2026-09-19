@@ -25,6 +25,10 @@
  */
 
 #import "OEHIDDeviceHandler.h"
+
+#if TARGET_OS_OSX
+#import <ForceFeedback/ForceFeedback.h>
+#endif
 #import "OEControllerDescription.h"
 #import "OEDeviceDescription.h"
 #import "OEControlDescription.h"
@@ -32,7 +36,6 @@
 #import "OEDeviceManager.h"
 #import "OEDeviceManager_Internal.h"
 #import "OEHIDDeviceParser.h"
-#import <IOKit/usb/USBSpec.h>
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -47,11 +50,13 @@ NS_ASSUME_NONNULL_BEGIN
     NSMutableDictionary<NSNumber *, OEHIDEvent *> *_latestEvents;
     NSString *_uniqueIdentifier;
 
+#if TARGET_OS_OSX
     //force feedback support
     FFDeviceObjectReference _ffDevice;
     FFEFFECT *_effect;
     FFCUSTOMFORCE *_customforce;
     FFEffectObjectReference _effectRef;
+#endif
 
     BOOL _isFunctionKeyPressed;
 }
@@ -106,8 +111,10 @@ NS_ASSUME_NONNULL_BEGIN
     IOHIDDeviceClose(_device, 0);
     CFRelease(_device);
 
+#if TARGET_OS_OSX
     if(_ffDevice != NULL)
         FFReleaseDevice(_ffDevice);
+#endif
 }
 
 - (CFRunLoopRef)eventRunLoop
@@ -262,6 +269,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (void)forceFeedbackWithStrongIntensity:(CGFloat)strongIntensity weakIntensity:(CGFloat)weakIntensity
 {
+#if TARGET_OS_OSX
     if(_ffDevice == NULL)
         [self enableForceFeedback];
 
@@ -275,19 +283,28 @@ NS_ASSUME_NONNULL_BEGIN
     _customforce->rglForceData[1] = weakIntensity * 10000;
     FFEffectSetParameters(_effectRef, _effect, FFEP_TYPESPECIFICPARAMS);
     FFEffectStart(_effectRef, 1, 0);
+#else
+    // Haptics on iOS are played through GameController, which does not expose
+    // per-axis intensities. Rumble is therefore not wired up there yet.
+#endif
 }
 
 - (BOOL)supportsForceFeedback
 {
+#if TARGET_OS_OSX
     io_service_t service = [self serviceRef];
     if(service == MACH_PORT_NULL)
         return NO;
 
     return FFIsForceFeedback(service) == FF_OK;
+#else
+    return NO;
+#endif
 }
 
 - (void)enableForceFeedback
 {
+#if TARGET_OS_OSX
     if(![self supportsForceFeedback])
         return;
 
@@ -334,16 +351,19 @@ NS_ASSUME_NONNULL_BEGIN
     _effect->lpvTypeSpecificParams = _customforce;
     _effect->lpEnvelope            = NULL;
     FFDeviceCreateEffect(_ffDevice, kFFEffectType_CustomForce_ID, _effect, &_effectRef);
+#endif
 }
 
 - (void)disableForceFeedback
 {
+#if TARGET_OS_OSX
     if(_ffDevice == NULL)
         return;
 
     FFDeviceReleaseEffect(_ffDevice, _effectRef);
     FFReleaseDevice(_ffDevice);
     _ffDevice = NULL;
+#endif
 }
 
 - (void)OE_setUpInitialEvents;

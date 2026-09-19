@@ -27,7 +27,7 @@
 #import "NSResponder+OEHIDAdditions.h"
 #import "OEHIDEvent.h"
 
-@implementation NSResponder (OEHIDAdditions)
+@implementation OEResponder (OEHIDAdditions)
 
 - (void)handleHIDEvent:(OEHIDEvent *)anEvent
 {

@@ -30,7 +30,6 @@
 #import "OEHIDDeviceHandler.h"
 #import "OEHIDEvent.h"
 #import "OEHIDEvent_Internal.h"
-#import <IOKit/hid/IOHIDUsageTables.h>
 
 NS_ASSUME_NONNULL_BEGIN
 

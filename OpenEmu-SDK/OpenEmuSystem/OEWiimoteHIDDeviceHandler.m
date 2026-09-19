@@ -25,7 +25,10 @@
  */
 
 #import "OEWiimoteHIDDeviceHandler.h"
+
+#if TARGET_OS_OSX
 #import <IOBluetooth/IOBluetooth.h>
+#endif
 #import "OEHIDEvent.h"
 #import "OEControllerDescription_Internal.h"
 
@@ -349,12 +352,17 @@ static void OE_wiimoteIOHIDReportCallback(void            *context,
 
 - (void)disconnect
 {
+#if TARGET_OS_OSX
+    // Dropping the Bluetooth link is what actually powers the remote off. iOS
+    // manages the connection itself, so the report teardown is all that is
+    // needed there.
     if ([[[NSBundle mainBundle] bundleIdentifier] isEqual:@"org.openemu.OpenEmu"]) {
         [self OE_disableReports];
         NSString *btAddress = (__bridge id)IOHIDDeviceGetProperty([self device], CFSTR(kIOHIDSerialNumberKey));
         IOBluetoothDevice *btDevice = [IOBluetoothDevice deviceWithAddressString:btAddress];
         [btDevice closeConnection];
     }
+#endif
     [super disconnect];
 }
 

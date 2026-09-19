@@ -151,7 +151,7 @@ NSString *const OEGlobalButtonRapidFireReset    = @"OEGlobalButtonRapidFireReset
      {
          OEHIDEvent *theEvent = [OEHIDEvent keyEventWithTimestamp:0
                                                           keyCode:[obj unsignedIntValue]
-                                                            state:NSControlStateValueOn
+                                                            state:OEHIDEventStateOn
                                                            cookie:OEUndefinedCookie];
 
          [bindings assignEvent:theEvent toKeyWithName:key];

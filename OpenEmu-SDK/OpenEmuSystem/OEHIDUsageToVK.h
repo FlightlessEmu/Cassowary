@@ -25,13 +25,21 @@
  SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#import <OpenEmuBase/OEPlatform.h>
+#import <OpenEmuSystem/OEHID_iOS.h>
+
+#if TARGET_OS_OSX
 #import <Carbon/Carbon.h>
-#import <IOKit/hid/IOHIDUsageTables.h>
+#else
+// iOS has no Carbon. The key codes are the same numbers, so the values are
+// defined in this header instead.
+#import <OpenEmuSystem/OECarbonKeyCodes_iOS.h>
+#endif
 
 typedef struct
 {
     NSUInteger hidCode;
-    CGKeyCode vkCode;
+    OEPlatformVirtualKeyCode vkCode;
     __unsafe_unretained NSString *string;
 } _OEHIDVirtualKeyCodeNameTriplet;
 

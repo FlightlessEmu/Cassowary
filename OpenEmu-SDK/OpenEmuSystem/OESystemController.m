@@ -81,9 +81,9 @@ NSString *const OEPrefControlsShowAllGlobalKeys = @"OEShowAllGlobalKeys";
     NSDictionary<NSString *, NSString *> *_regionalSystemNames;
     NSString *_systemType;
     NSArray<NSString *> *_systemMedia;
-    NSImage *_systemIcon;
-    NSImage *_controllerImage;
-    NSImage *_controllerImageMask;
+    OEPlatformImage *_systemIcon;
+    OEPlatformImage *_controllerImage;
+    OEPlatformImage *_controllerImageMask;
 }
 
 static NSMapTable<NSString *, OESystemController *> *_registeredSystemController;
@@ -278,7 +278,11 @@ static NSMapTable<NSString *, OESystemController *> *_registeredSystemController
     for(NSString *key in positions)
     {
         NSString *value = [localPos objectForKey:key] ? : [positions objectForKey:key];
+#if TARGET_OS_OSX
         converted[key] = [NSValue valueWithPoint:value != nil ? NSPointFromString(value) : NSZeroPoint];
+#else
+        converted[key] = [NSValue valueWithCGPoint:value != nil ? CGPointFromString(value) : CGPointZero];
+#endif
     }
 
     _controllerKeyPositions = [converted copy];
@@ -318,27 +322,27 @@ static NSMapTable<NSString *, OESystemController *> *_registeredSystemController
     return _systemMedia;
 }
 
-- (NSImage *)systemIcon
+- (OEPlatformImage *)systemIcon
 {
     if (!_systemIcon) {
         NSString *iconFileName = _bundle.infoDictionary[OESystemIconName];
-        _systemIcon = [_bundle imageForResource:iconFileName];
+        _systemIcon = OEPlatformImageNamedInBundle(_bundle, iconFileName);
     }
     return _systemIcon;
 }
 
-- (NSImage *)controllerImage;
+- (OEPlatformImage *)controllerImage;
 {
     if(_controllerImage == nil)
-        _controllerImage = [_bundle imageForResource:[self controllerImageName]];
+        _controllerImage = OEPlatformImageNamedInBundle(_bundle, [self controllerImageName]);
 
     return _controllerImage;
 }
 
-- (NSImage *)controllerImageMask;
+- (OEPlatformImage *)controllerImageMask;
 {
     if(_controllerImageMask == nil)
-        _controllerImageMask = [_bundle imageForResource:[self controllerImageMaskName]];
+        _controllerImageMask = OEPlatformImageNamedInBundle(_bundle, [self controllerImageMaskName]);
 
     return _controllerImageMask;
 }

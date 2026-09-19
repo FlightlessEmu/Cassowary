@@ -25,9 +25,7 @@
  */
 
 #import <Foundation/Foundation.h>
-#if TARGET_OS_OSX
-#import <Cocoa/Cocoa.h>
-#endif
+#import <OpenEmuBase/OEPlatform.h>
 #import <OpenEmuBase/OEGameCoreDisplayModes.h>
 
 

@@ -25,11 +25,7 @@
   SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#import <Cocoa/Cocoa.h>
-#import <Carbon/Carbon.h>
-#import <ForceFeedback/ForceFeedback.h>
-#import <IOKit/hid/IOHIDLib.h>
-#import <IOKit/hid/IOHIDUsageTables.h>
+#import <OpenEmuBase/OEPlatform.h>
 
 #import <OpenEmuSystem/NSResponder+OEHIDAdditions.h>
 #import <OpenEmuSystem/OEBindingMap.h>
