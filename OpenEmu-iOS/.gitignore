@@ -1,0 +1,5 @@
+# Build products
+Frameworks/*.framework
+PlugIns/Cores/*.oecoreplugin
+PlugIns/Systems/*.oesystemplugin
+OpenEmu-iOS.xcodeproj/

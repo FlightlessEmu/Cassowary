@@ -71,6 +71,21 @@ extension OSLog {
 #endif
     
     var _videoLayer: GameHelperMetalLayer!
+
+#if !canImport(AppKit)
+    /// The Metal layer the core renders into.
+    ///
+    /// On macOS this layer is published to the host app through a CAContext.
+    /// On iOS the helper runs in the same process as the host, so the layer is
+    /// handed over directly.
+    public var videoLayer: CAMetalLayer? { _videoLayer }
+
+    /// The responder that turns control presses into emulator buttons.
+    ///
+    /// The host app uses this on iOS because there are no HID devices to feed
+    /// the binding map; on-screen controls call straight into it.
+    public var systemResponder: OESystemResponder? { _systemResponder }
+#endif
     var _filterChain: FilterChain!
     var _screenshot: Screenshot!
     /// Only send 1 frame at once to the GPU.

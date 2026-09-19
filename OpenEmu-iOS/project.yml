@@ -1,0 +1,84 @@
+# XcodeGen definition for the OpenEmu iOS app.
+#
+# The macOS app is a large AppKit project. Rather than convert it, the iOS app
+# is defined here as a new target that reuses the same frameworks and plugins.
+#
+# Regenerate with:
+#   xcodegen generate --spec OpenEmu-iOS/project.yml --project OpenEmu-iOS
+#
+# The host app's Swift sources live under OpenEmu-iOS/Sources. Everything else
+# it needs comes from the SDK and OpenEmuKit.
+
+name: OpenEmu-iOS
+
+options:
+  bundleIdPrefix: org.openemu
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    CODE_SIGNING_REQUIRED: "NO"
+    CODE_SIGNING_ALLOWED: "NO"
+    ENABLE_USER_SCRIPT_SANDBOXING: "NO"
+
+targets:
+  OpenEmu-iOS:
+    type: application
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: Sources
+      # Info.plist is picked up through INFOPLIST_FILE; listing the directory
+      # would also copy it as a resource, which conflicts.
+      - path: Resources
+        buildPhase: resources
+        excludes:
+          - Info.plist
+
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: org.openemu.OpenEmu
+        PRODUCT_NAME: OpenEmu
+        INFOPLIST_FILE: Resources/Info.plist
+        TARGETED_DEVICE_FAMILY: "1,2"
+        SWIFT_OBJC_BRIDGING_HEADER: Sources/OpenEmu-iOS-Bridging-Header.h
+        ENABLE_BITCODE: "NO"
+        # The app embeds the cores and system plugins it can load.
+        LD_RUNPATH_SEARCH_PATHS:
+          - "@executable_path/Frameworks"
+          - "@executable_path/PlugIns/Cores"
+          - "@executable_path/PlugIns/Systems"
+        # Where the cores and system plugins are copied from.
+        PLUGINS_SOURCE_DIR: "$(SRCROOT)/../build/ios-plugins"
+        # OpenEmuKit's private module map lives in its source tree, not in the
+        # built framework, so Swift needs this search path to resolve it.
+        SWIFT_INCLUDE_PATHS:
+          - "$(SRCROOT)/../OpenEmuKit/Source"
+    postCompileScripts:
+      # Plugin bundles have to be copied as bundles, not flattened into the
+      # resources directory, which is what a plain resource entry would do.
+      - name: Copy PlugIns
+        script: |
+          set -e
+          DEST="${TARGET_BUILD_DIR}/${CONTENTS_FOLDER_PATH}/PlugIns"
+          mkdir -p "$DEST/Cores" "$DEST/Systems"
+          rsync -a --delete "${SRCROOT}/PlugIns/Cores/" "$DEST/Cores/"
+          rsync -a --delete "${SRCROOT}/PlugIns/Systems/" "$DEST/Systems/"
+    dependencies:
+      # The frameworks are built for iOS by Scripts/ios/build-ios.sh before
+      # this project is generated, then linked from the shared build directory.
+      - framework: Frameworks/OpenEmuBase.framework
+        embed: true
+        codeSign: false
+      - framework: Frameworks/OpenEmuSystem.framework
+        embed: true
+        codeSign: false
+      - framework: Frameworks/OpenEmuShaders.framework
+        embed: true
+        codeSign: false
+      - framework: Frameworks/OpenEmuKit.framework
+        embed: true
+        codeSign: false
