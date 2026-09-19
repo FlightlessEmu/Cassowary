@@ -61,6 +61,9 @@ final class GameSession: NSObject {
     private let systemPlugin: OESystemPlugin
     private let corePlugin: OECorePlugin
 
+    /// The system's on-screen controls, once they have been read.
+    var layout: ControllerLayout?
+
     /// The Metal layer the core renders into. Add it to a view to see the game.
     var videoLayer: CAMetalLayer? { helper.videoLayer }
 
@@ -148,6 +151,24 @@ final class GameSession: NSObject {
     }
 
     // MARK: - Input
+
+    /// Press a button by its name, for automated testing.
+    ///
+    /// Used by Scripts/ios/run-ios.sh to check that input reaches the core
+    /// without needing to drive the UI.
+    func pressButton(named name: String) {
+        guard let layout, let button = layout.allButtons.first(where: { $0.id == name }) else {
+            NSLog("[OE] no button named %@; have %@", name, layout?.allButtons.map(\.id).joined(separator: ",") ?? "none")
+            return
+        }
+        press(button.systemKey)
+    }
+
+    /// Release a button by its name.
+    func releaseButton(named name: String) {
+        guard let layout, let button = layout.allButtons.first(where: { $0.id == name }) else { return }
+        release(button.systemKey)
+    }
 
     func press(_ button: OESystemKey) {
         helper.systemResponder?.pressEmulatorKey(button)

@@ -199,9 +199,19 @@ struct GameView: View {
             }
             if let plugin {
                 layout = ControllerLayout(systemPlugin: plugin)
+                session.layout = layout
             }
             self.session = session
             session.start {}
+
+            // Automated test hook: hold a button so a screenshot can show
+            // whether the press reached the core.
+            if let button = UserDefaults.standard.string(forKey: "OETestHoldButton") {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                    NSLog("[OE] test: holding %@", button)
+                    session.pressButton(named: button)
+                }
+            }
         } catch {
             errorMessage = error.localizedDescription
         }
