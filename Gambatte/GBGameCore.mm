@@ -26,9 +26,9 @@
 
 #import "GBGameCore.h"
 #import <OpenEmuBase/OERingBuffer.h>
+#import <OpenEmuBase/OEPlatform.h>
 #import <OpenEmuBase/OEMemoryRegionDescriptor.h>
 #import "OEGBSystemResponderClient.h"
-#import <OpenGL/gl.h>
 
 #include <sstream>
 #include "gambatte.h"
@@ -260,12 +260,12 @@ static uint32_t gambatte_rc_read_memory(uint32_t address, uint8_t *buffer,
 
 - (GLenum)pixelFormat
 {
-    return GL_BGRA;
+    return OEPixelFormat_BGRA;
 }
 
 - (GLenum)pixelType
 {
-    return GL_UNSIGNED_INT_8_8_8_8_REV;
+    return OEPixelType_UNSIGNED_INT_8_8_8_8_REV;
 }
 
 # pragma mark - Audio
