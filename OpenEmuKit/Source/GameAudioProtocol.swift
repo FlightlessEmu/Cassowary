@@ -32,5 +32,5 @@ protocol GameAudioProtocol {
     func stopAudio()
     func pauseAudio()
     func resumeAudio()
-    func setOutputDeviceID(_ newOutputDeviceID: AudioDeviceID)
+    func setOutputDeviceID(_ newOutputDeviceID: OEPlatformAudioDeviceID)
 }

@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		7BE0389C51724A079FCE2E02 /* OEPlatformImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8BADDA6FABC468ABE48E10F /* OEPlatformImage.swift */; };
 		0518D6E824F32DD10037101D /* NSEvent+Combine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0518D6E724F32DD10037101D /* NSEvent+Combine.swift */; };
 		05201D652777C8CC0028CBE0 /* ShaderPresetStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05201D642777C8CC0028CBE0 /* ShaderPresetStore.swift */; };
 		05201D672777EA910028CBE0 /* OESystemShaderStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05201D662777EA910028CBE0 /* OESystemShaderStore.swift */; };
@@ -110,6 +111,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		B8BADDA6FABC468ABE48E10F /* OEPlatformImage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OEPlatformImage.swift; sourceTree = "<group>"; };
 		050A9A0924F9B26C00321847 /* Config.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.xcconfig; sourceTree = "<group>"; };
 		050A9A0B24F9B2B800321847 /* module.modulemap */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.module-map"; path = module.modulemap; sourceTree = "<group>"; };
 		050A9A0C24F9B2E900321847 /* QuartzCoreSPI.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = QuartzCoreSPI.h; sourceTree = "<group>"; };
@@ -317,6 +319,7 @@
 		05E6959324CA5E1100ACFB35 /* Source */ = {
 			isa = PBXGroup;
 			children = (
+				B8BADDA6FABC468ABE48E10F /* OEPlatformImage.swift */,
 				050A9A0E24F9B36400321847 /* Module */,
 				050A9A0A24F9B29300321847 /* OpenEmuKitPrivate */,
 				05E695C924CCD32900ACFB35 /* Classes */,
@@ -643,6 +646,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				7BE0389C51724A079FCE2E02 /* OEPlatformImage.swift in Sources */,
 				05EEF0F22707C875008A03DC /* ShaderPresetData.swift in Sources */,
 				05796B2728727F790007E415 /* MTLGameRenderer.swift in Sources */,
 				057E7FF2287630C000BC1C04 /* OpenEmuHelperApp.swift in Sources */,
@@ -787,11 +791,14 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MACOSX_DEPLOYMENT_TARGET = 10.14.4;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = macosx;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				TARGETED_DEVICE_FAMILY = "1,2";
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "XPC_WAIT_FOREVER DEBUG";
 				SWIFT_VERSION = 5.0;
 				VERSIONING_SYSTEM = "apple-generic";
@@ -851,10 +858,13 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MACOSX_DEPLOYMENT_TARGET = 10.14.4;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				SDKROOT = macosx;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				TARGETED_DEVICE_FAMILY = "1,2";
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_VERSION = 5.0;
 				VERSIONING_SYSTEM = "apple-generic";

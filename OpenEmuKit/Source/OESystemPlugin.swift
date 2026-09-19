@@ -149,8 +149,8 @@ public class OESystemPlugin: OEPlugin {
         return controller.systemMedia
     }
     
-    public var systemIcon: NSImage {
-        return controller?.systemIcon ?? NSImage()
+    public var systemIcon: OEPlatformImage {
+        return controller?.systemIcon ?? OEPlatformImage()
     }
     
     public var responderClass: AnyClass {

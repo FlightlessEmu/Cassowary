@@ -62,8 +62,8 @@ import AudioToolbox
      * @param mode Determines how and when shader effects are rendered.
      */
     func setEffectsMode(_ mode: OEGameCoreEffectsMode)
-    func setAudioOutputDeviceID(_ deviceID: AudioDeviceID)
-    func setOutputBounds(_ rect: NSRect)
+    func setAudioOutputDeviceID(_ deviceID: OEPlatformAudioDeviceID)
+    func setOutputBounds(_ rect: CGRect)
     func setBackingScaleFactor(_ newBackingScaleFactor: CGFloat)
     
     /// Controls whether the renderer should use a variable refresh rate.
@@ -90,10 +90,10 @@ import AudioToolbox
     func systemBindingsDidUnsetEvent(_ event: OEHIDEvent, forBinding bindingDescription: OEBindingDescription, playerNumber: UInt)
     
     /// Capture an image of the core's video display buffer, which includes all shader effects.
-    func captureOutputImage(completionHandler block: @escaping (NSBitmapImageRep) -> Void)
+    func captureOutputImage(completionHandler block: @escaping (OEPlatformImage) -> Void)
     
     /// Capture an image of the core's raw video display buffer with no effects.
-    func captureSourceImage(completionHandler block: @escaping (NSBitmapImageRep) -> Void)
+    func captureSourceImage(completionHandler block: @escaping (OEPlatformImage) -> Void)
 
     /// Pass stored RetroAchievements credentials to the helper process.
     ///

@@ -22,6 +22,11 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+// OpenGL and the CGL context API only exist on macOS. On iOS these files
+// compile to nothing, and OpenEmuHelperApp does not take the OpenGL renderer
+// path. Every core that ships for iOS uses the Metal bitmap renderer instead.
+#if canImport(OpenGL)
+
 import Foundation
 import OpenEmuBase
 import OpenGL.GLTypes
@@ -225,3 +230,5 @@ class BaseOpenGLGameRenderer: OpenGLGameRenderer {
         }
     }
 }
+
+#endif // canImport(OpenGL)

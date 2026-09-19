@@ -22,6 +22,10 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+// XPC is a macOS facility. On iOS the helper runs in the app's own process and
+// is driven by OEThreadGameCoreManager, so none of this is compiled.
+#if canImport(AppKit)
+
 import Foundation
 internal import OpenEmuSystem.OEDeviceManager
 internal import os.log
@@ -172,3 +176,5 @@ internal import os.log
         }
     }
 }
+
+#endif // canImport(AppKit)

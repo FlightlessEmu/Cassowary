@@ -22,6 +22,10 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+// XPC is a macOS facility. On iOS the helper runs in the app's own process and
+// is driven by OEThreadGameCoreManager, so none of this is compiled.
+#if canImport(AppKit)
+
 import Foundation
 
 @objc(OEXPCMatchMaking)
@@ -32,3 +36,5 @@ public protocol OEXPCMatchMaking {
     @objc(retrieveListenerEndpointForIdentifier:completionHandler:)
     func retrieveListenerEndpoint(forIdentifier identifier: String, completionHandler handler: @escaping (NSXPCListenerEndpoint) -> Void)
 }
+
+#endif // canImport(AppKit)

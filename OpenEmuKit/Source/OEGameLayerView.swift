@@ -22,6 +22,10 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+// AppKit views have no iOS equivalent. The iOS host app supplies its own game
+// view, so these compile to nothing there.
+#if canImport(AppKit)
+
 import Cocoa
 import QuartzCore
 
@@ -219,3 +223,5 @@ extension OEGameLayerView: NSViewLayerContentScaleDelegate {
         return true
     }
 }
+
+#endif // canImport(AppKit)

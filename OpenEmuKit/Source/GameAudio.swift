@@ -161,7 +161,8 @@ final public class GameAudio: GameAudioProtocol {
     
     // MARK: - Helpers
     
-    private var defaultAudioOutputDeviceID: AudioDeviceID {
+#if canImport(AppKit)
+    private var defaultAudioOutputDeviceID: OEPlatformAudioDeviceID {
         var addr = AudioObjectPropertyAddress(mSelector: kAudioHardwarePropertyDefaultOutputDevice,
                                               mScope: kAudioObjectPropertyScopeGlobal,
                                               mElement: kAudioObjectPropertyElementMaster)
@@ -170,6 +171,10 @@ final public class GameAudio: GameAudioProtocol {
         AudioObjectGetPropertyData(AudioObjectID(kAudioObjectSystemObject), &addr, 0, nil, &size, &deviceID)
         return deviceID
     }
+#else
+    /// iOS always plays to the system output, so there is nothing to look up.
+    private var defaultAudioOutputDeviceID: OEPlatformAudioDeviceID { 0 }
+#endif
     
     private func createNodes() {
         gen = AVAudioUnitGenerator(audioComponentDescription: .init(componentType: kAudioUnitType_Generator,
@@ -227,8 +232,8 @@ final public class GameAudio: GameAudioProtocol {
         engine.detach(gen!)
     }
     
-    public func setOutputDeviceID(_ newOutputDeviceID: AudioDeviceID) {
-        let id: AudioDeviceID
+    public func setOutputDeviceID(_ newOutputDeviceID: OEPlatformAudioDeviceID) {
+        let id: OEPlatformAudioDeviceID
         if newOutputDeviceID == 0 {
             id = defaultAudioOutputDeviceID
             isDefaultOutputDevice = true
@@ -239,14 +244,18 @@ final public class GameAudio: GameAudioProtocol {
         }
         
         engine.stop()
-        
+
+#if canImport(AppKit)
+        // Selecting an output device is a macOS feature. iOS routes to the
+        // system output and offers no choice.
         do {
             try engine.outputNode.auAudioUnit.setDeviceID(id)
         } catch {
             os_log(.error, log: .audio, "Unable to set output device ID %d: %{public}s",
                    id, error.localizedDescription)
         }
-        
+#endif
+
         connectNodes()
         
         if isRunning && !engine.isRunning {
@@ -255,7 +264,11 @@ final public class GameAudio: GameAudioProtocol {
         }
     }
     
-    var outputDeviceID: AudioDeviceID {
+    var outputDeviceID: OEPlatformAudioDeviceID {
+#if canImport(AppKit)
         isDefaultOutputDevice ? 0 : engine.outputNode.auAudioUnit.deviceID
+#else
+        0
+#endif
     }
 }

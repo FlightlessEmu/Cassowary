@@ -23,9 +23,16 @@
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 @import Foundation;
+
+// The remote-layer API is a private macOS facility. iOS has no equivalent and
+// does not need one: the helper runs inside the app there.
+#if TARGET_OS_OSX
 @import Quartz;
+#endif
 
 #include <stdint.h>
+
+#if TARGET_OS_OSX
 
 // https://chromium.googlesource.com/chromium/src/+/refs/heads/main/ui/base/cocoa/remote_layer_api.h
 
@@ -60,3 +67,5 @@ typedef uint32_t CGSConnectionID;
 CGSConnectionID CGSMainConnectionID(void);
 
 extern NSString * const kCAContextCIFilterBehavior;
+
+#endif /* TARGET_OS_OSX */

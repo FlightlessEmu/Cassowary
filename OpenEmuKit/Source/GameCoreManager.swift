@@ -101,7 +101,7 @@ extension GameCoreManager: OEGameCoreHelper {
         gameCoreHelper?.setEffectsMode(mode)
     }
     
-    public func setAudioOutputDeviceID(_ deviceID: AudioDeviceID) {
+    public func setAudioOutputDeviceID(_ deviceID: OEPlatformAudioDeviceID) {
         gameCoreHelper?.setAudioOutputDeviceID(deviceID)
     }
     
@@ -157,7 +157,7 @@ extension GameCoreManager: OEGameCoreHelper {
         gameCoreHelper?.changeDisplay(withMode: displayMode)
     }
 
-    public func setOutputBounds(_ rect: NSRect) {
+    public func setOutputBounds(_ rect: CGRect) {
         gameCoreHelper?.setOutputBounds(rect)
     }
 
@@ -224,7 +224,7 @@ extension GameCoreManager: OEGameCoreHelper {
         }
     }
     
-    public func captureOutputImage(completionHandler block: @escaping (NSBitmapImageRep) -> Void) {
+    public func captureOutputImage(completionHandler block: @escaping (OEPlatformImage) -> Void) {
         gameCoreHelper!.captureOutputImage { image in
             DispatchQueue.main.async {
                 block(image)
@@ -232,7 +232,7 @@ extension GameCoreManager: OEGameCoreHelper {
         }
     }
     
-    public func captureSourceImage(completionHandler block: @escaping (NSBitmapImageRep) -> Void) {
+    public func captureSourceImage(completionHandler block: @escaping (OEPlatformImage) -> Void) {
         gameCoreHelper!.captureSourceImage { image in
             DispatchQueue.main.async {
                 block(image)
@@ -272,9 +272,9 @@ extension GameCoreManager: OEGameCoreHelper {
 // MARK: - Synchronous image capture APIs
 
 extension GameCoreManager {
-    public func captureOutputImage() -> NSBitmapImageRep {
+    public func captureOutputImage() -> OEPlatformImage {
         let sem = DispatchSemaphore(value: 0)
-        var res: NSBitmapImageRep?
+        var res: OEPlatformImage?
         gameCoreHelper!.captureOutputImage { image in
             res = image
             sem.signal()
@@ -284,9 +284,9 @@ extension GameCoreManager {
         return res!
     }
     
-    public func captureSourceImage() -> NSBitmapImageRep {
+    public func captureSourceImage() -> OEPlatformImage {
         let sem = DispatchSemaphore(value: 0)
-        var res: NSBitmapImageRep?
+        var res: OEPlatformImage?
         gameCoreHelper!.captureSourceImage { image in
             res = image
             sem.signal()

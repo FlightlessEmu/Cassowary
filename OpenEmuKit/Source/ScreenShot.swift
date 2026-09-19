@@ -76,7 +76,7 @@ public class Screenshot {
                                    space: cs,
                                    bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue)!
         
-        ctx.setFillColor(.black)
+        ctx.setFillColor(CGColor(red: 0, green: 0, blue: 0, alpha: 1))
         ctx.fill(CGRect(x: 0, y: 0, width: 32, height: 32))
         return ctx.makeImage()!
     }()

@@ -36,7 +36,7 @@ extension OSLog {
     static let renderer = OSLog(subsystem: "org.openemu.OpenEmuKit", category: "renderer")
 }
 
-@objc public class OpenEmuHelperApp: NSResponder, NSApplicationDelegate {
+@objc public class OpenEmuHelperApp: OEPlatformResponder {
     @objc public var gameCoreOwner: OEGameCoreOwner!
     @objc public private(set) var gameCore: OEGameCore!
     @objc public private(set) var gameSystemResponderClientProtocol: Protocol!
@@ -48,8 +48,10 @@ extension OSLog {
     
     // Video
     var _gameRenderer: GameRenderer!
+#if canImport(OpenGL)
     var _openGLGameRenderer: OpenGLGameRenderer?
     var _surface: CoreVideoTexture!
+#endif
     var flipVertically: Bool = false
     
     // OE stuff
@@ -64,7 +66,9 @@ extension OSLog {
     
     var _currentShader: URL?
     
+#if canImport(OpenGL)
     var _gameVideoCAContext: CAContext!
+#endif
     
     var _videoLayer: GameHelperMetalLayer!
     var _filterChain: FilterChain!
@@ -175,7 +179,9 @@ extension OSLog {
         _videoLayer.device = _device
         _videoLayer.isOpaque = true
         _videoLayer.framebufferOnly = true
+#if canImport(AppKit)
         _videoLayer.displaySyncEnabled = true
+#endif
         
         let rendering = gameCore.gameCoreRendering
         switch rendering {
@@ -183,8 +189,12 @@ extension OSLog {
             _gameRenderer = setup2dVideo()
             
         case .openGL2, .openGL3:
+#if canImport(OpenGL)
             _openGLGameRenderer = setupOpenGLVideo()
             _gameRenderer       = _openGLGameRenderer
+#else
+            fatalError("This core needs an OpenGL renderer, which iOS does not provide.")
+#endif
         case .metal2:
             _gameRenderer = setup3dVideo()
             
@@ -209,25 +219,29 @@ extension OSLog {
         }
     }
     
+#if canImport(OpenGL)
     private func setupOpenGLVideo() -> OpenGLGameRenderer {
         precondition(gameCore.gameCoreRendering == .openGL2 || gameCore.gameCoreRendering == .openGL3)
         _surface = CoreVideoTexture(device: _device, metalPixelFormat: .bgra8Unorm)
-        
+
         if gameCore.gameCoreRendering == .openGL2 {
             return OpenGL2GameRenderer(withInteropTexture: _surface, gameCore: gameCore)
         } else {
             return OpenGL3GameRenderer(withInteropTexture: _surface, gameCore: gameCore)
         }
     }
+#endif
     
     private func setupCVBuffer() {
         let surfaceSize = gameCore.bufferSize
         let size = CGSize(width: CGFloat(surfaceSize.width), height: CGFloat(surfaceSize.height))
         
+#if canImport(OpenGL)
         if gameCore.gameCoreRendering != .bitmap && gameCore.gameCoreRendering != .metal2 {
             _surface.size = size
             flipVertically = _surface.metalTextureIsFlippedVertically
         }
+#endif
         
         _gameRenderer.update()
         let rect = gameCore.screenRect
@@ -244,17 +258,21 @@ extension OSLog {
         do {
             CATransaction.setDisableActions(true)
             defer { CATransaction.commit() }
-            
+
             // TODO: If there's a good default bounds, use that.
             _videoLayer.bounds = .init(x: 0, y: 0, width: Int(gameCore.bufferSize.width), height: Int(gameCore.bufferSize.height))
             _filterChain.drawableSize = _videoLayer.drawableSize
-            
+
+#if canImport(OpenGL)
+            // On macOS the video is rendered by this process and shown by the
+            // host app, so the layer is published through a CAContext. On iOS
+            // the helper runs inside the app and the layer is used directly.
             let connectionID = CGSMainConnectionID()
             _gameVideoCAContext = CAContext(cgsConnection: connectionID, options: [kCAContextCIFilterBehavior: "ignore"])
             _gameVideoCAContext.layer = _videoLayer
+            updateRemoteContextID(_gameVideoCAContext.contextId)
+#endif
         }
-        
-        updateRemoteContextID(_gameVideoCAContext.contextId)
     }
     
     // MARK: - Game Core methods
@@ -402,9 +420,11 @@ extension OSLog {
         gameCoreOwner.setScreenSize(newScreenSize, aspectSize: newAspectSize)
     }
     
+#if canImport(OpenGL)
     private func updateRemoteContextID(_ newContextID: CAContextID) {
         gameCoreOwner.setRemoteContextID(newContextID)
     }
+#endif
 }
 
 // MARK: - OEGameCoreHelper methods
@@ -459,13 +479,13 @@ extension OSLog {
         _effectsMode = mode
     }
     
-    public func setAudioOutputDeviceID(_ deviceID: AudioDeviceID) {
+    public func setAudioOutputDeviceID(_ deviceID: OEPlatformAudioDeviceID) {
         gameCore.perform {
             self._gameAudio.setOutputDeviceID(deviceID)
         }
     }
     
-    public func setOutputBounds(_ rect: NSRect) {
+    public func setOutputBounds(_ rect: CGRect) {
         if let _videoLayer = _videoLayer, _videoLayer.bounds != rect {
             CATransaction.begin()
             CATransaction.setDisableActions(true)
@@ -726,45 +746,53 @@ extension OSLog {
     
     // MARK: - OEGameCoreOwner image capture
     
-    public func captureOutputImage(completionHandler block: @escaping (NSBitmapImageRep) -> Void) {
+    public func captureOutputImage(completionHandler block: @escaping (OEPlatformImage) -> Void) {
         let gr      = _gameRenderer!
         let ss      = _screenshot!
         let chain   = _filterChain!
         let flipped = flipVertically
         gameCore.perform {
             let imgRef = ss.getCGImageFromOutput(gameRenderer: gr, filterChain: chain, flippedVertically: flipped)
-            let img    = NSBitmapImageRep(cgImage: imgRef)
-            block(img)
+            block(OEPlatformImage(cgImage: imgRef))
         }
     }
     
-    public func captureSourceImage(completionHandler block: @escaping (NSBitmapImageRep) -> Void) {
+    public func captureSourceImage(completionHandler block: @escaping (OEPlatformImage) -> Void) {
         let gr      = _gameRenderer!
         let ss      = _screenshot!
         let flipped = flipVertically
         gameCore.perform {
             let imgRef = ss.getCGImageFromGameRenderer(gr, flippedVertically: flipped)
-            let img    = NSBitmapImageRep(cgImage: imgRef)
-            block(img)
+            block(OEPlatformImage(cgImage: imgRef))
         }
     }
 }
 
 @objc extension OpenEmuHelperApp: OERenderDelegate {
     public func presentDoubleBufferedFBO() {
+#if canImport(OpenGL)
         _openGLGameRenderer?.presentDoubleBufferedFBO()
+#endif
     }
     
     public func willRenderFrameOnAlternateThread() {
+#if canImport(OpenGL)
         _openGLGameRenderer?.willRenderFrameOnAlternateThread()
+#endif
     }
     
     public func didRenderFrameOnAlternateThread() {
+#if canImport(OpenGL)
         _openGLGameRenderer?.didRenderFrameOnAlternateThread()
+#endif
     }
     
     public var presentationFramebuffer: Any? {
+#if canImport(OpenGL)
         _openGLGameRenderer?.presentationFramebuffer
+#else
+        nil
+#endif
     }
     
     public func willExecute() {
@@ -915,18 +943,25 @@ extension OSLog {
             }
             
             if _adaptiveSyncEnabled {
+                // NOTE:
+                // When a variable refresh rate display is configured with minimum and maximum
+                // refresh rates, and the game window is full-screen, we inform the variable
+                // refresh rate display about the desired frame rate of the game core to
+                // produce smooth animation.
+                //
+                // This information came from the "Optimize for variable refresh rate displays" WWDC21 talk
+                //
+                // `present(afterMinimumDuration:)` only exists on macOS. On iOS the
+                // display drives the pacing itself, so a plain present is used.
+#if canImport(AppKit)
                 if #available(macOS 10.15.4, *) {
-                    // NOTE:
-                    // When a variable refresh rate display is configured with minimum and maximum
-                    // refresh rates, and the game window is full-screen, we inform the variable
-                    // refresh rate display about the desired frame rate of the game core to
-                    // produce smooth animation.
-                    //
-                    // This information came from the "Optimize for variable refresh rate displays" WWDC21 talk
                     finalCB.present(drawable, afterMinimumDuration: 1.0 / gameCore.frameInterval)
                 } else {
                     finalCB.present(drawable)
                 }
+#else
+                finalCB.present(drawable)
+#endif
             } else {
                 finalCB.present(drawable)
             }
@@ -989,7 +1024,10 @@ extension OSLog {
         if !HardcoreModePolicy.allows(.fastForward, hardcoreEnabled: _hardcoreEnabled) { return }
         // Required so that _videoLayer.nextDrawable() vends frames faster than the display refresh rate
         // Fixes: https://github.com/OpenEmu/OpenEmu/issues/4780
+        // The property is macOS-only; iOS drives drawable pacing differently.
+#if canImport(AppKit)
         _videoLayer.displaySyncEnabled = !enable
+#endif
         gameCoreOwner.fastForwardGameplay(enable)
     }
 
