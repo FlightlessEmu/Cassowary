@@ -174,7 +174,13 @@ static inline OEPlatformImage * _Nullable OEPlatformImageNamedInBundle(NSBundle 
 #if TARGET_OS_OSX
     return [bundle imageForResource:name];
 #else
-    // The name may or may not carry an extension.
+    // Plugins ship their artwork as an asset catalog, which is compiled into
+    // Assets.car and looked up by name.
+    UIImage *image = [UIImage imageNamed:name inBundle:bundle compatibleWithTraitCollection:nil];
+    if(image != nil)
+        return image;
+
+    // Fall back to a loose file, in case a plugin ships plain PNGs.
     NSString *base = [name stringByDeletingPathExtension];
     NSString *ext  = [name pathExtension];
 
@@ -182,7 +188,6 @@ static inline OEPlatformImage * _Nullable OEPlatformImageNamedInBundle(NSBundle 
         ? [bundle URLForResource:base withExtension:ext]
         : [bundle URLForResource:base withExtension:nil];
 
-    // iOS assets are usually loose @1x/@2x/@3x PNGs rather than an .imageset.
     if(url == nil) {
         for(NSString *candidateExt in @[@"png", @"jpg", @"jpeg"]) {
             url = [bundle URLForResource:base withExtension:candidateExt];

@@ -33,13 +33,15 @@ struct LibraryView: View {
     @StateObject private var library = GameLibrary()
     @State private var playing: Game?
 
+    private let columns = [GridItem(.adaptive(minimum: 150, maximum: 220), spacing: 20)]
+
     var body: some View {
         NavigationStack {
             Group {
                 if library.games.isEmpty {
                     emptyState
                 } else {
-                    gameList
+                    grid
                 }
             }
             .navigationTitle("OpenEmu")
@@ -61,7 +63,7 @@ struct LibraryView: View {
         .onAppear {
             library.refresh()
 
-            // Used by Scripts/ios/run-ios.sh to boot a game without tapping.
+            // Used by Scripts/ios/test-ios.sh to boot a game without tapping.
             // Harmless in normal use: the flag is only set when passed on the
             // command line.
             if UserDefaults.standard.bool(forKey: "OEAutoPlayFirstGame"),
@@ -72,37 +74,25 @@ struct LibraryView: View {
         }
     }
 
-    private var gameList: some View {
-        List {
-            ForEach(library.games) { game in
-                Button {
-                    playing = game
-                } label: {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(game.title)
-                                .font(.body)
-                            if let system = game.systemName {
-                                Text(system)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                        Spacer()
-                        Image(systemName: "play.circle.fill")
-                            .font(.title2)
-                            .foregroundStyle(.tint)
+    private var grid: some View {
+        ScrollView {
+            LazyVGrid(columns: columns, spacing: 20) {
+                ForEach(library.games) { game in
+                    Button {
+                        playing = game
+                    } label: {
+                        GameTile(game: game)
                     }
-                }
-                .buttonStyle(.plain)
-                .swipeActions {
-                    Button("Delete", role: .destructive) {
-                        library.delete(game)
+                    .buttonStyle(.plain)
+                    .contextMenu {
+                        Button("Delete", role: .destructive) {
+                            library.delete(game)
+                        }
                     }
                 }
             }
+            .padding(20)
         }
-        .listStyle(.plain)
     }
 
     private var emptyState: some View {
@@ -114,106 +104,43 @@ struct LibraryView: View {
     }
 }
 
-/// Plays one game.
-struct GameView: View {
+/// One game in the library grid.
+private struct GameTile: View {
 
     let game: Game
-    let onClose: () -> Void
-
-    @State private var session: GameSession?
-    @State private var layout: ControllerLayout?
-    @State private var errorMessage: String?
-    @State private var isPaused = false
 
     var body: some View {
-        ZStack {
-            Color.black.ignoresSafeArea()
+        VStack(spacing: 10) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(.quaternary)
 
-            if let session, let layer = session.videoLayer, let layout {
-                GameLayerView(layer: layer) { bounds in
-                    session.updateDisplayBounds(bounds)
-                }
-                .ignoresSafeArea(edges: .horizontal)
-
-                OnScreenControls(layout: layout, session: session)
-                    .ignoresSafeArea(edges: .horizontal)
-            }
-
-            if let errorMessage {
-                ContentUnavailableView {
-                    Label("Could Not Start", systemImage: "exclamationmark.triangle")
-                } description: {
-                    Text(errorMessage)
-                } actions: {
-                    Button("Close", action: onClose)
+                if let icon = game.system?.icon {
+                    Image(uiImage: icon)
+                        .resizable()
+                        .scaledToFit()
+                        .padding(16)
+                } else {
+                    Image(systemName: "gamecontroller")
+                        .font(.system(size: 44))
+                        .foregroundStyle(.secondary)
                 }
             }
-        }
-        .statusBarHidden()
-        .persistentSystemOverlays(.hidden)
-        .overlay(alignment: .topLeading) {
-            controlsOverlay
-        }
-        .task {
-            startGame()
-        }
-        .onDisappear {
-            session?.stop()
-            session = nil
-        }
-    }
+            .aspectRatio(1, contentMode: .fit)
 
-    private var controlsOverlay: some View {
-        HStack(spacing: 16) {
-            Button {
-                onClose()
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.body.weight(.semibold))
-                    .padding(10)
-                    .background(.ultraThinMaterial, in: .circle)
-            }
+            VStack(spacing: 2) {
+                Text(game.title)
+                    .font(.subheadline.weight(.medium))
+                    .lineLimit(2)
+                    .multilineTextAlignment(.center)
+                    .foregroundStyle(.primary)
 
-            if let session {
-                Button {
-                    isPaused.toggle()
-                    session.setPaused(isPaused)
-                } label: {
-                    Image(systemName: isPaused ? "play.fill" : "pause.fill")
-                        .font(.body.weight(.semibold))
-                        .padding(10)
-                        .background(.ultraThinMaterial, in: .circle)
+                if let system = game.systemName {
+                    Text(system)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
             }
-        }
-        .padding()
-    }
-
-    private func startGame() {
-        do {
-            let session = try GameSession(romURL: game.url)
-            let plugin = OESystemPlugin.allPlugins.first {
-                $0.supportedTypeExtensions
-                    .map { $0.lowercased() }
-                    .contains(game.url.pathExtension.lowercased())
-            }
-            if let plugin {
-                layout = ControllerLayout(systemPlugin: plugin)
-                session.layout = layout
-            }
-            self.session = session
-            session.start {}
-
-            // Automated test hook: hold a button so a screenshot can show
-            // whether the press reached the core.
-            if let button = UserDefaults.standard.string(forKey: "OETestHoldButton") {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-                    NSLog("[OE] test: holding %@", button)
-                    session.pressButton(named: button)
-                }
-            }
-        } catch {
-            errorMessage = error.localizedDescription
         }
     }
 }

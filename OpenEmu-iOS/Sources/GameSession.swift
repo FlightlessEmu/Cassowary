@@ -44,6 +44,8 @@ final class GameSession: NSObject {
         case missingSystemPlugin(String)
         case missingCorePlugin(String)
         case couldNotLoadROM(String)
+        case saveStateFailed
+        case loadStateFailed
 
         var errorDescription: String? {
             switch self {
@@ -53,6 +55,10 @@ final class GameSession: NSObject {
                 return "No core found that can run \(id)."
             case .couldNotLoadROM(let reason):
                 return "The game could not be loaded: \(reason)"
+            case .saveStateFailed:
+                return "The save state could not be written."
+            case .loadStateFailed:
+                return "The save state could not be read."
             }
         }
     }
@@ -60,6 +66,7 @@ final class GameSession: NSObject {
     let helper = OpenEmuHelperApp()
     private let systemPlugin: OESystemPlugin
     private let corePlugin: OECorePlugin
+    private let romURL: URL
 
     /// The system's on-screen controls, once they have been read.
     var layout: ControllerLayout?
@@ -110,6 +117,7 @@ final class GameSession: NSObject {
 
         systemPlugin = system
         corePlugin = core
+        self.romURL = romURL
 
         let info = OEGameStartupInfo(
             romURL: romURL,
@@ -135,6 +143,12 @@ final class GameSession: NSObject {
     // MARK: - Lifecycle
 
     func start(completionHandler: @escaping () -> Void) {
+        // The macOS app drives this from its RetroAchievements preferences. The
+        // iOS app has no such screen yet, so hardcore mode is off: without it
+        // the core refuses to load save states, which is surprising when there
+        // is no achievement UI to explain why.
+        helper.setHardcoreEnabled(false)
+
         helper.setupEmulation { [weak self] _, _ in
             guard let self else { return }
             self.helper.startEmulation {
@@ -185,22 +199,37 @@ final class GameSession: NSObject {
 
     // MARK: - Save states
 
-    func saveState(to url: URL, completionHandler: @escaping (Result<Void, Error>) -> Void) {
-        helper.saveStateToFile(at: url) { success, error in
+    /// Where save states for a game live.
+    ///
+    /// One file per game, named after the ROM, next to the ROM in Documents so
+    /// it travels with the file when the user backs the folder up.
+    private static func saveStateURL(for romURL: URL) -> URL {
+        romURL.deletingPathExtension().appendingPathExtension("oesavestate")
+    }
+
+    private var saveStateURL: URL { Self.saveStateURL(for: romURL) }
+
+    /// Whether a save state exists for this game.
+    var hasSaveState: Bool {
+        FileManager.default.fileExists(atPath: saveStateURL.path)
+    }
+
+    func saveState(completionHandler: ((Result<Void, Error>) -> Void)? = nil) {
+        helper.saveStateToFile(at: saveStateURL) { success, error in
             if success {
-                completionHandler(.success(()))
+                completionHandler?(.success(()))
             } else {
-                completionHandler(.failure(error ?? SessionError.couldNotLoadROM("save failed")))
+                completionHandler?(.failure(error ?? SessionError.saveStateFailed))
             }
         }
     }
 
-    func loadState(from url: URL, completionHandler: @escaping (Result<Void, Error>) -> Void) {
-        helper.loadStateFromFile(at: url) { success, error in
+    func loadState(completionHandler: ((Result<Void, Error>) -> Void)? = nil) {
+        helper.loadStateFromFile(at: saveStateURL) { success, error in
             if success {
-                completionHandler(.success(()))
+                completionHandler?(.success(()))
             } else {
-                completionHandler(.failure(error ?? SessionError.couldNotLoadROM("load failed")))
+                completionHandler?(.failure(error ?? SessionError.loadStateFailed))
             }
         }
     }

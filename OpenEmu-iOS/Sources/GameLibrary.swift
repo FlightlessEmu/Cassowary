@@ -23,6 +23,7 @@
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import Foundation
+import UIKit
 import OpenEmuBase
 import OpenEmuSystem
 import OpenEmuKit
@@ -32,13 +33,28 @@ struct Game: Identifiable, Hashable {
     let id: URL
     let url: URL
     let title: String
-    let systemName: String?
+    let system: SystemInfo?
 
-    init(url: URL, systemName: String? = nil) {
+    var systemName: String? { system?.name }
+
+    init(url: URL, system: SystemInfo? = nil) {
         self.id = url
         self.url = url
         self.title = url.deletingPathExtension().lastPathComponent
-        self.systemName = systemName
+        self.system = system
+    }
+}
+
+/// What we know about a system, for display.
+struct SystemInfo: Hashable {
+    let identifier: String
+    let name: String
+    let icon: UIImage?
+
+    init(plugin: OESystemPlugin) {
+        identifier = plugin.systemIdentifier
+        name = plugin.systemName
+        icon = plugin.systemIcon as? UIImage
     }
 }
 
@@ -58,13 +74,28 @@ final class GameLibrary: ObservableObject {
         FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
     }
 
-    /// Every file extension any installed system plugin claims.
-    private static var supportedExtensions: Set<String> {
-        Set(OESystemPlugin.supportedTypeExtensions.map { $0.lowercased() })
+    /// The system plugin for each installed system, keyed by file extension.
+    ///
+    /// Built on each refresh rather than cached: plugins are discovered by
+    /// scanning the bundle, which only happens once the app has registered the
+    /// plugin classes.
+    private static func systemsByExtension() -> [String: SystemInfo] {
+        var map: [String: SystemInfo] = [:]
+        for plugin in OESystemPlugin.allPlugins {
+            let info = SystemInfo(plugin: plugin)
+            for ext in plugin.supportedTypeExtensions {
+                // The first plugin to claim an extension wins, so a more
+                // specific plugin can be given priority by installing it first.
+                if map[ext.lowercased()] == nil {
+                    map[ext.lowercased()] = info
+                }
+            }
+        }
+        return map
     }
 
     func refresh() {
-        let extensions = Self.supportedExtensions
+        let systems = Self.systemsByExtension()
         let fm = FileManager.default
 
         let found = (try? fm.contentsOfDirectory(
@@ -74,8 +105,10 @@ final class GameLibrary: ObservableObject {
         )) ?? []
 
         games = found
-            .filter { extensions.contains($0.pathExtension.lowercased()) }
-            .map { Game(url: $0) }
+            .compactMap { url -> Game? in
+                guard let system = systems[url.pathExtension.lowercased()] else { return nil }
+                return Game(url: url, system: system)
+            }
             .sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
     }
 

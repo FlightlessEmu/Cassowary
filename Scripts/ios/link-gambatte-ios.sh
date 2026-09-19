@@ -51,6 +51,9 @@ done
 
 # The bundle is a loadable Mach-O. iOS allows dlopen of bundles signed with the
 # app's own team, which is what the host app relies on.
+# Bundles have no rpath by default, so add the two that let the loader find the
+# SDK frameworks in the app's Frameworks directory: one for when the plugin
+# sits in PlugIns/<kind>/, and one for a flat layout.
 xcrun -sdk iphone${PLATFORM} clang++ \
   -bundle \
   -target "$TARGET" \
@@ -62,6 +65,8 @@ xcrun -sdk iphone${PLATFORM} clang++ \
   -framework Foundation \
   -framework Metal \
   -framework CoreGraphics \
+  -Wl,-rpath,@executable_path/../../Frameworks \
+  -Wl,-rpath,@loader_path/../../Frameworks \
   "$OBJECTS_DIR"/*.o
 
 # The Info.plist is the same one the macOS build uses, but Xcode normally

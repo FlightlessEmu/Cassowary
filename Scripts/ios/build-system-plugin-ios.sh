@@ -95,6 +95,10 @@ for source in "$SOURCE_DIR"/*.swift; do
   OBJECTS+=("$object")
 done
 
+# The plugin links the SDK frameworks, which live in the app's Frameworks
+# directory. Bundles have no rpath by default, so add the two that let the
+# loader find them: one for when the plugin sits in PlugIns/<kind>/ and one for
+# when it is loaded from Application Support during development.
 xcrun -sdk iphone${PLATFORM} clang \
   -bundle \
   -target "$TARGET" \
@@ -104,6 +108,8 @@ xcrun -sdk iphone${PLATFORM} clang \
   -framework OpenEmuBase \
   -framework OpenEmuSystem \
   -framework Foundation \
+  -Wl,-rpath,@executable_path/../../Frameworks \
+  -Wl,-rpath,@loader_path/../../Frameworks \
   "${OBJECTS[@]}"
 
 # Expand the Info.plist the way Xcode would.
@@ -150,7 +156,16 @@ for resource in "$SOURCE_DIR"/*.plist; do
   esac
   cp "$resource" "$OUT/"
 done
-[[ -d "$SOURCE_DIR/Images.xcassets" ]] && cp -R "$SOURCE_DIR/Images.xcassets" "$OUT/" 2>/dev/null || true
+
+# Asset catalogs have to be compiled, not copied: the app reads them through
+# NSBundle's asset API, which looks for Assets.car.
+if [[ -d "$SOURCE_DIR/Images.xcassets" ]]; then
+  xcrun actool "$SOURCE_DIR/Images.xcassets" \
+    --compile "$OUT" \
+    --platform "iphone${PLATFORM}" \
+    --minimum-deployment-target 17.0 \
+    --output-format human-readable-text >/dev/null
+fi
 
 print -- "built $OUT"
 file "$OUT/$PLUGIN"
