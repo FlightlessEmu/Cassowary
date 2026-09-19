@@ -41,6 +41,14 @@
 #ifndef OECarbonKeyCodes_iOS_h
 #define OECarbonKeyCodes_iOS_h
 
+// On macOS Carbon declares these, and its values win: this header exists only
+// so the same sources compile where Carbon does not exist. Defining them again
+// on macOS would shadow the real ones and break the ordering assumptions in
+// AppKit code that uses them.
+#if TARGET_OS_OSX
+// Carbon has them.
+#else
+
 #define kVK_ANSI_A                   0x00
 #define kVK_ANSI_S                   0x01
 #define kVK_ANSI_D                   0x02
@@ -161,5 +169,7 @@
 #define kVK_RightArrow               0x7C
 #define kVK_DownArrow                0x7D
 #define kVK_UpArrow                  0x7E
+
+#endif /* TARGET_OS_OSX */
 
 #endif /* OECarbonKeyCodes_iOS_h */

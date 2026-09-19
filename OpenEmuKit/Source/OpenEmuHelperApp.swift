@@ -761,24 +761,24 @@ extension OSLog {
     
     // MARK: - OEGameCoreOwner image capture
     
-    public func captureOutputImage(completionHandler block: @escaping (OEPlatformImage) -> Void) {
+    public func captureOutputImage(completionHandler block: @escaping (OEPlatformBitmapImage) -> Void) {
         let gr      = _gameRenderer!
         let ss      = _screenshot!
         let chain   = _filterChain!
         let flipped = flipVertically
         gameCore.perform {
             let imgRef = ss.getCGImageFromOutput(gameRenderer: gr, filterChain: chain, flippedVertically: flipped)
-            block(OEPlatformImage(cgImage: imgRef))
+            block(OEPlatformBitmapImage(platformCGImage: imgRef))
         }
     }
     
-    public func captureSourceImage(completionHandler block: @escaping (OEPlatformImage) -> Void) {
+    public func captureSourceImage(completionHandler block: @escaping (OEPlatformBitmapImage) -> Void) {
         let gr      = _gameRenderer!
         let ss      = _screenshot!
         let flipped = flipVertically
         gameCore.perform {
             let imgRef = ss.getCGImageFromGameRenderer(gr, flippedVertically: flipped)
-            block(OEPlatformImage(cgImage: imgRef))
+            block(OEPlatformBitmapImage(platformCGImage: imgRef))
         }
     }
 }

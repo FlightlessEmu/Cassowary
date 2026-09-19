@@ -27,6 +27,12 @@
 
 #import <OpenEmuBase/OEPlatform.h>
 
+#if TARGET_OS_OSX
+// Carbon supplies the virtual key codes the keyboard bindings use, and AppKit
+// code throughout the app relies on this header bringing them in.
+#import <Carbon/Carbon.h>
+#endif
+
 #import <OpenEmuSystem/NSResponder+OEHIDAdditions.h>
 #import <OpenEmuSystem/OEBindingMap.h>
 #import <OpenEmuSystem/OEBindingsController.h>

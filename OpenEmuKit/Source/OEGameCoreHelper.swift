@@ -90,10 +90,10 @@ import AudioToolbox
     func systemBindingsDidUnsetEvent(_ event: OEHIDEvent, forBinding bindingDescription: OEBindingDescription, playerNumber: UInt)
     
     /// Capture an image of the core's video display buffer, which includes all shader effects.
-    func captureOutputImage(completionHandler block: @escaping (OEPlatformImage) -> Void)
+    func captureOutputImage(completionHandler block: @escaping (OEPlatformBitmapImage) -> Void)
     
     /// Capture an image of the core's raw video display buffer with no effects.
-    func captureSourceImage(completionHandler block: @escaping (OEPlatformImage) -> Void)
+    func captureSourceImage(completionHandler block: @escaping (OEPlatformBitmapImage) -> Void)
 
     /// Pass stored RetroAchievements credentials to the helper process.
     ///

@@ -108,11 +108,18 @@ typedef uint16_t OEPlatformVirtualKeyCode;
 #endif
 
 /// The shared application object.
+///
+/// A function rather than a macro: a macro named after `NSApp` leaks into the
+/// Swift-generated header for any ObjC interface that mentions it, and there it
+/// collides with AppKit's own declaration.
+static inline id _Nonnull OEPlatformApplication(void)
+{
 #if TARGET_OS_OSX
-#define OEApplication NSApp
+    return NSApp;
 #else
-#define OEApplication UIApplication.sharedApplication
+    return UIApplication.sharedApplication;
 #endif
+}
 
 #pragma mark - Mouse events
 

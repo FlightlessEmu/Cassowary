@@ -41,6 +41,17 @@ public typealias OEPlatformImage = NSImage
 public typealias OEPlatformImage = UIImage
 #endif
 
+/// The bitmap type the screenshot APIs return.
+///
+/// `NSBitmapImageRep` on macOS, `UIImage` on iOS. It is separate from
+/// `OEPlatformImage` because the macOS screenshot code needs bitmap-specific
+/// behaviour — resizing and encoding — that `NSImage` does not provide.
+#if canImport(AppKit)
+public typealias OEPlatformBitmapImage = NSBitmapImageRep
+#else
+public typealias OEPlatformBitmapImage = UIImage
+#endif
+
 /// The responder root class the helper inherits from.
 ///
 /// macOS uses `NSResponder` so the helper can sit in the responder chain. iOS
@@ -69,13 +80,16 @@ public typealias OEPlatformAudioDeviceID = AudioDeviceID
 public typealias OEPlatformAudioDeviceID = UInt32
 #endif
 
-extension OEPlatformImage {
-    /// Build an image from a `CGImage`, whichever platform this is.
-    convenience init(cgImage: CGImage) {
+extension OEPlatformBitmapImage {
+    /// Build a bitmap from a `CGImage`, whichever platform this is.
+    ///
+    /// `NSBitmapImageRep` already has `init(cgImage:)`, so on macOS this is a
+    /// thin wrapper that exists to give both platforms the same call site.
+    convenience init(platformCGImage: CGImage) {
 #if canImport(AppKit)
-        self.init(cgImage: cgImage, size: .zero)
+        self.init(cgImage: platformCGImage)
 #else
-        self.init(cgImage: cgImage)
+        self.init(cgImage: platformCGImage)
 #endif
     }
 }

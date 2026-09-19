@@ -224,7 +224,7 @@ extension GameCoreManager: OEGameCoreHelper {
         }
     }
     
-    public func captureOutputImage(completionHandler block: @escaping (OEPlatformImage) -> Void) {
+    public func captureOutputImage(completionHandler block: @escaping (OEPlatformBitmapImage) -> Void) {
         gameCoreHelper!.captureOutputImage { image in
             DispatchQueue.main.async {
                 block(image)
@@ -232,7 +232,7 @@ extension GameCoreManager: OEGameCoreHelper {
         }
     }
     
-    public func captureSourceImage(completionHandler block: @escaping (OEPlatformImage) -> Void) {
+    public func captureSourceImage(completionHandler block: @escaping (OEPlatformBitmapImage) -> Void) {
         gameCoreHelper!.captureSourceImage { image in
             DispatchQueue.main.async {
                 block(image)
@@ -272,9 +272,9 @@ extension GameCoreManager: OEGameCoreHelper {
 // MARK: - Synchronous image capture APIs
 
 extension GameCoreManager {
-    public func captureOutputImage() -> OEPlatformImage {
+    public func captureOutputImage() -> OEPlatformBitmapImage {
         let sem = DispatchSemaphore(value: 0)
-        var res: OEPlatformImage?
+        var res: OEPlatformBitmapImage?
         gameCoreHelper!.captureOutputImage { image in
             res = image
             sem.signal()
@@ -284,9 +284,9 @@ extension GameCoreManager {
         return res!
     }
     
-    public func captureSourceImage() -> OEPlatformImage {
+    public func captureSourceImage() -> OEPlatformBitmapImage {
         let sem = DispatchSemaphore(value: 0)
-        var res: OEPlatformImage?
+        var res: OEPlatformBitmapImage?
         gameCoreHelper!.captureSourceImage { image in
             res = image
             sem.signal()
