@@ -26,6 +26,7 @@
  */
 
 #import <CoreGraphics/CoreGraphics.h>
+#include <math.h>
 
 #ifdef __cplusplus
 extern "C" {

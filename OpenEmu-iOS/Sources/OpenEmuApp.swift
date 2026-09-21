@@ -40,5 +40,22 @@ struct OpenEmuApp: App {
         WindowGroup {
             LibraryView()
         }
+        .commands {
+            SidebarCommands()
+            // The Settings scene does not exist on iOS (not even Catalyst),
+            // so Settings lives in-app and Cmd+, is wired to it by hand.
+            CommandGroup(replacing: .appSettings) {
+                Button("Settings…") {
+                    NotificationCenter.default.post(name: .showSettings, object: nil)
+                }
+                .keyboardShortcut(",", modifiers: .command)
+            }
+            CommandMenu("Library") {
+                Button("Refresh Library") {
+                    NotificationCenter.default.post(name: .refreshLibrary, object: nil)
+                }
+                .keyboardShortcut("r", modifiers: .command)
+            }
+        }
     }
 }

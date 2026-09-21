@@ -28,9 +28,15 @@ import OpenEmuSystem
 import OpenEmuKit
 
 /// Plays one game.
+///
+/// The core is resolved before this view appears (see `LibraryView.play`),
+/// so what you see in the title chip is what is running. A nil core means
+/// "no explicit pick" and the session falls back to the first installed core
+/// for the ROM's system — or reports which piece is missing.
 struct GameView: View {
 
     let game: Game
+    let core: OECorePlugin?
     let onClose: () -> Void
 
     @State private var session: GameSession?
@@ -63,12 +69,12 @@ struct GameView: View {
         }
         .statusBarHidden()
         .persistentSystemOverlays(.hidden)
-        .overlay(alignment: .topLeading) {
-            toolbar
-        }
         .overlay(alignment: .top) {
-            if let notice {
-                noticeBanner(notice)
+            VStack(spacing: 8) {
+                topBar
+                if let notice {
+                    noticeBanner(notice)
+                }
             }
         }
         .task {
@@ -80,48 +86,102 @@ struct GameView: View {
         }
     }
 
-    // MARK: - Toolbar
+    // MARK: - Top bar
 
-    private var toolbar: some View {
-        HStack(spacing: 12) {
-            circleButton("xmark") {
-                onClose()
+    /// Translucent control cluster: close, title chip, pause, save, more.
+    /// Glass materials keep it readable over any game, in both idioms.
+    private var topBar: some View {
+        HStack(spacing: 10) {
+            glassButton("xmark") { onClose() }
+                .accessibilityLabel("Close game")
+
+            Spacer()
+
+            if session != nil {
+                titleChip
             }
 
+            Spacer()
+
             if let session {
-                circleButton(isPaused ? "play.fill" : "pause.fill") {
+                glassButton(isPaused ? "play.fill" : "pause.fill") {
                     isPaused.toggle()
                     session.setPaused(isPaused)
                 }
+                .accessibilityLabel(isPaused ? "Resume" : "Pause")
+                .keyboardShortcut("p", modifiers: .command)
 
-                circleButton("square.and.arrow.down") {
+                glassButton("square.and.arrow.down") {
                     session.saveState { result in
                         report(result, success: "Saved")
                     }
                 }
+                .accessibilityLabel("Save state")
+                .keyboardShortcut("s", modifiers: .command)
 
-                if session.hasSaveState {
-                    circleButton("square.and.arrow.up") {
-                        session.loadState { result in
-                            report(result, success: "Loaded")
+                Menu {
+                    if session.hasSaveState {
+                        Button("Load State") {
+                            session.loadState { result in
+                                report(result, success: "Loaded")
+                            }
                         }
                     }
+                    Button("Reset Game") {
+                        session.resetEmulation()
+                    }
+                    Divider()
+                    Button("Close Game", role: .destructive) {
+                        onClose()
+                    }
+                } label: {
+                    Image(systemName: "ellipsis.circle.fill")
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(.white)
+                        .frame(width: 40, height: 40)
+                        .background(.ultraThinMaterial, in: .circle)
                 }
+                .accessibilityLabel("More actions")
             }
         }
-        .padding()
+        .padding(.horizontal)
+        .padding(.top, 8)
     }
 
-    private func circleButton(_ symbol: String, action: @escaping () -> Void) -> some View {
+    /// What is playing and what is running it.
+    private var titleChip: some View {
+        VStack(spacing: 1) {
+            Text(game.title)
+                .font(.subheadline.weight(.semibold))
+                .lineLimit(1)
+            if let subtitle = coreSubtitle {
+                Text(subtitle)
+                    .font(.caption2)
+                    .foregroundStyle(.white.opacity(0.75))
+                    .lineLimit(1)
+            }
+        }
+        .foregroundStyle(.white)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 7)
+        .background(.ultraThinMaterial, in: .capsule)
+    }
+
+    private var coreSubtitle: String? {
+        guard let session else { return game.systemName }
+        if let system = game.systemName {
+            return "\(system) · \(session.coreDisplayName)"
+        }
+        return session.coreDisplayName
+    }
+
+    private func glassButton(_ symbol: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: symbol)
                 .font(.body.weight(.semibold))
                 .foregroundStyle(.white)
                 .frame(width: 40, height: 40)
-                .background(.black.opacity(0.4), in: .circle)
-                .overlay {
-                    Circle().strokeBorder(.white.opacity(0.15))
-                }
+                .background(.ultraThinMaterial, in: .circle)
         }
     }
 
@@ -154,8 +214,7 @@ struct GameView: View {
             .foregroundStyle(.white)
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
-            .background(.black.opacity(0.65), in: .capsule)
-            .padding(.top, 8)
+            .background(.ultraThinMaterial, in: .capsule)
             .transition(.move(edge: .top).combined(with: .opacity))
     }
 
@@ -172,12 +231,19 @@ struct GameView: View {
                     .font(.title3.weight(.semibold))
                     .foregroundStyle(.white)
 
+                if let subtitle = coreSubtitle {
+                    Text(subtitle)
+                        .font(.subheadline)
+                        .foregroundStyle(.white.opacity(0.7))
+                }
+
                 Button("Resume") {
                     isPaused = false
                     session.setPaused(false)
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(.white.opacity(0.2))
+                .keyboardShortcut(.cancelAction)
             }
         }
         .transition(.opacity)
@@ -191,6 +257,7 @@ struct GameView: View {
         } actions: {
             Button("Close", action: onClose)
         }
+        .background(.background)
     }
 
     // MARK: - Starting
@@ -199,7 +266,7 @@ struct GameView: View {
         guard session == nil else { return }
 
         do {
-            let session = try GameSession(romURL: game.url)
+            let session = try GameSession(romURL: game.url, core: core)
 
             if let plugin = game.system.flatMap({ system in
                 OESystemPlugin.allPlugins.first { $0.systemIdentifier == system.identifier }
@@ -212,48 +279,43 @@ struct GameView: View {
             self.session = session
             session.start {}
 
-            // Automated test hooks. Both are only set on the command line, by
-            // Scripts/ios/test-ios.sh.
-            if let button = UserDefaults.standard.string(forKey: "OETestHoldButton") {
-                Task {
-                    try? await Task.sleep(for: .seconds(3))
-                    session.pressButton(named: button)
-                }
-            }
-
-            if UserDefaults.standard.bool(forKey: "OETestLoadState") {
-                Task {
-                    try? await Task.sleep(for: .seconds(3))
-                    session.loadState { result in
-                        if case .failure(let error) = result {
-                            NSLog("[OE] test load failed: %@", error.localizedDescription)
-                        }
-                    }
-                }
-            }
-
-            // Closing the game exercises the core's teardown, which is where a
-            // core that frees memory it does not own will crash.
-            let closeAfter = UserDefaults.standard.double(forKey: "OETestCloseAfter")
-            if closeAfter > 0 {
-                Task {
-                    try? await Task.sleep(for: .seconds(closeAfter))
-                    onClose()
-                }
-            }
-
-            if UserDefaults.standard.bool(forKey: "OETestSaveState") {
-                Task {
-                    try? await Task.sleep(for: .seconds(3))
-                    session.saveState { result in
-                        if case .failure(let error) = result {
-                            NSLog("[OE] test save failed: %@", error.localizedDescription)
-                        }
-                    }
-                }
-            }
+            runTestHooks(session)
         } catch {
             errorMessage = error.localizedDescription
         }
+    }
+
+    /// Automated test hooks, set on the command line by Scripts/ios/test-ios.sh.
+    private func runTestHooks(_ session: GameSession) {
+#if DEBUG
+        if let button = UserDefaults.standard.string(forKey: "OETestHoldButton") {
+            Task {
+                try? await Task.sleep(for: .seconds(3))
+                session.pressButton(named: button)
+            }
+        }
+
+        if UserDefaults.standard.bool(forKey: "OETestLoadState") {
+            Task {
+                try? await Task.sleep(for: .seconds(3))
+                session.loadState { result in
+                    if case .failure(let error) = result {
+                        NSLog("[OE] test load failed: %@", error.localizedDescription)
+                    }
+                }
+            }
+        }
+
+        if UserDefaults.standard.bool(forKey: "OETestSaveState") {
+            Task {
+                try? await Task.sleep(for: .seconds(3))
+                session.saveState { result in
+                    if case .failure(let error) = result {
+                        NSLog("[OE] test save failed: %@", error.localizedDescription)
+                    }
+                }
+            }
+        }
+#endif
     }
 }

@@ -26,13 +26,24 @@ import SwiftUI
 
 /// The on-screen gamepad.
 ///
-/// The layout is whatever the system plugin described: a d-pad on the left,
-/// the face buttons on the right, and anything else in between. That keeps it
-/// correct for every system without a per-system view.
+/// The directional style (Settings → Controls) picks one of three pads; the
+/// face buttons on the right stay the same. That keeps every style correct
+/// for every system without per-system views.
 struct OnScreenControls: View {
 
     let layout: ControllerLayout
     let session: GameSession
+
+    @AppStorage("OEDPadStyle") private var styleRaw: String = DPadStyle.buttons.rawValue
+    @AppStorage("OEButtonTheme") private var themeRaw: String = ButtonTheme.glass.rawValue
+
+    private var style: DPadStyle {
+        DPadStyle(rawValue: styleRaw) ?? .buttons
+    }
+
+    private var theme: ButtonTheme {
+        ButtonTheme(rawValue: themeRaw) ?? .glass
+    }
 
     var body: some View {
         GeometryReader { geometry in
@@ -53,25 +64,39 @@ struct OnScreenControls: View {
 
     // MARK: - D-pad
 
-    /// The directional buttons, laid out as a cross.
+    /// The directional control, in the style the user picked.
     ///
-    /// A system with no d-pad simply produces no cross; the buttons it does
-    /// have show up on the right instead.
+    /// A system with no d-pad shows nothing here either way; the buttons it
+    /// does have show up on the right instead.
+    @ViewBuilder
     private func directionalPad(buttonSize: CGFloat) -> some View {
         let buttons = directionalButtons
 
-        return ZStack {
-            if buttons.isEmpty {
-                Color.clear.frame(width: buttonSize * 3, height: buttonSize * 3)
-            } else {
-                VStack(spacing: 2) {
-                    directionalButton(buttons.up, symbol: "chevron.up", size: buttonSize)
-                    HStack(spacing: 2) {
-                        directionalButton(buttons.left, symbol: "chevron.left", size: buttonSize)
-                        directionalButton(buttons.right, symbol: "chevron.right", size: buttonSize)
-                    }
-                    directionalButton(buttons.down, symbol: "chevron.down", size: buttonSize)
+        if buttons.isEmpty {
+            Color.clear.frame(width: buttonSize * 3, height: buttonSize * 3)
+        } else {
+            switch style {
+            case .buttons:
+                splitButtonsPad(buttons, buttonSize: buttonSize)
+            case .dpad:
+                ClassicDPadView(up: buttons.up, down: buttons.down, left: buttons.left, right: buttons.right, session: session, theme: theme, size: buttonSize * 3)
+            case .stick:
+                ThumbstickView(up: buttons.up, down: buttons.down, left: buttons.left, right: buttons.right, session: session, theme: theme, diameter: buttonSize * 2.8)
+                    .frame(width: buttonSize * 3, height: buttonSize * 3)
+            }
+        }
+    }
+
+    /// The separate-button cross: four chevron buttons in a cross.
+    private func splitButtonsPad(_ buttons: DirectionalButtons, buttonSize: CGFloat) -> some View {
+        ZStack {
+            VStack(spacing: 2) {
+                directionalButton(buttons.up, symbol: "chevron.up", size: buttonSize)
+                HStack(spacing: 2) {
+                    directionalButton(buttons.left, symbol: "chevron.left", size: buttonSize)
+                    directionalButton(buttons.right, symbol: "chevron.right", size: buttonSize)
                 }
+                directionalButton(buttons.down, symbol: "chevron.down", size: buttonSize)
             }
         }
     }
@@ -79,9 +104,13 @@ struct OnScreenControls: View {
     private func directionalButton(_ button: ControllerButton?, symbol: String, size: CGFloat) -> some View {
         Group {
             if let button {
-                HoldableButton(button: button, session: session) { pressed in
+                HoldableButton(button: button, session: session, theme: theme) { pressed in
                     ControlPadShape()
-                        .fill(padFill(pressed: pressed))
+                        .fill(pressed ? theme.padActive() : theme.padBase())
+                        .overlay {
+                            ControlPadShape()
+                                .strokeBorder(theme.edge())
+                        }
                         .frame(width: size, height: size)
                         .overlay {
                             Image(systemName: symbol)
@@ -125,9 +154,13 @@ struct OnScreenControls: View {
             ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
                 HStack(spacing: 10) {
                     ForEach(row) { button in
-                        HoldableButton(button: button, session: session) { pressed in
+                        HoldableButton(button: button, session: session, theme: theme) { pressed in
                             Circle()
-                                .fill(actionFill(pressed: pressed))
+                                .fill(pressed ? theme.faceActive() : theme.faceBase())
+                                .overlay {
+                                    Circle()
+                                        .strokeBorder(theme.edge())
+                                }
                                 .frame(width: buttonSize, height: buttonSize)
                                 .overlay {
                                     Text(button.label)
@@ -154,15 +187,6 @@ struct OnScreenControls: View {
         }
     }
 
-    // MARK: - Styling
-
-    private func padFill(pressed: Bool) -> Color {
-        pressed ? .white.opacity(0.35) : .white.opacity(0.16)
-    }
-
-    private func actionFill(pressed: Bool) -> Color {
-        pressed ? .white.opacity(0.45) : .white.opacity(0.22)
-    }
 }
 
 /// The directional buttons a system has, if any.
@@ -187,17 +211,24 @@ private struct ControlPadShape: Shape {
 ///
 /// Games read the button state every frame, so the press and release have to be
 /// reported exactly, not just on tap. The drag gesture with no minimum distance
-/// is what gives us the touch-down callback.
+/// is what gives us the touch-down callback. The press animation (shrink for
+/// Glass/Neon, travel for Retro, glow for Neon) comes from the theme.
 private struct HoldableButton<Label: View>: View {
 
     let button: ControllerButton
     let session: GameSession
+    let theme: ButtonTheme
     @ViewBuilder let label: (Bool) -> Label
 
     @State private var isPressed = false
 
     var body: some View {
         label(isPressed)
+            .scaleEffect(isPressed ? theme.pressScale : 1)
+            .offset(y: isPressed ? theme.pressOffsetY : 0)
+            .shadow(color: isPressed ? theme.pressGlow() : .clear, radius: 12)
+            .shadow(color: .black.opacity(0.4), radius: 2, y: isPressed ? 1 : theme.restShadowY)
+            .animation(.spring(response: 0.16, dampingFraction: 0.75), value: isPressed)
             .contentShape(Rectangle())
             .gesture(
                 DragGesture(minimumDistance: 0)

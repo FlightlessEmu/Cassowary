@@ -68,6 +68,9 @@ final class GameSession: NSObject {
     private let corePlugin: OECorePlugin
     private let romURL: URL
 
+    /// The display name of the core running this game, for the UI.
+    let coreDisplayName: String
+
     /// The system's on-screen controls, once they have been read.
     var layout: ControllerLayout?
 
@@ -110,14 +113,28 @@ final class GameSession: NSObject {
     /// file and falls back to no filtering when there is not one.
     private static let noShaderURL = URL(fileURLWithPath: "/dev/null")
 
-    init(romURL: URL) throws {
+    convenience init(romURL: URL, core: OECorePlugin? = nil) throws {
         // Work out which system this ROM belongs to, then which core can run it.
         let system = try Self.systemPlugin(forROMAt: romURL)
-        let core = try Self.corePlugin(for: system)
 
+        // An explicitly picked core wins as long as it actually runs this
+        // system; otherwise fall back to the first installed core so a stale
+        // pick degrades to the same behavior as no pick.
+        let resolved: OECorePlugin
+        if let core, core.systemIdentifiers.contains(system.systemIdentifier) {
+            resolved = core
+        } else {
+            resolved = try Self.corePlugin(for: system)
+        }
+
+        try self.init(romURL: romURL, system: system, core: resolved)
+    }
+
+    private init(romURL: URL, system: OESystemPlugin, core: OECorePlugin) throws {
         systemPlugin = system
         corePlugin = core
         self.romURL = romURL
+        coreDisplayName = core.displayName
 
         let info = OEGameStartupInfo(
             romURL: romURL,
@@ -190,6 +207,15 @@ final class GameSession: NSObject {
 
     func release(_ button: OESystemKey) {
         helper.systemResponder?.releaseEmulatorKey(button)
+    }
+
+    /// Report an analog deflection, 0…1, for a direction on an analog control.
+    ///
+    /// Used by the thumbstick on systems with analog directions (N64 and
+    /// friends). Value 0 means centered, matching HID axis semantics — the
+    /// core reads it as released, so no press/release pairing is needed.
+    func moveAnalog(_ button: OESystemKey, value: CGFloat) {
+        helper.systemResponder?.changeAnalogEmulatorKey(button, value: value)
     }
 
     func setPaused(_ paused: Bool) {

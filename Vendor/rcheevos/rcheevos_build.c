@@ -3,6 +3,12 @@
  * Compile with -DRC_NO_THREADS=1.
  */
 
+/* rcheevos calls assert() in a few places without including <assert.h>, which
+ * happens to work on macOS because something else pulls it in first. Include
+ * it explicitly so the same code builds anywhere — on iOS one of the cores'
+ * include paths has an unrelated assert.h that shadows the system one. */
+#include <assert.h>
+
 /* Top-level */
 #include "src/rc_client.c"
 #include "src/rc_compat.c"
