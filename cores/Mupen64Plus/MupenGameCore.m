@@ -447,8 +447,21 @@ static void MupenGetKeys(int Control, BUTTONS *Keys)
     Keys->U_CBUTTON = current->_padData[Control][OEN64ButtonCUp];
     Keys->R_TRIG = current->_padData[Control][OEN64ButtonR];
     Keys->L_TRIG = current->_padData[Control][OEN64ButtonL];
-    Keys->X_AXIS = current->_xAxis[Control];
-    Keys->Y_AXIS = current->_yAxis[Control];
+
+    // The d-pad is digital and most games steer with the stick, so a d-pad
+    // direction pushes the stick as well. A game reading the d-pad still sees
+    // it, and one that only reads the stick — Mario Kart 64's steering, for
+    // one — answers the arrow keys and the on-screen d-pad. The sign matches
+    // didMoveN64JoystickDirection: up and right are positive.
+    int stickX = current->_xAxis[Control];
+    int stickY = current->_yAxis[Control];
+    if (current->_padData[Control][OEN64ButtonDPadRight]) stickX += 80;
+    if (current->_padData[Control][OEN64ButtonDPadLeft])  stickX -= 80;
+    if (current->_padData[Control][OEN64ButtonDPadUp])    stickY += 80;
+    if (current->_padData[Control][OEN64ButtonDPadDown])  stickY -= 80;
+
+    Keys->X_AXIS = (int8_t)MAX(-128, MIN(127, stickX));
+    Keys->Y_AXIS = (int8_t)MAX(-128, MIN(127, stickY));
 }
 
 static void MupenInitiateControllers (CONTROL_INFO ControlInfo)
