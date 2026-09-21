@@ -27,7 +27,9 @@
 #include "api/m64p_vidext.h"
 #include "api/vidext.h"
 #import "MupenGameCore.h"
+#if __has_include(<OpenGL/gl.h>)
 #import <OpenGL/gl.h>
+#endif
 
 #include <dlfcn.h>
 
@@ -115,10 +117,16 @@ EXPORT m64p_error CALL VidExt_ResizeWindow(int width, int height)
 EXPORT uint32_t CALL VidExt_GL_GetDefaultFramebuffer(void)
 {
     //GLint FBO = (GLint)[[self.renderDelegate presentationFramebuffer] integerValue];
+#if __has_include(<OpenGL/gl.h>)
     GLint defaultFramebuffer;
     glGetIntegerv(GL_FRAMEBUFFER_BINDING, &defaultFramebuffer);
 
     return defaultFramebuffer;
+#else
+    // iOS has no desktop OpenGL. Nothing on that path asks for the default
+    // framebuffer: the paraLLEl-RDP plugin hands over finished frames.
+    return 0;
+#endif
 }
 
 int VidExt_InFullscreenMode(void)

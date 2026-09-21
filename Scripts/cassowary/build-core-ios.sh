@@ -72,7 +72,21 @@ if [[ ! -d "$SDK_BUILD/OpenEmuBase.framework" ]]; then
 fi
 
 mkdir -p build
-python3 Scripts/cassowary/core-info.py "$CORE" > "$INFO_FILE" 2>/dev/null || {
+
+# Some cores ship several video plugins and only one can build off macOS.
+# Mupen64Plus pulls GLideN64 in through its target dependencies; the
+# paraLLEl-RDP plugin replaces it on this path.
+EXCLUDE_TARGETS=()
+case "$CORE" in
+  Mupen64Plus) EXCLUDE_TARGETS=(
+    --exclude-target mupen64plus-video-GLideN64
+    --exclude-target mupen64plus-video-angrylion-rdp-plus
+    --exclude-target mupen64plus-rsp-cxd4
+    --exclude-target mupen64plus-rsp-hle
+  ) ;;
+esac
+
+python3 Scripts/cassowary/core-info.py "$CORE" "${EXCLUDE_TARGETS[@]}" > "$INFO_FILE" 2>/dev/null || {
   print -u2 -- "error: could not read the project for $CORE"
   exit 1
 }
@@ -81,10 +95,11 @@ python3 Scripts/cassowary/core-info.py "$CORE" > "$INFO_FILE" 2>/dev/null || {
 # with `eval "$(python3 ... <<HEREDOC)"`. A heredoc inside a command
 # substitution confuses zsh's parser badly enough that it silently reassigns
 # PATH to the last value on the longest line.
-python3 Scripts/cassowary/core-info.py "$CORE" --shell > "$SHELL_FILE"
+python3 Scripts/cassowary/core-info.py "$CORE" "${EXCLUDE_TARGETS[@]}" --shell > "$SHELL_FILE"
 source "$SHELL_FILE"
 
 # Per-core additions the projects cannot state for an iOS build.
+LINK_FRAMEWORKS=()
 case "$CORE" in
   4DO)
     # libcue.h lives at libcue-1.4.0/src/libcue, below the stale
@@ -121,6 +136,16 @@ case "$CORE" in
     # genplusgx_source first restores Xcode's resolution — macros.h is the
     # only basename the two directories share.
     QUOTE_INCLUDES=("$PWD/cores/GenesisPlus/genplusgx_source" "${QUOTE_INCLUDES[@]}")
+    ;;
+  Mupen64Plus)
+    # Apple marks a few calls unavailable that this core uses:
+    # pthread_jit_write_protect_np in the JIT (iOS and Catalyst) and system()
+    # in the RSP's config launcher. These switches replace them with no-ops.
+    EXTRA_CFLAGS+=(-DMUPEN_NO_JIT_WRITE_PROTECT -DMUPEN_NO_SYSTEM)
+    if [[ "$PLATFORM" == catalyst ]]; then
+      # Compatibility/vidext.m still calls glGetIntegerv on Catalyst.
+      LINK_FRAMEWORKS+=(-framework OpenGL)
+    fi
     ;;
   MAME)
     # The project compiles MAMEGameCore.m as ObjC++
@@ -326,6 +351,7 @@ xcrun -sdk "$SDK_NAME" clang++ \
   -framework Foundation \
   -framework Metal \
   -framework CoreGraphics \
+  "${LINK_FRAMEWORKS[@]}" \
   "${LIB_FLAGS[@]}" \
   "${LINK_EXTRA[@]}" \
   -Wl,-rpath,@executable_path/../../Frameworks \
@@ -414,5 +440,28 @@ PY
 for lproj in "$PROJECT_DIR"/*.lproj; do
   [[ -d "$lproj" ]] && cp -R "$lproj" "$PLUGIN_DIR/" 2>/dev/null || true
 done
+
+# Mupen64Plus renders through the paraLLEl-RDP video plugin, which the core
+# loads from its own PlugIns directory at runtime. The plugin is built
+# separately (it needs MoltenVK and the parallel-rdp sources): see
+# build/spike/parallel-plugin/build.sh. Override the directory with
+# MUPEN_PARALLEL_PLUGIN_DIR when the plugin lives somewhere else.
+if [[ "$CORE" == Mupen64Plus ]]; then
+  case "$PLATFORM" in
+    simulator) MUPEN_PLUGIN_PLATFORM="simulator" ;;
+    catalyst)  MUPEN_PLUGIN_PLATFORM="catalyst" ;;
+    *)         MUPEN_PLUGIN_PLATFORM="macos" ;;
+  esac
+  MUPEN_PLUGIN_SRC="${MUPEN_PARALLEL_PLUGIN_DIR:-$PWD/build/spike/parallel-plugin/build-$MUPEN_PLUGIN_PLATFORM}"
+  if [[ -f "$MUPEN_PLUGIN_SRC/mupen64plus-video-parallel.dylib" ]]; then
+    mkdir -p "$PLUGIN_DIR/PlugIns"
+    cp -f "$MUPEN_PLUGIN_SRC/mupen64plus-video-parallel.dylib" "$PLUGIN_DIR/PlugIns/"
+    cp -f "$MUPEN_PLUGIN_SRC/mupen64plus-rsp-cxd4.dylib" "$PLUGIN_DIR/PlugIns/"
+    cp -f "$MUPEN_PLUGIN_SRC/libMoltenVK.dylib" "$PLUGIN_DIR/PlugIns/"
+    print -- "staged the paraLLEl-RDP video and RSP plugins"
+  else
+    print -u2 -- "warning: no paraLLEl-RDP plugins at $MUPEN_PLUGIN_SRC"
+  fi
+fi
 
 print -- "linked $PLUGIN_DIR"

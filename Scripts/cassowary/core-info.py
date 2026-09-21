@@ -394,6 +394,21 @@ def resolved_settings(project_path, target_name, core_dir):
         m = re.match(r'\s+([A-Za-z_][A-Za-z0-9_]*) = (.*)$', line)
         if m:
             settings[m.group(1)] = m.group(2)
+
+    # `-showBuildSettings` does not resolve [arch=...] conditionals, but some
+    # projects rely on them: Mupen64Plus sets NEW_DYNAREC=NEW_DYNAREC_ARM64
+    # that way, and the JIT sources will not compile without it. The build is
+    # arm64, so merge the arm64 variants in directly from the project file.
+    try:
+        text = open(os.path.join(project_path, 'project.pbxproj'), encoding='utf-8', errors='ignore').read()
+    except OSError:
+        text = ''
+    for m in re.finditer(r'"([A-Za-z_][A-Za-z0-9_]*)\[arch=arm64\]" = \(\n(.*?)\n\t+\);', text, re.S):
+        key = m.group(1)
+        entries = [e for e in re.findall(r'"([^"]*)"', m.group(2)) if e != '$(inherited)']
+        if entries:
+            settings[key] = (settings.get(key, '') + ' ' + ' '.join(entries)).strip()
+
     return settings
 
 
@@ -403,6 +418,11 @@ def main():
     parser.add_argument('--json', action='store_true', help='print JSON (the default)')
     parser.add_argument('--shell', action='store_true',
                         help='print shell variable assignments instead of JSON')
+    parser.add_argument('--exclude-target', action='append', default=[],
+                        help='skip the sources of a dependent target by name '
+                             '(repeatable). Used when a core ships several '
+                             'video plugins and only one can build on iOS, '
+                             'e.g. Mupen64Plus without GLideN64.')
     args = parser.parse_args()
 
     repo = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -439,9 +459,20 @@ def main():
 
     # Source paths are relative to the project directory. Targets the core
     # depends on contribute their sources too (see dependent_target_ids).
+    # Named excluded targets stay out (see --exclude-target).
+    excluded_ids = set()
+    for name in args.exclude_target:
+        excluded_id = find_target(text, name)
+        if excluded_id is None:
+            print(f'warning: --exclude-target {name}: no such target', file=sys.stderr)
+        else:
+            excluded_ids.add(excluded_id)
+
     sources = []
     seen_sources = set()
     for owner in [target_id] + dependent_target_ids(text, target_id):
+        if owner in excluded_ids:
+            continue
         for path, flags in phase_files(text, owner, 'PBXSourcesBuildPhase', file_paths):
             full = os.path.normpath(os.path.join(core_dir, path))
             if full in seen_sources:
