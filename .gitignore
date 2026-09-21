@@ -11,7 +11,6 @@ build/
 *.perspectivev3
 !default.perspectivev3
 *.xcworkspace
-!OpenEmu.xcworkspace
 !OpenEmu-metal.xcworkspace
 !default.xcworkspace
 xcuserdata/
@@ -22,7 +21,6 @@ profile
 *.moved-aside
 DerivedData/
 CodeSign.xcconfig
-/OpenEmu.xcworkspace/xcshareddata/swiftpm/Package.resolved
 Build/
 DerivedData/
 build_*.log
@@ -31,8 +29,6 @@ build_log*.txt
 *.tar.gz
 Releases/
 !Releases/*.md
-OpenEmu/OEGoogleDriveSecrets.swift
-OpenEmu/ScreenScraperDevCredentials.swift
 
 
 # Misc build artifacts committed to root
@@ -67,9 +63,6 @@ build.log
 *.pbxproj.bak
 
 cores/Flycast/flycast/core/deps/rcheevos/.build/
-
-# RA review DMG build output
-Scripts/retro-achievements/build/
 
 # iOS test output
 build/ios-test-shots/

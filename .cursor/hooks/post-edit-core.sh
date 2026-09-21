@@ -97,46 +97,20 @@ case "$rel_path" in
   *) echo '{}'; exit 0 ;;
 esac
 
-# Build the reminder. If a verify script is available, also run it and
-# include its current verdict so the agent knows whether the installed
-# plugin already matches a recent build.
-verify_status=""
-if [ -x "$REPO_ROOT/Scripts/verify-core-installed.sh" ]; then
-  for cfg in --debug --release; do
-    out=$("$REPO_ROOT/Scripts/verify-core-installed.sh" "$core" "$cfg" 2>&1) && code=0 || code=$?
-    case "$code" in
-      0) verify_status="${verify_status}  [${cfg#--}] OK ($(echo "$out" | head -1))"$'\n' ;;
-      1) verify_status="${verify_status}  [${cfg#--}] STALE — installed plugin does NOT match latest build. Run: ./Scripts/install-core.sh ${core} ${cfg}"$'\n' ;;
-      3) verify_status="${verify_status}  [${cfg#--}] no installed plugin yet (first run will install it)"$'\n' ;;
-      4) verify_status="${verify_status}  [${cfg#--}] no ${cfg#--} build of ${core} exists yet"$'\n' ;;
-      *) verify_status="${verify_status}  [${cfg#--}] verify script returned exit ${code}"$'\n' ;;
-    esac
-  done
-fi
-
+# Emit a reminder pointing at the iOS build-and-test loop.
 reminder=$(cat <<EOF
 You just edited a file in the **${core}** core plugin directory (${rel_path}).
 
-Before you (or the user) report any in-game test result for ${core}:
+Cores are built for iOS and staged into the app bundle. Before you (or the
+user) report any in-game test result for ${core}:
 
-  1. Build:   xcodebuild -workspace OpenEmu-metal.xcworkspace -scheme "OpenEmu + ${core}" -configuration <Debug|Release> -destination 'platform=macOS,arch=arm64' build
-              or:    ./Scripts/verify.sh --core ${core}            (Debug)
-                     ./Scripts/verify.sh --core ${core} --release  (Release)
+  1. Build it:  ./Scripts/cassowary/build-core-ios.sh ${core}
+  2. Rebuild and stage: ./Scripts/cassowary/build-cassowary.sh
+  3. Run it:    ./Scripts/cassowary/run-cassowary.sh
+     End to end: ./Scripts/cassowary/test-cassowary.sh
 
-  2. Install: ./Scripts/install-core.sh ${core} [--debug|--release]
-              (verify.sh --core does this automatically)
-
-  3. Preflight: ./Scripts/verify-core-installed.sh ${core} [--debug|--release]
-                Confirm it prints "OK" before claiming any test result.
-
-OpenEmu loads cores from ~/Library/Application Support/OpenEmu/Cores/, NOT
-from the build directory. Skipping step 2 means OpenEmu will load the
-previously installed plugin regardless of what you just built. This is the
-exact failure mode that wasted hours during the FCEU grey-screen
-investigation (#214).
-
-Current preflight status:
-${verify_status:-  (Scripts/verify-core-installed.sh not present yet; cannot check.)}
+The app loads plugins from its own bundle, not from build/. If you do not
+rebuild and restage, the app keeps running the previously staged plugin.
 EOF
 )
 

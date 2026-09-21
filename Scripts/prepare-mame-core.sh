@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Prepare the MAME headless source used by MAME/MAME.xcodeproj.
+# Prepare the MAME headless source used by cores/MAME/MAME.xcodeproj.
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(dirname "$SCRIPT_DIR")"
-MAME_DIR="$REPO_ROOT/MAME"
+MAME_DIR="$REPO_ROOT/cores/MAME"
 DEPS_DIR="$MAME_DIR/deps"
 SRC_DIR="$DEPS_DIR/mame"
 PATCH_FILE="$MAME_DIR/patches/mame-headless-clang21-apple.patch"

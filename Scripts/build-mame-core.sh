@@ -10,8 +10,8 @@ DD="$MAME_DIR/build/XcodeDerived"
 
 # MAME's project generator mishandles absolute paths containing spaces. The
 # repository often lives in "Open Emu", so transparently mirror the checkout to
-# a temporary no-space path, build there, then copy the derived products back so
-# install-core.sh and verify-core-installed.sh keep working from this checkout.
+# a temporary no-space path, build there, then copy the derived products back
+# into this checkout.
 if [[ -z "${MAME_BUILD_NO_REEXEC:-}" && "$REPO_ROOT" =~ [[:space:]] ]]; then
   TMP_ROOT="$(mktemp -d /tmp/openemu-mame-build.XXXXXX)"
   TMP_REPO="$TMP_ROOT/repo"

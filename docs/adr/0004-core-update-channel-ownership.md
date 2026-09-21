@@ -2,7 +2,11 @@
 
 ## Status
 
-Accepted
+Superseded — the core auto-update channel, appcasts, and `oecores.xml` were
+removed when the repo became Cassowary-only. The cores no longer ship a
+`SUFeedURL`. Kept here as a record of the decision.
+
+Accepted (at the time)
 
 ## Context
 

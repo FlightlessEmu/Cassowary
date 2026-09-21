@@ -1,33 +1,33 @@
-Run the autonomous verification floor on the current branch.
+Run the verification loop for the current change.
 
-This is the default check after any code change. Do not ask the user to test things manually until `/verify` has run and passed.
+This is the default check after any code change. Do not ask the user to test things manually until this has run.
 
 ## When to run which mode
 
 | Change touched | Command |
 |---|---|
-| Main app code (`OpenEmu/`, `OpenEmuKit/`, `OpenEmu-SDK/`, `OpenEmu-Shaders/`) | `./Scripts/verify.sh --launch` |
-| Code with coverage in `OpenEmu/OpenEmuTests/` | `./Scripts/verify.sh --launch --test` |
-| A core plugin (`Dolphin/`, `Flycast/`, `mGBA/`, etc.) | `./Scripts/verify.sh --core <CoreName>` (add `--release` for a Release-only bug) |
-| Both | run both, in that order |
+| App code (`Cassowary/Sources/`), SDK, Kit, Shaders | `./Scripts/cassowary/build-cassowary.sh` |
+| A core under `cores/` | `./Scripts/cassowary/build-core-ios.sh <CoreName>` |
+| The whole thing, then launch it in the Simulator | `./Scripts/cassowary/test-cassowary.sh` |
 | Scripts, CI, docs only | skip — no code to verify |
 
 ## What it does
 
-For the main app: build → static analyzer → plist lint → codesign verify on the built `.app`. With `--launch`: also launches the app for 5 seconds, scans the unified log for faults/errors, and checks `~/Library/Logs/DiagnosticReports/` for new crash reports.
+`build-cassowary.sh` builds, in order: the SDK frameworks, OpenEmuShaders, OpenEmuKit, the system plugins, any missing core plugins, and the app itself. Cores already present in `build/cassowary-plugins/` are skipped, so it is usually fast after the first run.
 
-For a core: builds the core scheme → plist lint → installs via `Scripts/install-core.sh` → verifies codesign on the installed plugin → final preflight via `Scripts/verify-core-installed.sh` to confirm the installed plugin's MD5 matches the build (the most expensive failure mode in this repo is testing against a stale installed plugin).
-
-You can also run the preflight by itself, sub-second, before reporting any in-game test result: `./Scripts/verify-core-installed.sh <CoreName> [--release]`.
+`test-cassowary.sh` runs the app end to end and checks it launched and stayed up.
 
 ## What you do with the output
 
-- Every check prints `PASS` or `FAIL` on a line of its own. The script exits with the count of failures.
-- If anything fails, fix it before declaring the task done. Do not push a branch with failing verification.
-- Warnings in the build log are surfaced even on a passing build — flag any new ones in your task report.
-- Only escalate to "please test this in a real game session" if `/verify --launch` passed and the change is one that genuinely needs in-game behavior to validate (input mapping, save states, rendering, audio sync, RA cheevos triggering, etc.).
+- `** BUILD SUCCEEDED **` means the app built. Anything else means stop and fix it.
+- Read the build log — do not pipe it through `tail`. New warnings are worth flagging even on a passing build.
+- Only escalate to "please test this in a real game session" if the build passed and the change is one that genuinely needs in-game behavior to validate (input mapping, save states, rendering, audio sync, RA cheevos triggering).
+
+## The one big footgun
+
+The app loads plugins from its own bundle (`Cassowary/PlugIns/`), not from `build/`. Building a core does not change what the app runs. Always rebuild and restage through `build-cassowary.sh` before claiming a test result, or you are testing the previously staged plugin.
 
 ## What you do not do
 
-- Do not ask the user to launch the app, check the console, look at crash reports, or run `codesign` themselves. Run `/verify` and report what it found.
-- Do not pipe `verify.sh` through `tail -N` — it is designed to be terse and you should read all of it.
+- Do not ask the user to launch the app or read logs for you. Run the build and the Simulator yourself.
+- Do not claim a core works because it compiled. Compiling and running are different things.

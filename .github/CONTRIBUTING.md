@@ -24,42 +24,26 @@ Not sure where to start? Open a Discussion in the Q&A category and say what you'
 
 ### Requirements
 
-- macOS 11.0 (Big Sur) or later — macOS 14 (Sonoma) or later recommended
-- Xcode with the latest stable toolchain, including the Metal toolchain
-- Apple Silicon Mac (M1 or later) — this fork does not target Intel
-- No additional Homebrew dependencies required for the main app
+- macOS with Xcode (latest stable), including the Metal toolchain
+- Apple Silicon Mac (M1 or later)
+- [XcodeGen](https://github.com/yonaskolb/XcodeGen) (`brew install xcodegen`) — the app project is generated from `Cassowary/project.yml`
 
 ### Steps
 
 ```bash
 # 1. Fork and clone (cores are tracked in-repo — there are no submodules to fetch)
-git clone https://github.com/YOUR_USERNAME/OpenEmu-Silicon.git
-cd OpenEmu-Silicon
+git clone <your-fork-url>
+cd Cassowary
 
-# 2. Copy credential stubs (required — real credentials are never committed)
-cp OpenEmu/ScreenScraperDevCredentials.template.swift OpenEmu/ScreenScraperDevCredentials.swift
-cp OpenEmu/OEGoogleDriveSecrets.template.swift OpenEmu/OEGoogleDriveSecrets.swift
+# 2. Build the app and everything it loads (frameworks, plugins, cores)
+./Scripts/cassowary/build-cassowary.sh
 
-# 3. Open the workspace (not the .xcodeproj)
-open OpenEmu-metal.xcworkspace
+# 3. Run it in the Simulator
+./Scripts/cassowary/run-cassowary.sh
 ```
 
-Select the **OpenEmu** scheme and build for **My Mac**, or verify from the command line:
-
-```bash
-xcodebuild build \
-  -workspace OpenEmu-metal.xcworkspace \
-  -scheme OpenEmu \
-  -configuration Debug \
-  -destination 'platform=macOS,arch=arm64' \
-  CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
-```
-
-Or use the project's verify script, which also runs a codesign check:
-
-```bash
-./Scripts/verify.sh
-```
+The first build takes a while because it builds every core. Later runs only
+build what is missing.
 
 ### Common Setup Issues
 
@@ -71,9 +55,7 @@ Or use the project's verify script, which also runs a codesign check:
 
 **Missing Metal toolchain:** Some command-line builds may fail with misleading errors from subprojects or external dependencies if the Metal toolchain is not installed. Make sure the Metal toolchain is included in your Xcode installation.
 
-### Worktree builds
-
-If you're working in a git worktree, use `./Scripts/build-for-worktree.sh` and `./Scripts/verify.sh --worktree`. Plain `xcodebuild` will break permission persistence between builds. See [docs/worktree-workflow.md](../docs/worktree-workflow.md) for the full workflow.
+**Missing XcodeGen:** The app project is generated. If `xcodegen` is not installed, run `brew install xcodegen`.
 
 ---
 
@@ -88,7 +70,7 @@ If you're working in a git worktree, use `./Scripts/build-for-worktree.sh` and `
 
 ### PR Checklist
 
-- [ ] Builds cleanly on Apple Silicon with no new warnings (`./Scripts/verify.sh`)
+- [ ] Builds cleanly with no new warnings (`./Scripts/cassowary/build-cassowary.sh`)
 - [ ] Tested the affected core or system with at least one game
 - [ ] Cores updated as plain tracked files (cores are not submodules)
 - [ ] AI tool use disclosed in PR description if applicable

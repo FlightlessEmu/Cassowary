@@ -39,15 +39,10 @@ jobs:
           languages: ${{ matrix.language }}
           build-mode: manual
 
-      - name: Generate credentials stubs
-        run: |
-          cp OpenEmu/ScreenScraperDevCredentials.template.swift OpenEmu/ScreenScraperDevCredentials.swift
-          cp OpenEmu/OEGoogleDriveSecrets.template.swift OpenEmu/OEGoogleDriveSecrets.swift
-
-      - name: Build
+      - name: Build the engine
         run: |
           xcodebuild -workspace "OpenEmu-metal.xcworkspace" \
-            -scheme "OpenEmu" \
+            -scheme "OpenEmuKit" \
             -configuration Release \
             -sdk macosx \
             -arch arm64 \

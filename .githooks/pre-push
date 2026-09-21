@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
-# .githooks/pre-push — lightweight advisory before any push reaches origin.
+# .githooks/pre-push — fast advisory check before a push reaches origin.
 #
-# Does NOT run Scripts/verify.sh. Build verification runs on GitHub CI
-# (build-check.yml) on every pull request — running a local build here too
-# was redundant and caused repeated "database is locked" failures from
-# concurrent xcodebuild invocations.
+# Runs Scripts/check-core-sources.sh, which is seconds long and needs no
+# build toolchain: it catches a flattened core that was committed without
+# its vendored upstream source. That regression silently breaks a core
+# build, so it is worth blocking a push over.
 #
-# This hook checks whether ./Scripts/verify.sh was run on the current code
-# during this session. If it was, it says so. If not, it prints a reminder
-# and lets the push through anyway — CI is the build gate.
+# The slow build/test loop is NOT run here:
+#   ./Scripts/cassowary/build-cassowary.sh
+#   ./Scripts/cassowary/test-cassowary.sh
 #
 # Bypass: git push --no-verify  or  SKIP_VERIFY=1 git push
 #
@@ -23,17 +23,12 @@ if [ "${SKIP_VERIFY:-0}" = "1" ]; then
   exit 0
 fi
 
-STAMP_FILE=$(git rev-parse --git-path verify-passed 2>/dev/null || true)
-TREE_SHA=$(git rev-parse HEAD^{tree} 2>/dev/null || echo "")
-
-if [ -n "$STAMP_FILE" ] && [ -f "$STAMP_FILE" ] && [ -n "$TREE_SHA" ]; then
-  STAMPED_SHA=$(cat "$STAMP_FILE" 2>/dev/null || echo "")
-  if [ "$STAMPED_SHA" = "$TREE_SHA" ] && git diff --quiet && git diff --cached --quiet; then
-    echo "[pre-push] verify.sh passed for this code — push allowed"
-    exit 0
+if [ -x "./Scripts/check-core-sources.sh" ]; then
+  if ! ./Scripts/check-core-sources.sh >/dev/null 2>&1; then
+    echo "[pre-push] check-core-sources.sh failed — a core is missing vendored source."
+    echo "[pre-push] Run ./Scripts/check-core-sources.sh to see which one."
+    exit 1
   fi
 fi
 
-echo "[pre-push] Note: verify.sh has not been run on this code."
-echo "[pre-push] Build check will run on GitHub CI. To verify locally: ./Scripts/verify.sh"
 exit 0

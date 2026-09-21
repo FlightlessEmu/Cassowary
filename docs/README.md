@@ -7,8 +7,7 @@ you're new to the repository.
 
 | Doc | What's in it |
 |---|---|
-| [PROJECT_LAYOUT.md](PROJECT_LAYOUT.md) | Map of the repository: what lives where, and why the top level is flat. |
-| [worktree-workflow.md](worktree-workflow.md) | Building and verifying in a git worktree. |
+| [PROJECT_LAYOUT.md](PROJECT_LAYOUT.md) | Map of the repository: what lives where. |
 | [TRIAGE_GUIDE.md](TRIAGE_GUIDE.md) | How to triage issues. |
 | [progress-report-template.md](progress-report-template.md) | Template for progress reports. |
 

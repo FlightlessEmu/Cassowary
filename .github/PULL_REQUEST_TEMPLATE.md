@@ -24,35 +24,38 @@ Fixes #
 
 ## How to test locally
 
-The PR number below is filled in automatically — just paste the whole block. For Flycast use `-scheme "OpenEmu + Flycast"` with `clean build`; for Mednafen use `-scheme "OpenEmu + Mednafen" -configuration Release`.
+Replace `NUMBER` with the real PR number.
 
 ```bash
-cd ~/Documents/Cursor/Open\ Emu
-gh pr checkout NUMBER --repo OpenEmu-Silicon/OpenEmu-Silicon
-./Scripts/verify.sh
-./Scripts/launch-debug.sh
+# 1. Check out this PR
+gh pr checkout NUMBER
+
+# 2. Build the app and everything it loads
+./Scripts/cassowary/build-cassowary.sh
+
+# 3. Run it in the Simulator
+./Scripts/cassowary/run-cassowary.sh
+
+# ...or run the end-to-end check
+./Scripts/cassowary/test-cassowary.sh
 ```
 
-`verify.sh` builds, prunes stale DerivedData, and runs a codesign check. `launch-debug.sh` picks the freshest Debug build without using a glob (which opens multiple instances when DerivedData has more than one hash directory).
+The first build is slow because it builds every core. Later builds only build
+what is missing.
 
-If this PR touches a core, install it before launching:
+If this PR changes a core, `build-cassowary.sh` restages it into the app
+automatically. The app loads plugins from its own bundle, not from `build/` —
+so a core that was only compiled will not be picked up.
 
-```bash
-./Scripts/install-core.sh <CoreName>
-./Scripts/launch-debug.sh
-```
-
-`install-core.sh` quits OpenEmu first, copies files correctly, and re-signs the bundle.
-
-<!-- Add any PR-specific setup here (BIOS files, permissions to revoke, specific ROM to test with). -->
+<!-- Add any PR-specific setup here (ROM or system to test with, BIOS files, the specific behaviors to verify). -->
 
 ---
 
 ## PR checklist
 
-- [ ] Branched from an up-to-date `main` (ran `git fetch origin && git merge origin/main`)
-- [ ] Build passes: `./Scripts/verify.sh` (or `xcodebuild -workspace OpenEmu-metal.xcworkspace -scheme OpenEmu -configuration Debug -destination 'platform=macOS,arch=arm64' build`)
-- [ ] Tested on Apple Silicon (M1 / M2 / M3 / M4 Mac)
+- [ ] Branched from an up-to-date `main`
+- [ ] Build passes: `./Scripts/cassowary/build-cassowary.sh`
+- [ ] Tested in the Simulator (or on a device)
 - [ ] No build logs, binaries, or credentials committed
 - [ ] Copyright headers preserved on all modified files
-- [ ] New files (if any) include the BSD 2-Clause license header
+- [ ] New files (if any) include the license header

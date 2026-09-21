@@ -1,113 +1,117 @@
-# OpenEmu-Silicon — Native Apple Silicon Port
+# Cassowary
+
+An independent iOS, iPadOS, and Mac Catalyst emulator front end, built on
+OpenEmu's emulation engine. Cassowary is **not affiliated with, sponsored, or
+endorsed by the OpenEmu Team** — it runs on their engine, under their licenses.
 
 <p align="center">
-  <img width="301" height="91" alt="logo" src="https://github.com/user-attachments/assets/e4c7ee8d-b526-4fa7-bf61-153dc1594372" />
-</p>
-
-<p align="center">
-  <img width="2276" height="1550" alt="OpenEmu Library" src="https://github.com/user-attachments/assets/3797ba95-3e8c-49f6-9d3d-ab1cca6e70b9" />
+  <img width="2276" height="1550" alt="Cassowary" src="https://github.com/user-attachments/assets/3797ba95-3e8c-49f6-9d3d-ab1cca6e70b9" />
 </p>
 
 ---
 
-## Current Status
+## What it is
 
-**Actively maintained. Runs natively on Apple Silicon (no Rosetta required).**
+A native SwiftUI app for iPhone, iPad, and the Mac (Catalyst). It plays games
+through emulator cores and system plugins built from this repo. The emulation
+engine — the shared frameworks (`OpenEmuBase`, `OpenEmuSystem`, `OpenEmuKit`,
+`OpenEmuShaders`), the plugin architecture, and the cores themselves — is the
+[OpenEmu](https://github.com/OpenEmu/OpenEmu) project's work.
 
-This is a community-maintained fork of OpenEmu for M-series Macs. The app runs on macOS 11.0+ and has been tested on macOS Sequoia and macOS 26 (Tahoe).
-
-> **Download:** Get the latest signed DMG from the **[Releases](https://github.com/OpenEmu-Silicon/OpenEmu-Silicon/releases)** page. The app is notarized — no Gatekeeper workaround needed.
+See [`Cassowary/README.md`](Cassowary/README.md) for what works today and how
+to add a core.
 
 ---
 
 ## Download
 
-Get the latest build from the **[Releases](https://github.com/OpenEmu-Silicon/OpenEmu-Silicon/releases)** page.
+There is no signed build to download yet. The app is built from source; see
+[`Cassowary/README.md`](Cassowary/README.md).
 
-### Install via Homebrew
+---
+
+## Build
+
+One command builds the app for the Simulator, frameworks and plugins included:
 
 ```bash
-brew tap OpenEmu-Silicon/OpenEmu-Silicon https://github.com/OpenEmu-Silicon/OpenEmu-Silicon
-brew install --cask openemu-silicon
+./Scripts/cassowary/build-cassowary.sh              # Simulator
+./Scripts/cassowary/build-cassowary.sh --device     # a real iPhone
+./Scripts/cassowary/build-cassowary.sh --catalyst   # the Mac, natively
 ```
+
+Then:
+
+```bash
+./Scripts/cassowary/run-cassowary.sh    # build, install, launch
+./Scripts/cassowary/test-cassowary.sh   # end-to-end check
+```
+
+Requirements: macOS with Xcode (latest stable), and an Apple Silicon Mac.
 
 ---
 
 ## Supported Systems
 
-> **Full details — working status, known issues, in-progress cores, and what's planned — are on the [Supported Systems](https://github.com/OpenEmu-Silicon/OpenEmu-Silicon/wiki/Supported-Systems) wiki page.**
+The iOS build ships 22 cores covering 43 systems, including NES, SNES, Game
+Boy, GBA, N64, DS, PlayStation, Genesis, Master System, PC Engine, Neo Geo
+Pocket, WonderSwan, Virtual Boy, and more. Cores that need OpenGL cannot run
+on iOS and are not part of the iOS build.
 
-Quick summary: 30+ systems work today, including NES, SNES, Game Boy, GBA, N64, Nintendo DS, PlayStation, Dreamcast, GameCube/Wii, and more. A handful have known issues (PSP, Saturn, Game Boy Color categorization). PS2 and Commodore 64 have no core yet.
-
----
-
-## Known Issues
-
-- **Save state compatibility** — Save states from certain older cores are incompatible with current ARM64 builds and will crash if loaded. On launch, the app detects these and shows a warning dialog. **Back up your save states before your first launch** — see [Migrating from OpenEmu](https://github.com/OpenEmu-Silicon/OpenEmu-Silicon/wiki/Migrating-from-OpenEmu) for the full list and instructions.
-- Input Monitoring permission may need to be granted manually in System Settings → Privacy & Security.
-- A few cores have quirks on Apple Silicon still being investigated (see open issues).
+The full matrix is the table in [`AGENTS.md`](AGENTS.md), and every core lives
+under [`cores/`](cores/).
 
 ---
 
-## Requirements
+## Repository layout
 
-- macOS 11.0 (Big Sur) or later
-- Apple Silicon Mac (M1 / M2 / M3 / M4)
+| Where | What |
+|---|---|
+| `Cassowary/` | The app: Swift sources, XcodeGen spec, resources. |
+| `cores/` | The emulator cores, one directory each. |
+| `OpenEmu-SDK/`, `OpenEmuKit/`, `OpenEmu-Shaders/` | The shared engine. |
+| `OpenEmu/SystemPlugins/` | Per-system plugins and the responder-client headers cores include. |
+| `Scripts/cassowary/` | Build, run, and test scripts. |
+| `docs/` | Design docs, ADRs, audits. Start with [`docs/PROJECT_LAYOUT.md`](docs/PROJECT_LAYOUT.md). |
 
 ---
 
 ## About This Project
 
-The original OpenEmu is still an amazing piece of Mac software. [stuartcarnie](https://github.com/stuartcarnie) brought Metal rendering to the app in 2019. [MaddTheSane](https://github.com/MaddTheSane) ported the emulation cores to ARM64 starting in 2021. [cyco](https://github.com/cyco), [clobber](https://github.com/clobber), [J-rg](https://github.com/J-rg), and the rest of the OpenEmu team built the application, the plugin architecture, and the library experience over more than a decade. That work is the foundation everything here stands on.
+The original OpenEmu is an amazing piece of Mac software. [stuartcarnie](https://github.com/stuartcarnie) brought Metal rendering to the app in 2019. [MaddTheSane](https://github.com/MaddTheSane) ported the emulation cores to ARM64 starting in 2021. [cyco](https://github.com/cyco), [clobber](https://github.com/clobber), [J-rg](https://github.com/J-rg), and the rest of the OpenEmu team built the application, the plugin architecture, and the library experience over more than a decade. That work is the foundation everything here stands on.
 
-The original project went quiet around 2024 after the last release. By that time, the original team had already done significant work on the ARM64 cores. The ARM64 core work was real and substantial, but it was never assembled into a release — the last official binary (December 2023) was stated as Intel-only. [bazley82](https://github.com/bazley82) published a downloadable ARM64 build in early 2026, pulling together the ARM64-capable core submodules the original team had prepared into a single repo and release. This fork continued from there: RetroAchievements shipped across 9+ cores; a Libretro Bridge was built to load RetroArch cores directly inside OpenEmu (since removed in favor of native cores); ScreenScraper cover art was integrated; Dreamcast was migrated from Reicast to Flycast; save persistence, system detection, and the core update pipeline were all fixed; and the app was hardened for macOS 26 (Tahoe).
+This project descends from the OpenEmu-Silicon fork, which kept OpenEmu
+running on modern Apple Silicon Macs. When that work moved to iOS, the app
+became Cassowary.
 
 **Lineage:**
 - [OpenEmu/OpenEmu](https://github.com/OpenEmu/OpenEmu) — the original project
-- [bazley82/OpenEmuARM64](https://github.com/bazley82/OpenEmuARM64) — ARM64 build, built on the original team's core work and what I started building upon
-- **This repo** — continued development and maintenance by [@nickybmon](https://github.com/nickybmon) and others.
+- [bazley82/OpenEmuARM64](https://github.com/bazley82/OpenEmuARM64) — the foundational ARM64 port
+- OpenEmu-Silicon — the Apple Silicon fork this repo grew out of
+- **This repo** — the Cassowary iOS/iPadOS/Catalyst app
 
 ---
 
 ## A Note on AI-Assisted Development
 
-The vast majority of the code in this repo is still from the original developers. I have not changed the underlying architecture or approach for the app (apart form having it in a single repo to make it easier for a small team to maintain), it is still the same work done by an exceptional team of engineers. I work on this project with AI assisted development practices. These tools help me write and debug code I couldn't write alone. That said, I review every change, test everything, and make all the calls about direction and quality. I'm transparent about this because honesty with the community matters more than maintaining an illusion of expertise I don't have. The goal is to keep something good alive and make it genuinely usable for players.
-
----
-
-## iOS App (Cassowary)
-
-This repo also builds **Cassowary**, an independent iOS, iPadOS, and Mac
-Catalyst front end that reuses OpenEmu's engine — the same cores and shared
-frameworks that the macOS app uses. It lives in [`Cassowary/`](Cassowary/) and
-is not affiliated with or endorsed by the OpenEmu Team.
-
-See [`Cassowary/README.md`](Cassowary/README.md) for how to build and run it.
-
----
-
-## Documentation
-
-| Doc | What's in it |
-|-----|-------------|
-| [`docs/PROJECT_LAYOUT.md`](docs/PROJECT_LAYOUT.md) | Map of the repository — what lives where, and why |
-| [Wiki](https://github.com/OpenEmu-Silicon/OpenEmu-Silicon/wiki) | User guides: getting started, BIOS files, importing, CD games, controllers, troubleshooting |
-| [Migrating from OpenEmu](https://github.com/OpenEmu-Silicon/OpenEmu-Silicon/wiki/Migrating-from-OpenEmu) | Switching from the original OpenEmu: what carries over, what doesn't, and how to back up |
-| [Supported Systems](https://github.com/OpenEmu-Silicon/OpenEmu-Silicon/wiki/Supported-Systems) | Every system: working status, known issues, in-progress cores, what's planned, and BIOS requirements |
-| [`CREDITS.md`](.github/CREDITS.md) | Everyone who contributed — original OpenEmu team, ARM64 port, core sources, illustrators, and this repo's contributors |
+The vast majority of the code in this repo is still from the original
+developers. I work on this project with AI-assisted development practices.
+These tools help me write and debug code I couldn't write alone. That said, I
+review every change, test everything, and make all the calls about direction
+and quality. I'm transparent about this because honesty with the community
+matters more than maintaining an illusion of expertise I don't have. The goal
+is to keep something good alive and make it genuinely usable for players.
 
 ---
 
 ## Contributing
 
-Issues, PRs, and testing feedback are all welcome. If something breaks for you, open an issue and describe your Mac model, macOS version, and which system/game you were running. That context is the most valuable thing you can provide.
-
-If you want to contribute code, check the open issues for good starting points. A clear PR description of what it fixes is the best kind of contribution.
+Issues, PRs, and testing feedback are all welcome. See
+[`.github/CONTRIBUTING.md`](.github/CONTRIBUTING.md) for how to set up and
+what to expect.
 
 ---
 
 ## License
 
-This project is a derivative of [OpenEmu](https://github.com/OpenEmu/OpenEmu). Most of the main app and SDK still carries the OpenEmu Team's original **BSD 3-Clause** copyright header, which is what actually governs those files — see [`LICENSE`](LICENSE) for the full text and how it applies. Individual emulation cores carry their own licenses (GPL v2, MPL 2.0, LGPL 2.1, and others) — see each core's directory for details.
-
-Note: [picodrive](https://github.com/notaz/picodrive) includes a non-commercial clause. This project is and will remain free.
+This project is a derivative of [OpenEmu](https://github.com/OpenEmu/OpenEmu). Most of the engine and SDK carries the OpenEmu Team's original **BSD 3-Clause** copyright header, which is what actually governs those files — see [`LICENSE`](LICENSE) for the full text and how it applies. Individual emulation cores carry their own licenses (GPL v2, MPL 2.0, LGPL 2.1, and others) — see each core's directory for details. The app was built on the OpenEmu team's work.

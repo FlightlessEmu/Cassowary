@@ -1,7 +1,7 @@
 Run the full git shipping loop for the current branch.
 
 1. Confirm the branch name matches the work being done. If not, stop and ask.
-2. **Do not run `./Scripts/verify.sh` here.** The pre-push hook is advisory only and does not run a build. GitHub CI (`build-check.yml`) runs the build check on every PR. Run `/verify` during development if you want a local build confirmation, but it is not required before pushing.
+2. **Build before pushing.** Run `./Scripts/cassowary/build-cassowary.sh` (or `/verify`) so the commit is known to build. The pre-push hook only runs the fast core-source guard; it does not build. If GitHub CI is configured for this repo, it is a backstop, not a substitute for a local build.
 3. **Adversarial review.** Run this command and show the output:
    ```bash
    git diff main...HEAD | wc -l
