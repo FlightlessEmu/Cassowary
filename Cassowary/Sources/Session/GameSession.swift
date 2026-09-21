@@ -298,6 +298,17 @@ final class GameSession: NSObject {
         press(button.systemKey)
     }
 
+    /// Report an analog deflection by button name, for automated testing.
+    ///
+    /// Mirrors what the on-screen thumbstick and a physical gamepad stick do.
+    func moveAnalogButton(named name: String, value: CGFloat = 1) {
+        guard let layout, let button = layout.allButtons.first(where: { $0.id == name }) else {
+            NSLog("[Cassowary] no button named %@; have %@", name, layout?.allButtons.map(\.id).joined(separator: ",") ?? "none")
+            return
+        }
+        moveAnalog(button.systemKey, value: value)
+    }
+
     /// Release a button by its name.
     func releaseButton(named name: String) {
         guard let layout, let button = layout.allButtons.first(where: { $0.id == name }) else { return }

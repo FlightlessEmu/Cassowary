@@ -48,9 +48,7 @@ static long screen_y = DEFAULT_HEIGHT;
 static long scl_factor;
 
 //static long bytes_per_pixel;
-static GLfloat VX_color_set[VECTREX_COLORS];
-static GLfloat line_width = DEFAULT_LINEWIDTH;
-static GLfloat overlay_transparency = DEFAULT_OVERLAYTRANSPARENCY;
+float VX_color_set[VECTREX_COLORS];
 
 // Global texture image info
 TextureImage g_overlay;							// Storage For One Texture
@@ -163,128 +161,23 @@ void osint_gencolors (void)
 		gcomp = c * 256 / VECTREX_COLORS;
 		bcomp = c * 256 / VECTREX_COLORS;
 
-		VX_color_set[c] = (GLfloat)c/128;
+		VX_color_set[c] = (float)c/128;
 		if(VX_color_set[c] > 1.0f) VX_color_set[c] = 1.0f;
 	}
 }
 
 /*
     JH - there some were nice low-level line drawing routines here,
-         which have been replaced by OpenGL calls
+         which have been replaced by Metal line drawing in the core
 */
 
 void osint_render (void)
 {
-	// GL rendering code by James Higgs
-	int     width, height;
-	long v;
-	GLfloat c;
-	//GLfloat alpha;
-
-    // Get window size (may be different than the requested size)
-	width = (int)screen_x;
-	height = (int)screen_y;
-
-    height = height > 0 ? height : 1;
-
-    // Set viewport
-    glViewport( 0, 0, width, height );
-	glScissor( 0, 0, width, height );
-
-	// draw overlay or clear screen if no overlay is used
-    if (g_overlay.width > 0)
-    {
-        // create texture
-        glShadeModel(GL_SMOOTH);
-        glClearColor(0.0f, 0.0f, 0.0f, 0.5f);
-        glClearDepth(1.0f);
-        glBindTexture(GL_TEXTURE_2D, g_overlay.texID);
-        //
-
-		GLfloat alpha = overlay_transparency;
-		glColor3f(alpha, alpha, alpha);
-		glEnable(GL_TEXTURE_2D);
-		glBegin(GL_QUADS);
-			if (g_overlay.upsideDown)
-			{
-				glTexCoord2f(1, 1); //0.8f, 1);
-				glVertex2f(ALG_MAX_X, 0);
-				glTexCoord2f(0, 1); //0.2f, 1);
-				glVertex2f(0, 0);
-				glTexCoord2f(0, 0); //0.2f, 0);
-				glVertex2f(0, ALG_MAX_Y);
-				glTexCoord2f(1, 0); //0.8f, 0);
-				glVertex2f(ALG_MAX_X, ALG_MAX_Y);
-			}
-			else
-			{
-				glTexCoord2f(1, 0); //0.8f, 1);
-				glVertex2f(ALG_MAX_X, 0);
-				glTexCoord2f(0, 0); //0.2f, 1);
-				glVertex2f(0, 0);
-				glTexCoord2f(0, 1); //0.2f, 0);
-				glVertex2f(0, ALG_MAX_Y);
-				glTexCoord2f(1, 1); //0.8f, 0);
-				glVertex2f(ALG_MAX_X, ALG_MAX_Y);
-			}
-		glEnd();
-		glDisable(GL_TEXTURE_2D);
-	} else {
-	    glClearColor( 0.0f, 0.0f, 0.0f, 0.0f );
-		glClear(GL_COLOR_BUFFER_BIT);
-	}
-
-    // Select and setup the projection matrix
-    glMatrixMode( GL_PROJECTION );
-    glLoadIdentity();
-	glOrtho( 0, -33000, 41000, 0, 1.0, 50.0 );
-
-    // Select and setup the modelview matrix
-    glMatrixMode( GL_MODELVIEW );
-    glLoadIdentity();
-    gluLookAt( 0.0f, 0.0f, -10.0f,    // Eye-position
-               0.0f, 0.0f, 0.0f,   // View-point
-               0.0f, 1.0f, 0.0f );  // Up-vector
-
-	glEnable(GL_LINE_SMOOTH);
-	glLineWidth(line_width);
-	glEnable(GL_POINT_SMOOTH);
-	glPointSize(line_width);
-
-	// blend lines with overlay image
-	if (g_overlay.width > 0) {
-		glEnable(GL_BLEND);
-		glBlendFunc(GL_DST_COLOR, GL_ONE);
-	}
-
-    glBegin( GL_LINES );
-
-	// draw lines for this frame
-	for (v = 0; v < vector_draw_cnt; v++) {
-		c = VX_color_set[vectors_draw[v].color];
-        
-		glColor4f( c, c, c, 0.75f );
-		glVertex3i( (int)vectors_draw[v].x0, (int)vectors_draw[v].y0, 0 );
-		glVertex3i( (int)vectors_draw[v].x1, (int)vectors_draw[v].y1, 0 );
-
-	}
-
-	glEnd();
-
-	// we have to redraw points, because zero-length line doesn't get drawn
-	glBegin(GL_POINTS);
-	for (v = 0; v < vector_draw_cnt; v++) {
-		c = VX_color_set[vectors_draw[v].color];
-		glColor3f( c,c,c );
-		glVertex3i( (int)vectors_draw[v].x0, (int)vectors_draw[v].y0, 0 );
-		glVertex3i( (int)vectors_draw[v].x1, (int)vectors_draw[v].y1, 0 );
-	}
-
-	glEnd();
-
-	glDisable(GL_BLEND);
-
-    }
+	// The vector list is handed to the core, which draws it with Metal
+	// (see vx_metal_present() in VectrexGameCore.m). This used to be the
+	// OpenGL line drawing code, which does not exist on iOS.
+	vx_metal_present();
+}
 
 void osint_btnDown(OEVectrexButton btn) {
     switch(btn) {

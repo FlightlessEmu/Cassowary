@@ -10,8 +10,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-#import <OpenGL/gl.h>
-#import <OpenGL/glu.h>
+#include <stdint.h>
 #include "overlay.h"
 
 extern TextureImage g_overlay;										// Storage For One Texture
@@ -19,14 +18,13 @@ extern TextureImage g_overlay;										// Storage For One Texture
 // Load TGA for texture
 int LoadTGA (char *filename)			// Loads A TGA File Into Memory
 {
-	GLubyte		header[18];									// TGA Header
-	GLubyte		tgaType;									// 2 = uncompr RGB, 10 = compr RGB
-	GLuint		bytesPerPixel;								// Holds Number Of Bytes Per Pixel Used In The TGA File
-	GLuint		imageSize;									// Used To Store The Image Size When Setting Aside Ram
-	GLuint		temp;										// Temporary Variable
-	GLuint		type = GL_RGBA;								// Set The Default GL Mode To RBGA (32 BPP)
-	GLuint		i;
-	GLuint		pos = 0;
+	uint8_t		header[18];									// TGA Header
+	uint8_t		tgaType;									// 2 = uncompr RGB, 10 = compr RGB
+	uint32_t		bytesPerPixel;								// Holds Number Of Bytes Per Pixel Used In The TGA File
+	uint32_t		imageSize;									// Used To Store The Image Size When Setting Aside Ram
+	uint32_t	temp;										// Temporary Variable
+	uint32_t	i;
+	uint32_t		pos = 0;
 	unsigned char value[4];
 
 	FILE *file = fopen(filename, "rb");						// Open The TGA File
@@ -66,7 +64,7 @@ int LoadTGA (char *filename)			// Loads A TGA File Into Memory
 	if ( 2 == tgaType )
 	{
 		// uncompressed RGB (24 or 32-bit)
-		g_overlay.imageData=(GLubyte *)malloc(imageSize);		// Reserve Memory To Hold The TGA Data
+		g_overlay.imageData=(uint8_t *)malloc(imageSize);		// Reserve Memory To Hold The TGA Data
 
 		if(	g_overlay.imageData==NULL ||							// Does The Storage Memory Exist?
 			fread(g_overlay.imageData, 1, imageSize, file)!=imageSize)	// Does The Image Size Match The Memory Reserved?
@@ -88,7 +86,7 @@ int LoadTGA (char *filename)			// Loads A TGA File Into Memory
 	else if (10 == tgaType)
 	{
 		// RLE compressed RGB (24 or 32-bit)
-		g_overlay.imageData=(GLubyte *)malloc(imageSize);		// Reserve Memory To Hold The TGA Data
+		g_overlay.imageData=(uint8_t *)malloc(imageSize);		// Reserve Memory To Hold The TGA Data
 		pos = 0;
 		while(1)
 		{
@@ -134,34 +132,8 @@ int LoadTGA (char *filename)			// Loads A TGA File Into Memory
 
 	fclose (file);											// Close The File
 
-	// resize if neccessary
-	if (g_overlay.width != 512 || g_overlay.height != 512)
-	{
-		GLubyte* newImageData = (GLubyte *)malloc(512*512*bytesPerPixel);		// Reserve Memory To Hold The RGB Data
-		gluScaleImage(GL_RGB, g_overlay.width, g_overlay.height, GL_UNSIGNED_BYTE, g_overlay.imageData, 
-						512, 512, GL_UNSIGNED_BYTE, newImageData);
-		free(g_overlay.imageData);
-		g_overlay.imageData = newImageData;
-		g_overlay.width = 512;
-		g_overlay.height = 512;
-	}
-
-	// Build A Texture From The Data
-	glGenTextures(1, &g_overlay.texID);					// Generate OpenGL texture IDs
-
-	glBindTexture(GL_TEXTURE_2D, g_overlay.texID);			// Bind Our Texture
-	glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);	// Linear Filtered
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);	// Linear Filtered
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
-
-	if (g_overlay.bpp==24)									// Was The TGA 24 Bits
-	{
-		type=GL_RGB;										// If So Set The 'type' To GL_RGB
-	}
-
-	glTexImage2D(GL_TEXTURE_2D, 0, type, g_overlay.width, g_overlay.height, 0, type, GL_UNSIGNED_BYTE, g_overlay.imageData);
+	// The pixels stay in g_overlay.imageData. The core's Metal renderer
+	// uploads them as a texture the first time it draws a frame.
 
 	return 1;											// Texture Building Went Ok, Return True
 }

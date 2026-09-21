@@ -16,6 +16,7 @@ credits and per-core licenses.
 ## What works
 
 - Game Boy via the Gambatte core
+- Vectrex via the VecXGL core, which draws its vector display with Metal
 - Multi-core library: systems sidebar, per-system default cores, Play With…
 - On-screen controls generated from each system plugin's own control list
 - Physical controllers through Apple's GameController framework — a paired

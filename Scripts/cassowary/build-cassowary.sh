@@ -209,7 +209,7 @@ if [[ $APP_ONLY -eq 0 ]]; then
   esac
   ./Scripts/cassowary/build-all-system-plugins-ios.sh $PLUGIN_MODE_FLAG --keep-going
 
-  # The bitmap cores, as source directory → product bundle name. The two
+  # The cores to build, as source directory → product bundle name. The two
   # differ in case (picodrive → Picodrive) or in full (Potator-Core →
   # Potator), so both are listed. Extend this list when a new core is ported.
   CORES=(
@@ -218,7 +218,7 @@ if [[ $APP_ONLY -eq 0 ]]; then
     JollyCV:JollyCV MAME:MAME Mednafen:Mednafen mGBA:mGBA
     Mupen64Plus:Mupen64Plus Nestopia:Nestopia O2EM:O2EM picodrive:Picodrive
     PokeMini:PokeMini Potator-Core:Potator ProSystem:ProSystem SNES9x:SNES9x
-    Stella:Stella VirtualJaguar:VirtualJaguar
+    Stella:Stella VecXGL:VecXGL VirtualJaguar:VirtualJaguar
   )
 
   case "$MODE" in

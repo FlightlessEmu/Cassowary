@@ -395,34 +395,27 @@ struct GameView: View {
             }
         }
 
-        // Press the key bound to a button, exercising the keyboard mapping
-        // without a hardware keyboard. The Simulator does not hand its
-        // keyboard to GameController.
-        if let button = UserDefaults.standard.string(forKey: "cassowary.testKeyboardButton") {
-            Task {
-                try? await Task.sleep(for: .seconds(3))
-                session.pressBoundKey(forButtonID: button)
-            }
-        }
-
-        // Hold a gamepad control, exercising the controller binding path
-        // without a hardware controller. Usage 0 is not a real control, so it
-        // doubles as "not set".
-        let gamepadUsage = UserDefaults.standard.integer(forKey: "cassowary.testGamepadUsage")
-        if gamepadUsage > 0 {
-            Task {
-                try? await Task.sleep(for: .seconds(3))
-                session.holdGamepadControl(usage: UInt32(gamepadUsage))
-            }
-        }
-
-        // Rewrite a binding through the settings editor's own call, so the
-        // test can prove a remap reaches a running game and survives a
-        // relaunch.
         if let spec = UserDefaults.standard.string(forKey: "cassowary.testKeyboardRemap") {
             let parts = spec.split(separator: ":")
             if parts.count == 2, let keyCode = Int(parts[1]) {
                 session.remapForTesting(buttonID: String(parts[0]), keyCode: keyCode)
+            }
+        }
+
+        if let button = UserDefaults.standard.string(forKey: "cassowary.testHoldAnalog") {
+            Task {
+                try? await Task.sleep(for: .seconds(3))
+                session.moveAnalogButton(named: button)
+            }
+        }
+
+        if let button = UserDefaults.standard.string(forKey: "cassowary.testTapButton") {
+            let delay = UserDefaults.standard.double(forKey: "cassowary.testTapDelay")
+            Task {
+                try? await Task.sleep(for: .seconds(delay > 0 ? delay : 3))
+                session.pressButton(named: button)
+                try? await Task.sleep(for: .milliseconds(150))
+                session.releaseButton(named: button)
             }
         }
 
