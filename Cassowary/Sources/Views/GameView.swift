@@ -157,52 +157,31 @@ struct GameView: View {
                         session.resetEmulation()
                     }
                     Divider()
-                    Menu {
-                        Button {
-                            applyFilter(named: nil)
-                        } label: {
-                            filterMenuLabel("None", selected: shaderName == nil)
-                        }
-
-                        Divider()
-
+                    // A picker in a menu becomes a submenu with a checkmark
+                    // drawn beside the current choice. The current pick also
+                    // rides in the row's title, so the menu shows what is on
+                    // without opening anything.
+                    Picker("Video Filter: \(shaderName ?? "None")", selection: filterBinding) {
+                        Text("None").tag(String?.none)
                         ForEach(shaderCatalog.names, id: \.self) { name in
-                            Button {
-                                applyFilter(named: name)
-                            } label: {
-                                filterMenuLabel(name, selected: shaderName == name)
-                            }
+                            Text(name).tag(String?.some(name))
                         }
-                    } label: {
-                        Label("Video Filter", systemImage: "camera.filters")
                     }
-                    Menu {
-                        Button {
-                            applyMetalFXUpscaling(false)
-                        } label: {
-                            filterMenuLabel("Off", selected: !metalFXUpscaling)
-                        }
-                        Button {
-                            applyMetalFXUpscaling(true)
-                        } label: {
-                            filterMenuLabel("MetalFX Spatial", selected: metalFXUpscaling)
-                        }
-                        .disabled(!metalFXAvailable)
-                    } label: {
-                        Label("Upscaling", systemImage: "arrow.up.left.and.arrow.down.right")
+                    .pickerStyle(.menu)
+
+                    Picker("Upscaling: \(metalFXUpscaling ? "MetalFX Spatial" : "Off")", selection: upscalingBinding) {
+                        Text("Off").tag(false)
+                        Text(metalFXAvailable ? "MetalFX Spatial" : "MetalFX Spatial (Unavailable)").tag(true)
                     }
-                    Divider()
-                    Menu {
+                    .pickerStyle(.menu)
+
+                    Picker("Rumble: \(rumbleTitle)", selection: rumbleBinding) {
                         ForEach(RumbleStrength.allCases) { strength in
-                            Button {
-                                rumbleStrength = strength.rawValue
-                            } label: {
-                                filterMenuLabel(strength.title, selected: rumbleStrength == strength.rawValue)
-                            }
+                            Text(strength.title).tag(strength)
                         }
-                    } label: {
-                        Label("Rumble", systemImage: "waveform")
                     }
+                    .pickerStyle(.menu)
+
                     Divider()
                     Button("Close Game", role: .destructive) {
                         onClose()
@@ -250,14 +229,13 @@ struct GameView: View {
 
     // MARK: - Video filter
 
-    /// A filter row that shows a checkmark when it is the current filter.
-    @ViewBuilder
-    private func filterMenuLabel(_ title: String, selected: Bool) -> some View {
-        if selected {
-            Label(title, systemImage: "checkmark")
-        } else {
-            Text(title)
-        }
+    /// The filter picker's binding: choosing a row runs the same apply the
+    /// menu buttons used to.
+    private var filterBinding: Binding<String?> {
+        Binding(
+            get: { shaderName },
+            set: { applyFilter(named: $0) }
+        )
     }
 
     /// Apply the filter already chosen for this system, if any.
@@ -310,11 +288,41 @@ struct GameView: View {
     /// Switch MetalFX spatial upscaling on the running game.
     ///
     /// The pick is remembered for every game, and the engine quietly keeps
-    /// the plain picture where MetalFX cannot run.
+    /// the plain picture where MetalFX cannot run. Picking it on hardware
+    /// without MetalFX leaves the setting on Off and says so.
     private func applyMetalFXUpscaling(_ enabled: Bool) {
+        guard !enabled || metalFXAvailable else {
+            show(notice: "MetalFX is not available on this device")
+            return
+        }
+
         metalFXUpscaling = enabled
         session?.setMetalFXUpscalingEnabled(enabled)
         show(notice: enabled ? "MetalFX upscaling on" : "MetalFX upscaling off")
+    }
+
+    /// The upscaling picker's binding.
+    private var upscalingBinding: Binding<Bool> {
+        Binding(
+            get: { metalFXUpscaling },
+            set: { applyMetalFXUpscaling($0) }
+        )
+    }
+
+    // MARK: - Rumble
+
+    /// The rumble picker's binding. The strength is read from defaults each
+    /// time a rumble starts, so writing the pick is all it takes.
+    private var rumbleBinding: Binding<RumbleStrength> {
+        Binding(
+            get: { RumbleStrength(rawValue: rumbleStrength) ?? .medium },
+            set: { rumbleStrength = $0.rawValue }
+        )
+    }
+
+    /// The current rumble strength, for the menu row.
+    private var rumbleTitle: String {
+        (RumbleStrength(rawValue: rumbleStrength) ?? .medium).title
     }
 
     private func glassButton(_ symbol: String, action: @escaping () -> Void) -> some View {
