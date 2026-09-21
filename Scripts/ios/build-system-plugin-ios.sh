@@ -23,12 +23,17 @@ cd "${0:A:h}/../.."
 PLUGIN=${1:?usage: build-system-plugin-ios.sh <PluginName> [--device]}
 shift || true
 
-PLATFORM=simulator
-TARGET=arm64-apple-ios17.0-simulator
-if [[ "${1:-}" == "--device" ]]; then
-  PLATFORM=device
-  TARGET=arm64-apple-ios17.0
-fi
+MODE=simulator
+case "${1:-}" in
+  --device)   MODE=device ;;
+  --catalyst) MODE=catalyst ;;
+esac
+
+case "$MODE" in
+  simulator) SDK_NAME=iphonesimulator ; TARGET=arm64-apple-ios17.0-simulator ;;
+  device)    SDK_NAME=iphoneos        ; TARGET=arm64-apple-ios17.0 ;;
+  catalyst)  SDK_NAME=macosx          ; TARGET=arm64-apple-ios17.0-macabi ;;
+esac
 
 # The directory name under OpenEmu/SystemPlugins that holds the plugin.
 SOURCE_DIR="OpenEmu/SystemPlugins/${PLUGIN}"
@@ -37,9 +42,17 @@ if [[ ! -d "$SOURCE_DIR" ]]; then
   exit 1
 fi
 
-SDK=$(xcrun --sdk iphone${PLATFORM} --show-sdk-path)
-SDK_BUILD="$PWD/OpenEmu-SDK/build/Debug-iphone${PLATFORM}"
-OUT="build/ios-plugins/${PLUGIN}.oesystemplugin"
+SDK=$(xcrun --sdk "$SDK_NAME" --show-sdk-path)
+case "$MODE" in
+  catalyst) SDK_BUILD="$PWD/build/catalyst" ;;
+  *)        SDK_BUILD="$PWD/OpenEmu-SDK/build/Debug-iphone${MODE}" ;;
+esac
+OUT="build/ios-plugins-${MODE}/${PLUGIN}.oesystemplugin"
+
+CATALYST_FRAMEWORKS=()
+if [[ "$MODE" == catalyst ]]; then
+  CATALYST_FRAMEWORKS=(-iframework "$SDK/System/iOSSupport/System/Library/Frameworks")
+fi
 
 if [[ ! -d "$SDK_BUILD/OpenEmuSystem.framework" ]]; then
   print -u2 -- "building the SDK for iOS first..."
@@ -67,6 +80,7 @@ FLAGS=(
   -isysroot "$SDK"
   -fobjc-arc
   -fmodules
+  "${CATALYST_FRAMEWORKS[@]}"
   -F "$SDK_BUILD"
   -w
 )
@@ -75,14 +89,14 @@ OBJECTS=()
 for source in "$SOURCE_DIR"/*.m "$SOURCE_DIR"/*.mm; do
   [[ -f "$source" ]] || continue
   object="build/ios-${PLUGIN}-${source:t}.o"
-  xcrun -sdk iphone${PLATFORM} clang -c "$source" -o "$object" "${FLAGS[@]}" "${INCLUDES[@]}"
+  xcrun -sdk "$SDK_NAME" clang -c "$source" -o "$object" "${FLAGS[@]}" "${INCLUDES[@]}"
   OBJECTS+=("$object")
 done
 
 for source in "$SOURCE_DIR"/*.swift; do
   [[ -f "$source" ]] || continue
   object="build/ios-${PLUGIN}-${source:t}.o"
-  xcrun -sdk iphone${PLATFORM} swiftc \
+  xcrun -sdk "$SDK_NAME" swiftc \
     -c "$source" \
     -o "$object" \
     -target "$TARGET" \
@@ -99,17 +113,20 @@ done
 # directory. Bundles have no rpath by default, so add the two that let the
 # loader find them: one for when the plugin sits in PlugIns/<kind>/ and one for
 # when it is loaded from Application Support during development.
-xcrun -sdk iphone${PLATFORM} clang \
+xcrun -sdk "$SDK_NAME" clang \
   -bundle \
   -target "$TARGET" \
   -isysroot "$SDK" \
   -o "$OUT/$PLUGIN" \
+  "${CATALYST_FRAMEWORKS[@]}" \
   -F "$SDK_BUILD" \
   -framework OpenEmuBase \
   -framework OpenEmuSystem \
   -framework Foundation \
   -Wl,-rpath,@executable_path/../../Frameworks \
+  -Wl,-rpath,@executable_path/../../../Frameworks \
   -Wl,-rpath,@loader_path/../../Frameworks \
+  -Wl,-rpath,@loader_path/../../../Frameworks \
   "${OBJECTS[@]}"
 
 # Expand the Info.plist the way Xcode would.
@@ -159,11 +176,14 @@ done
 
 # Asset catalogs have to be compiled, not copied: the app reads them through
 # NSBundle's asset API, which looks for Assets.car.
+ACTOOL_PLATFORM="iphone${MODE}"
+[[ "$MODE" == catalyst ]] && ACTOOL_PLATFORM="macosx"
 if [[ -d "$SOURCE_DIR/Images.xcassets" ]]; then
   xcrun actool "$SOURCE_DIR/Images.xcassets" \
     --compile "$OUT" \
-    --platform "iphone${PLATFORM}" \
+    --platform "$ACTOOL_PLATFORM" \
     --minimum-deployment-target 17.0 \
+    --target-device iphone --target-device ipad \
     --output-format human-readable-text >/dev/null
 fi
 

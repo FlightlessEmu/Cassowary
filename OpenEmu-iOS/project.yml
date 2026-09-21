@@ -20,6 +20,9 @@ options:
 settings:
   base:
     SWIFT_VERSION: "5.0"
+    # Left to a post-build step: Xcode insists on a development team for
+    # Catalyst, and an ad-hoc signature is all a local build needs. See the
+    # signing step in Scripts/ios/build-ios.sh.
     CODE_SIGNING_REQUIRED: "NO"
     CODE_SIGNING_ALLOWED: "NO"
     ENABLE_USER_SCRIPT_SANDBOXING: "NO"
@@ -37,6 +40,7 @@ targets:
         buildPhase: resources
         excludes:
           - Info.plist
+          - "*.entitlements"
 
     settings:
       base:
@@ -44,13 +48,26 @@ targets:
         PRODUCT_NAME: OpenEmu
         INFOPLIST_FILE: Resources/Info.plist
         TARGETED_DEVICE_FAMILY: "1,2"
+        # Mac Catalyst builds the same app for the Mac. The destination picks
+        # it; this only declares that the target can be built that way.
+        SUPPORTS_MACCATALYST: "YES"
+        # Signing is off for local builds, so entitlements have to be asked for
+        # explicitly or the app runs unsandboxed and reads the user's real
+        # Documents folder instead of its own container.
+        CODE_SIGN_ALLOW_ENTITLEMENTS_MODIFICATION: "YES"
         SWIFT_OBJC_BRIDGING_HEADER: Sources/OpenEmu-iOS-Bridging-Header.h
         ENABLE_BITCODE: "NO"
         # The app embeds the cores and system plugins it can load.
+        # A flat iOS bundle puts frameworks and PlugIns beside the executable.
+        # A Mac Catalyst bundle nests them under Contents/, so the loader has
+        # to go up one level. Both sets are listed; the extra ones are inert.
         LD_RUNPATH_SEARCH_PATHS:
           - "@executable_path/Frameworks"
           - "@executable_path/PlugIns/Cores"
           - "@executable_path/PlugIns/Systems"
+          - "@executable_path/../Frameworks"
+          - "@executable_path/../PlugIns/Cores"
+          - "@executable_path/../PlugIns/Systems"
         # Where the cores and system plugins are copied from.
         PLUGINS_SOURCE_DIR: "$(SRCROOT)/../build/ios-plugins"
         # OpenEmuKit's private module map lives in its source tree, not in the
@@ -67,6 +84,15 @@ targets:
           mkdir -p "$DEST/Cores" "$DEST/Systems"
           rsync -a --delete "${SRCROOT}/PlugIns/Cores/" "$DEST/Cores/"
           rsync -a --delete "${SRCROOT}/PlugIns/Systems/" "$DEST/Systems/"
+    # XcodeGen writes this file from the properties below, so the contents live
+    # here rather than in the file itself. Mac Catalyst apps are sandboxed,
+    # which gives the app its own Documents folder under ~/Library/Containers;
+    # without it the app would scan the user's real ~/Documents.
+    entitlements:
+      path: Resources/OpenEmu-Catalyst.entitlements
+      properties:
+        com.apple.security.app-sandbox: true
+        com.apple.security.files.user-selected.read-write: true
     dependencies:
       # The frameworks are built for iOS by Scripts/ios/build-ios.sh before
       # this project is generated, then linked from the shared build directory.

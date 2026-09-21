@@ -25,7 +25,7 @@
 // OpenGL and the CGL context API only exist on macOS. On iOS these files
 // compile to nothing, and OpenEmuHelperApp does not take the OpenGL renderer
 // path. Every core that ships for iOS uses the Metal bitmap renderer instead.
-#if canImport(OpenGL)
+#if canImport(OpenGL) && !targetEnvironment(macCatalyst)
 
 import Foundation
 import OpenEmuBase
@@ -231,4 +231,4 @@ class BaseOpenGLGameRenderer: OpenGLGameRenderer {
     }
 }
 
-#endif // canImport(OpenGL)
+#endif // canImport(OpenGL) && !Mac Catalyst

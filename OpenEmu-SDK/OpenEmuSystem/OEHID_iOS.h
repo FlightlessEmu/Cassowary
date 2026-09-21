@@ -51,8 +51,17 @@
 
 #import <TargetConditionals.h>
 
-#if TARGET_OS_OSX
-// On macOS the real IOKit headers are used and this file does nothing.
+// Wherever the macOS SDK is in use, IOKit's headers are visible and its types
+// are the real ones. That covers macOS and Mac Catalyst. (Catalyst reaches
+// IOKit indirectly: Foundation includes NSAppleEventDescriptor, which pulls in
+// CoreServices and from there CarbonCore and IOKit.) Only the iOS device and
+// simulator builds need the stand-in declarations below.
+//
+// Note that Mac Catalyst still *behaves* like iOS — `OEDeviceManager` takes the
+// iOS path there — even though the types come from IOKit. The shim's function
+// implementations are compiled on iOS and Catalyst alike, so nothing needs to
+// link IOKit at runtime.
+#if TARGET_OS_OSX || TARGET_OS_MACCATALYST
 #import <IOKit/hid/IOHIDLib.h>
 #import <IOKit/hid/IOHIDUsageTables.h>
 #import <IOKit/hid/IOHIDKeys.h>
@@ -214,6 +223,6 @@ void IOHIDManagerUnscheduleFromRunLoop(IOHIDManagerRef manager, CFRunLoopRef run
 
 NS_ASSUME_NONNULL_END
 
-#endif /* TARGET_OS_IOS */
+#endif /* IOKit types, or the stand-in declarations */
 
 #endif /* OEHID_iOS_h */

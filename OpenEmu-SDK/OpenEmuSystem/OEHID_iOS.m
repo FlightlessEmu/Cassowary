@@ -40,9 +40,15 @@
 
 #import <TargetConditionals.h>
 
-#if TARGET_OS_IOS
+// The stand-in implementations are only needed where IOKit is not available at
+// runtime. Mac Catalyst can link IOKit, so it uses the real thing — and it
+// behaves like iOS regardless, because `OEDeviceManager`'s IOKit code is gated
+// on `TARGET_OS_OSX` and does not compile there.
+#if TARGET_OS_IOS && !TARGET_OS_MACCATALYST
 
 #import "OEHID_iOS.h"
+
+#import <Foundation/Foundation.h>
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -312,4 +318,4 @@ void IOHIDManagerUnscheduleFromRunLoop(IOHIDManagerRef manager, CFRunLoopRef run
 
 NS_ASSUME_NONNULL_END
 
-#endif /* TARGET_OS_IOS */
+#endif /* TARGET_OS_IOS && !TARGET_OS_MACCATALYST */

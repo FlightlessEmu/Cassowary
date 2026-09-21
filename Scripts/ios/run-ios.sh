@@ -25,7 +25,7 @@ cd "${0:A:h}/../.."
 setopt NULL_GLOB 2>/dev/null || true
 
 BUNDLE_ID=org.openemu.OpenEmu
-APP="build/ios-derived-simulator/Build/Products/Debug-iphonesimulator/OpenEmu.app"
+APP="build/ios-simulator/app/Build/Products/Debug-iphonesimulator/OpenEmu.app"
 DEVICE_NAME="OE-iPhone-17"
 DEVICE_TYPE="com.apple.CoreSimulator.SimDeviceType.iPhone-17"
 RUNTIME="com.apple.CoreSimulator.SimRuntime.iOS-26-5"

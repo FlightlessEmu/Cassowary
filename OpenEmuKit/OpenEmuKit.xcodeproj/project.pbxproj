@@ -876,6 +876,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 050A9A0924F9B26C00321847 /* Config.xcconfig */;
 			buildSettings = {
+				SUPPORTS_MACCATALYST = YES;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
@@ -906,6 +907,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 050A9A0924F9B26C00321847 /* Config.xcconfig */;
 			buildSettings = {
+				SUPPORTS_MACCATALYST = YES;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;

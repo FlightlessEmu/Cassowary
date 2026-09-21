@@ -32,10 +32,34 @@ them with `dlopen` as long as they are signed with the app's team.
 ## Building
 
 ```bash
-./Scripts/ios/build-ios.sh
+./Scripts/ios/build-ios.sh              # for the Simulator
+./Scripts/ios/build-ios.sh --device     # for a real iPhone
+./Scripts/ios/build-ios.sh --catalyst   # for the Mac, natively
 ```
 
-That builds the frameworks, the plugins and the app, in that order.
+Each builds the frameworks, the plugins and the app, in that order.
+
+## Running on the Mac
+
+Mac Catalyst builds the same app for macOS. It is the fastest way to work on
+this code: no Simulator, a real window, and native debugging.
+
+```bash
+./Scripts/ios/build-ios.sh --catalyst
+open build/ios-catalyst/app/Build/Products/Debug-maccatalyst/OpenEmu.app
+```
+
+Two things differ from the Simulator, and both are handled by the build script:
+
+- **Signing.** Xcode insists on a development team for a Catalyst target, so
+  signing is left off and the app is signed ad-hoc afterwards. Entitlements
+  only take effect on a signed binary, and the Catalyst sandbox needs them.
+- **The bundle layout.** Catalyst uses `Contents/`, so the frameworks and
+  plugins sit one level deeper than they do in a flat iOS bundle. Both sets of
+  loader paths are in `project.yml`.
+
+The app is sandboxed, so its games live in
+`~/Library/Containers/org.openemu.OpenEmu/Data/Documents`.
 
 ## Running
 

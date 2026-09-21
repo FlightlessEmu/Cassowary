@@ -3,3 +3,6 @@ Frameworks/*.framework
 PlugIns/Cores/*.oecoreplugin
 PlugIns/Systems/*.oesystemplugin
 OpenEmu-iOS.xcodeproj/
+
+# XcodeGen writes this from the properties in project.yml.
+Resources/OpenEmu-Catalyst.entitlements

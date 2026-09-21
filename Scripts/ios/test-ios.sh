@@ -24,7 +24,7 @@ setopt NULL_GLOB 2>/dev/null || true
 BUNDLE_ID=org.openemu.OpenEmu
 DEVICE_ID=""
 SKIP_BUILD=0
-APP="build/ios-derived-simulator/Build/Products/Debug-iphonesimulator/OpenEmu.app"
+APP="build/ios-simulator/app/Build/Products/Debug-iphonesimulator/OpenEmu.app"
 SHOTS="build/ios-test-shots"
 
 while [[ $# -gt 0 ]]; do

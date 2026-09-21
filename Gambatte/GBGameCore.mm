@@ -67,6 +67,11 @@ public:
 @interface GBGameCore () <OEGBSystemResponderClient>
 {
     uint32_t *_videoBuffer;
+    /// Whether `_videoBuffer` was allocated here or borrowed from the renderer.
+    /// `-getVideoBufferWithHint:` adopts the caller's pointer so the core can
+    /// draw straight into the renderer's memory, and that pointer must not be
+    /// freed here.
+    BOOL _ownsVideoBuffer;
     uint32_t *_inSoundBuffer;
     int16_t *_outSoundBuffer;
     double _sampleRate;
@@ -115,6 +120,7 @@ static uint32_t gambatte_rc_read_memory(uint32_t address, uint8_t *buffer,
     {
         _inSoundBuffer = (uint32_t *)malloc(2064 * 2 * 4);
         _outSoundBuffer = (int16_t *)malloc(2064 * 2 * 2);
+        _ownsVideoBuffer = NO;
         _cheatList = [NSMutableDictionary dictionary];
     }
 
@@ -143,7 +149,9 @@ static uint32_t gambatte_rc_read_memory(uint32_t address, uint8_t *buffer,
 
 - (void)dealloc
 {
-    free(_videoBuffer);
+    if (_ownsVideoBuffer) {
+        free(_videoBuffer);
+    }
     free(_inSoundBuffer);
     free(_outSoundBuffer);
 }
@@ -222,7 +230,10 @@ static uint32_t gambatte_rc_read_memory(uint32_t address, uint8_t *buffer,
 
     gb.saveSavedata();
 
+    // The resampler is a file-scope global, and stopping can happen more than
+    // once, so clear it rather than leaving a dangling pointer to delete again.
     delete resampler;
+    resampler = nullptr;
 
     [super stopEmulation];
 }
@@ -236,11 +247,23 @@ static uint32_t gambatte_rc_read_memory(uint32_t address, uint8_t *buffer,
 
 - (const void *)getVideoBufferWithHint:(void *)hint
 {
-    if (!hint) {
-        if (!_videoBuffer) _videoBuffer = (uint32_t *)malloc(160 * 144 * 4);
-        hint = _videoBuffer;
+    if (hint == NULL) {
+        // No buffer offered this time, so use one of our own.
+        if (!_ownsVideoBuffer) {
+            _videoBuffer = (uint32_t *)malloc(160 * 144 * 4);
+            _ownsVideoBuffer = YES;
+        }
+        return _videoBuffer;
     }
-    return _videoBuffer = (uint32_t*)hint;
+
+    // Adopt the renderer's buffer for this frame. It belongs to the renderer,
+    // so release ours if we had one and remember not to free this one.
+    if (_ownsVideoBuffer) {
+        free(_videoBuffer);
+        _ownsVideoBuffer = NO;
+    }
+    _videoBuffer = (uint32_t *)hint;
+    return _videoBuffer;
 }
 
 - (OEIntRect)screenRect

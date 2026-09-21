@@ -232,6 +232,16 @@ struct GameView: View {
                 }
             }
 
+            // Closing the game exercises the core's teardown, which is where a
+            // core that frees memory it does not own will crash.
+            let closeAfter = UserDefaults.standard.double(forKey: "OETestCloseAfter")
+            if closeAfter > 0 {
+                Task {
+                    try? await Task.sleep(for: .seconds(closeAfter))
+                    onClose()
+                }
+            }
+
             if UserDefaults.standard.bool(forKey: "OETestSaveState") {
                 Task {
                     try? await Task.sleep(for: .seconds(3))

@@ -2,8 +2,8 @@
 #
 # Build the iOS app and everything it loads.
 #
-# This is the one command that produces a runnable OpenEmu for the iOS
-# Simulator. It builds, in order:
+# This is the one command that produces a runnable OpenEmu. It builds, in
+# order:
 #
 #   1. the SDK frameworks (OpenEmuBase, OpenEmuSystem)
 #   2. OpenEmuShaders, whose Metal library the renderer needs
@@ -12,30 +12,24 @@
 #   5. the app itself
 #
 # Usage:
-#   Scripts/ios/build-ios.sh [--device] [--app-only]
+#   Scripts/ios/build-ios.sh [--device | --catalyst] [--app-only]
 #
 #   --device     target a real iPhone instead of the Simulator
+#   --catalyst   build the same app natively for the Mac (Mac Catalyst)
 #   --app-only   skip the frameworks and plugins; just rebuild the app
 
 set -euo pipefail
 
-# Some globs below are meant to match nothing on a first build.
+cd "${0:A:h}/../.."
 setopt NULL_GLOB 2>/dev/null || true
 
-cd "${0:A:h}/../.."
-
-PLATFORM=simulator
-TARGET=arm64-apple-ios17.0-simulator
-SDK_NAME=iphonesimulator
+MODE=simulator
 APP_ONLY=0
 
 for arg in "$@"; do
   case "$arg" in
-    --device)
-      PLATFORM=device
-      TARGET=arm64-apple-ios17.0
-      SDK_NAME=iphoneos
-      ;;
+    --device)   MODE=device ;;
+    --catalyst) MODE=catalyst ;;
     --app-only) APP_ONLY=1 ;;
     *)
       print -u2 -- "unknown option: $arg"
@@ -44,11 +38,26 @@ for arg in "$@"; do
   esac
 done
 
-DESTINATION="generic/platform=iOS Simulator"
-[[ "$PLATFORM" == "device" ]] && DESTINATION="generic/platform=iOS"
+# Each mode differs in three ways: which SDK, which ABI, and which destination
+# string the build system understands.
+case "$MODE" in
+  simulator)
+    SDK_NAME=iphonesimulator
+    DESTINATION='generic/platform=iOS Simulator'
+    ;;
+  device)
+    SDK_NAME=iphoneos
+    DESTINATION='generic/platform=iOS'
+    ;;
+  catalyst)
+    SDK_NAME=macosx
+    DESTINATION='platform=macOS,variant=Mac Catalyst'
+    ;;
+esac
 
-DERIVED="$PWD/build/ios-derived-$PLATFORM"
-SDK_BUILD="OpenEmu-SDK/build/Debug-$SDK_NAME"
+APP_PLATFORM=$SDK_NAME
+BUILD="$PWD/build/ios-$MODE"
+SUPPORTED="iphoneos iphonesimulator macosx"
 
 banner() {
   print -- ""
@@ -58,10 +67,16 @@ banner() {
 # 1. SDK frameworks.
 if [[ $APP_ONLY -eq 0 ]]; then
   banner "Building the SDK frameworks"
-  xcodebuild -project OpenEmu-SDK/OpenEmu-SDK.xcodeproj \
-    -target OpenEmuBase -target OpenEmuSystem \
-    -configuration Debug -sdk "$SDK_NAME" \
-    ARCHS=arm64 ONLY_ACTIVE_ARCH=NO build >/dev/null
+  for target in OpenEmuBase OpenEmuSystem; do
+    xcodebuild -project OpenEmu-SDK/OpenEmu-SDK.xcodeproj \
+      -scheme "$target" \
+      -configuration Debug \
+      -destination "$DESTINATION" \
+      -sdk "$SDK_NAME" \
+      ARCHS=arm64 ONLY_ACTIVE_ARCH=NO \
+      CONFIGURATION_BUILD_DIR="$BUILD" \
+      build >/dev/null
+  done
 fi
 
 # 2 and 3. OpenEmuShaders and OpenEmuKit come from the workspace, which
@@ -69,21 +84,23 @@ fi
 if [[ $APP_ONLY -eq 0 ]]; then
   banner "Building OpenEmuKit"
   xcodebuild -workspace OpenEmu-metal.xcworkspace \
-    -scheme OpenEmuKit -configuration Debug -sdk "$SDK_NAME" \
-    -derivedDataPath "$DERIVED" \
-    ARCHS=arm64 ONLY_ACTIVE_ARCH=NO build >/dev/null
+    -scheme OpenEmuKit \
+    -configuration Debug \
+    -destination "$DESTINATION" \
+    -sdk "$SDK_NAME" \
+    ARCHS=arm64 ONLY_ACTIVE_ARCH=NO \
+    CONFIGURATION_BUILD_DIR="$BUILD" \
+    build >/dev/null
 
   banner "Collecting the frameworks"
   mkdir -p OpenEmu-iOS/Frameworks
   rm -rf OpenEmu-iOS/Frameworks/*.framework
   for framework in OpenEmuBase OpenEmuSystem OpenEmuKit OpenEmuShaders; do
-    source_path="$DERIVED/Build/Products/Debug-$SDK_NAME/$framework.framework"
-    [[ -d "$source_path" ]] || source_path="$SDK_BUILD/$framework.framework"
-    if [[ ! -d "$source_path" ]]; then
-      print -u2 -- "error: could not find $framework.framework"
+    if [[ ! -d "$BUILD/$framework.framework" ]]; then
+      print -u2 -- "error: $BUILD/$framework.framework is missing"
       exit 1
     fi
-    cp -R "$source_path" OpenEmu-iOS/Frameworks/
+    cp -R "$BUILD/$framework.framework" OpenEmu-iOS/Frameworks/
   done
 fi
 
@@ -97,8 +114,8 @@ if [[ $APP_ONLY -eq 0 ]]; then
 
   rm -rf OpenEmu-iOS/PlugIns/Cores/*.oecoreplugin
   rm -rf OpenEmu-iOS/PlugIns/Systems/*.oesystemplugin
-  cp -R build/ios-plugins/*.oecoreplugin OpenEmu-iOS/PlugIns/Cores/ 2>/dev/null || true
-  cp -R build/ios-plugins/*.oesystemplugin OpenEmu-iOS/PlugIns/Systems/ 2>/dev/null || true
+  cp -R build/ios-plugins-$MODE/*.oecoreplugin OpenEmu-iOS/PlugIns/Cores/ 2>/dev/null || true
+  cp -R build/ios-plugins-$MODE/*.oesystemplugin OpenEmu-iOS/PlugIns/Systems/ 2>/dev/null || true
 fi
 
 # 5. The app.
@@ -107,10 +124,38 @@ xcodegen generate --spec OpenEmu-iOS/project.yml --project OpenEmu-iOS >/dev/nul
 
 banner "Building the app"
 xcodebuild -project OpenEmu-iOS/OpenEmu-iOS.xcodeproj \
-  -scheme OpenEmu-iOS -configuration Debug -sdk "$SDK_NAME" \
-  -derivedDataPath "$DERIVED" \
-  ARCHS=arm64 ONLY_ACTIVE_ARCH=NO build
+  -scheme OpenEmu-iOS \
+  -configuration Debug \
+  -destination "$DESTINATION" \
+  -sdk "$SDK_NAME" \
+  -derivedDataPath "$BUILD/app" \
+  ARCHS=arm64 ONLY_ACTIVE_ARCH=NO \
+  build
 
-APP="$DERIVED/Build/Products/Debug-$SDK_NAME/OpenEmu.app"
+case "$MODE" in
+  catalyst) PRODUCT_DIR=Debug-maccatalyst ;;
+  *)        PRODUCT_DIR=Debug-$APP_PLATFORM ;;
+esac
+APP="$BUILD/app/Build/Products/$PRODUCT_DIR/OpenEmu.app"
+
+# Mac Catalyst is signed ad-hoc after the fact. Xcode wants a development team
+# to sign a Catalyst target, and a local build only needs a valid signature so
+# that the sandbox entitlements take effect. Nested code is signed first,
+# innermost out, because signing a bundle seals its contents.
+if [[ "$MODE" == catalyst ]]; then
+  banner "Signing ad-hoc"
+  ENTITLEMENTS="$PWD/OpenEmu-iOS/Resources/OpenEmu-Catalyst.entitlements"
+
+  find "$APP/Contents/Frameworks" -name "*.framework" -maxdepth 1 | while read -r framework; do
+    codesign --force --sign - "$framework" 2>/dev/null
+  done
+
+  find "$APP/Contents/PlugIns" -name "*.oecoreplugin" -o -name "*.oesystemplugin" | while read -r plugin; do
+    codesign --force --sign - "$plugin" 2>/dev/null
+  done
+
+  codesign --force --sign - --entitlements "$ENTITLEMENTS" "$APP"
+fi
+
 print -- ""
 print -- "built $APP"

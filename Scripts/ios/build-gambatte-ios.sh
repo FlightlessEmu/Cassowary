@@ -15,15 +15,30 @@ set -euo pipefail
 
 cd "${0:A:h}/../.."
 
-PLATFORM=simulator
-TARGET=arm64-apple-ios17.0-simulator
-if [[ "${1:-}" == "--device" ]]; then
-  PLATFORM=device
-  TARGET=arm64-apple-ios17.0
-fi
+# Three targets: the Simulator, a real device, and Mac Catalyst. Catalyst uses
+# the macOS SDK but the iOS-family ABI, so the triple ends in -macabi.
+MODE=simulator
+case "${1:-}" in
+  --device)   MODE=device ;;
+  --catalyst) MODE=catalyst ;;
+esac
 
-SDK=$(xcrun --sdk iphone${PLATFORM} --show-sdk-path)
-OUT="build/ios-gambatte-${PLATFORM}"
+case "$MODE" in
+  simulator) SDK_NAME=iphonesimulator ; TARGET=arm64-apple-ios17.0-simulator ;;
+  device)    SDK_NAME=iphoneos        ; TARGET=arm64-apple-ios17.0 ;;
+  catalyst)  SDK_NAME=macosx          ; TARGET=arm64-apple-ios17.0-macabi ;;
+esac
+
+SDK=$(xcrun --sdk "$SDK_NAME" --show-sdk-path)
+OUT="build/ios-gambatte-${MODE}"
+
+# Catalyst gets UIKit and friends from the macOS SDK's iOSSupport directory.
+# Xcode adds this itself when it drives the build; a plain clang invocation has
+# to be told.
+CATALYST_FRAMEWORKS=()
+if [[ "$MODE" == catalyst ]]; then
+  CATALYST_FRAMEWORKS=(-iframework "$SDK/System/iOSSupport/System/Library/Frameworks")
+fi
 mkdir -p "$OUT"
 
 # Header search paths, mirroring the core target's settings.
@@ -50,6 +65,7 @@ INCLUDES=(
 CXXFLAGS=(
   -target "$TARGET"
   -isysroot "$SDK"
+  "${CATALYST_FRAMEWORKS[@]}"
   -fobjc-arc
   -DHAVE_STDINT_H
   -DRC_NO_THREADS=1
@@ -62,6 +78,7 @@ CXXFLAGS=(
 CCFLAGS=(
   -target "$TARGET"
   -isysroot "$SDK"
+  "${CATALYST_FRAMEWORKS[@]}"
   -fobjc-arc
   -DRC_NO_THREADS=1
   -DRC_CLIENT_SUPPORTS_HASH
@@ -98,10 +115,10 @@ for source in "${SOURCES[@]}"; do
   object="$OUT/${source//\//_}.o"
 
   case "$source" in
-    *.mm) compiler=(xcrun -sdk iphone${PLATFORM} clang++) ; flags=("${CXXFLAGS[@]}") ;;
-    *.m)  compiler=(xcrun -sdk iphone${PLATFORM} clang)  ; flags=("${CCFLAGS[@]}") ;;
-    *.c)  compiler=(xcrun -sdk iphone${PLATFORM} clang)  ; flags=("${CCFLAGS[@]}") ;;
-    *.cpp) compiler=(xcrun -sdk iphone${PLATFORM} clang++) ; flags=("${CXXFLAGS[@]}") ;;
+    *.mm) compiler=(xcrun -sdk "$SDK_NAME" clang++) ; flags=("${CXXFLAGS[@]}") ;;
+    *.m)  compiler=(xcrun -sdk "$SDK_NAME" clang)  ; flags=("${CCFLAGS[@]}") ;;
+    *.c)  compiler=(xcrun -sdk "$SDK_NAME" clang)  ; flags=("${CCFLAGS[@]}") ;;
+    *.cpp) compiler=(xcrun -sdk "$SDK_NAME" clang++) ; flags=("${CXXFLAGS[@]}") ;;
     *) continue ;;
   esac
 

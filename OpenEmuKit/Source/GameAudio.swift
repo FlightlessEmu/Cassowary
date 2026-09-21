@@ -161,7 +161,7 @@ final public class GameAudio: GameAudioProtocol {
     
     // MARK: - Helpers
     
-#if canImport(AppKit)
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
     private var defaultAudioOutputDeviceID: OEPlatformAudioDeviceID {
         var addr = AudioObjectPropertyAddress(mSelector: kAudioHardwarePropertyDefaultOutputDevice,
                                               mScope: kAudioObjectPropertyScopeGlobal,
@@ -245,7 +245,7 @@ final public class GameAudio: GameAudioProtocol {
         
         engine.stop()
 
-#if canImport(AppKit)
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
         // Selecting an output device is a macOS feature. iOS routes to the
         // system output and offers no choice.
         do {
@@ -265,7 +265,7 @@ final public class GameAudio: GameAudioProtocol {
     }
     
     var outputDeviceID: OEPlatformAudioDeviceID {
-#if canImport(AppKit)
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
         isDefaultOutputDevice ? 0 : engine.outputNode.auAudioUnit.deviceID
 #else
         0

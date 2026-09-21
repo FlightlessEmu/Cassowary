@@ -24,7 +24,7 @@
 
 // AppKit views have no iOS equivalent. The iOS host app supplies its own game
 // view, so these compile to nothing there.
-#if canImport(AppKit)
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
 
 import AppKit
 

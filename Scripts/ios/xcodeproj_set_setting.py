@@ -50,6 +50,10 @@ def main():
             body = text[span[0]:span[1]]
 
             for name, value in settings:
+                # A pbxproj value containing spaces or commas has to be quoted,
+                # or the file stops being a valid plist.
+                if any(ch in value for ch in ' ,'):
+                    value = f'"{value}"'
                 pattern = re.compile(r'^(\t\t\t\t' + re.escape(name) + r' = )[^;]*;', re.M)
                 if pattern.search(body):
                     body, n = pattern.subn(lambda m: m.group(1) + value + ';', body)

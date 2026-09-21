@@ -25,7 +25,7 @@
 import Foundation
 import CoreAudio
 
-#if canImport(AppKit)
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
 import AppKit
 #elseif canImport(UIKit)
 import UIKit
@@ -35,7 +35,7 @@ import UIKit
 ///
 /// `NSImage` on macOS, `UIImage` on iOS. The Objective-C side has the same
 /// alias in `OpenEmuBase/OEPlatform.h`; this is the Swift spelling.
-#if canImport(AppKit)
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
 public typealias OEPlatformImage = NSImage
 #elseif canImport(UIKit)
 public typealias OEPlatformImage = UIImage
@@ -46,7 +46,7 @@ public typealias OEPlatformImage = UIImage
 /// `NSBitmapImageRep` on macOS, `UIImage` on iOS. It is separate from
 /// `OEPlatformImage` because the macOS screenshot code needs bitmap-specific
 /// behaviour — resizing and encoding — that `NSImage` does not provide.
-#if canImport(AppKit)
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
 public typealias OEPlatformBitmapImage = NSBitmapImageRep
 #else
 public typealias OEPlatformBitmapImage = UIImage
@@ -57,14 +57,14 @@ public typealias OEPlatformBitmapImage = UIImage
 /// macOS uses `NSResponder` so the helper can sit in the responder chain. iOS
 /// runs the helper in-process and has no use for that, so it inherits from
 /// `NSObject` instead.
-#if canImport(AppKit)
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
 public typealias OEPlatformResponder = NSResponder
 #else
 public typealias OEPlatformResponder = NSObject
 #endif
 
 /// The application delegate protocol the helper conforms to.
-#if canImport(AppKit)
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
 public typealias OEPlatformApplicationDelegate = NSApplicationDelegate
 #else
 public typealias OEPlatformApplicationDelegate = NSObjectProtocol
@@ -74,7 +74,7 @@ public typealias OEPlatformApplicationDelegate = NSObjectProtocol
 ///
 /// `OEPlatformAudioDeviceID` is a macOS-only spelling. iOS has exactly one output, so the
 /// type is kept for source compatibility and the value is always zero there.
-#if canImport(AppKit)
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
 public typealias OEPlatformAudioDeviceID = AudioDeviceID
 #else
 public typealias OEPlatformAudioDeviceID = UInt32
@@ -86,7 +86,7 @@ extension OEPlatformBitmapImage {
     /// `NSBitmapImageRep` already has `init(cgImage:)`, so on macOS this is a
     /// thin wrapper that exists to give both platforms the same call site.
     convenience init(platformCGImage: CGImage) {
-#if canImport(AppKit)
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
         self.init(cgImage: platformCGImage)
 #else
         self.init(cgImage: platformCGImage)

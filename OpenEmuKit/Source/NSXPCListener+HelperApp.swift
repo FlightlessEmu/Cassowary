@@ -24,7 +24,7 @@
 
 // XPC is a macOS facility. On iOS the helper runs in the app's own process and
 // is driven by OEThreadGameCoreManager, so none of this is compiled.
-#if canImport(AppKit)
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
 
 import Foundation
 internal import os.log
