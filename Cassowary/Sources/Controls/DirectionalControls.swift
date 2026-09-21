@@ -89,26 +89,6 @@ enum DirectionRepeat {
     static let releaseGap = 0.034
 }
 
-/// Press what is newly wanted, release what is not, return the new held set.
-///
-/// Views keep the held set in @State for highlighting and call this on every
-/// gesture update so rolls across directions report exactly.
-@MainActor
-@discardableResult
-func syncDirections(_ want: Set<String>, held: Set<String>, buttons: [String: ControllerButton], handler: any ControlPressHandler) -> Set<String> {
-    for id in held.subtracting(want) {
-        if let button = buttons[id] {
-            handler.release(button.systemKey)
-        }
-    }
-    for id in want.subtracting(held) {
-        if let button = buttons[id] {
-            handler.press(button.systemKey)
-        }
-    }
-    return want
-}
-
 /// Which direction buttons a stick deflection means.
 ///
 /// `vector` is normalized (-1…1, y down). Inside the deadzone nothing is
@@ -154,6 +134,13 @@ struct ClassicDPadView: View {
     var size: CGFloat = 180
 
     @State private var held: Set<String> = []
+
+    /// Directions in a retrigger's release gap, so the pad can show the click.
+    @State private var flash: Set<String> = []
+    @State private var taps = TapPressTiming()
+
+    /// Cancels a tap's delayed highlight clear when a new touch arrives.
+    @State private var tapToken = 0
 
     @AppStorage(DirectionRepeat.enabledKey) private var repeatEnabled = false
     @AppStorage(DirectionRepeat.rateKey) private var repeatRate = DirectionRepeat.defaultRate
@@ -202,6 +189,8 @@ struct ClassicDPadView: View {
         .gesture(
             DragGesture(minimumDistance: 0)
                 .onChanged { value in
+                    flash = []
+                    tapToken += 1
                     let center = CGPoint(x: size / 2, y: size / 2)
                     let vector = stickVector(at: value.location, center: center, radius: size / 2)
                     let want = directionIDs(for: vector, up: up, down: down, left: left, right: right)
@@ -209,11 +198,36 @@ struct ClassicDPadView: View {
                     // a finger that merely jitters in place must not restart
                     // the retrigger delay.
                     guard want != held else { return }
-                    held = syncDirections(want, held: held, buttons: buttons, handler: handler)
+                    held = taps.sync(want, held: held, buttons: buttons, handler: handler)
                 }
-                .onEnded { _ in
+                .onEnded { value in
                     stopRepeat()
-                    held = syncDirections([], held: held, buttons: buttons, handler: handler)
+                    // A tap can end without any update on the way down. Report
+                    // the direction under the finger for a moment, so a quick
+                    // tap still steps the game and the arm still clicks.
+                    if held.isEmpty {
+                        let center = CGPoint(x: size / 2, y: size / 2)
+                        let vector = stickVector(at: value.location, center: center, radius: size / 2)
+                        let want = directionIDs(for: vector, up: up, down: down, left: left, right: right)
+                        guard want.isEmpty else {
+                            for id in want {
+                                if let button = buttons[id] {
+                                    taps.press(button.systemKey, handler: handler)
+                                    taps.release(button.systemKey, handler: handler)
+                                }
+                            }
+                            held = want
+                            tapToken += 1
+                            let token = tapToken
+                            Task { @MainActor in
+                                try? await Task.sleep(for: .seconds(TapPressTiming.minimumPress))
+                                guard token == tapToken else { return }
+                                held = []
+                            }
+                            return
+                        }
+                    }
+                    held = taps.sync([], held: held, buttons: buttons, handler: handler)
                 }
         )
         .onAppear { restartRepeat() }
@@ -255,11 +269,13 @@ struct ClassicDPadView: View {
                 for id in ids {
                     if let button = buttons[id] { handler.release(button.systemKey) }
                 }
+                flash = ids
                 try? await Task.sleep(for: .seconds(gap))
                 guard !Task.isCancelled else { return }
                 for id in ids {
                     if let button = buttons[id] { handler.press(button.systemKey) }
                 }
+                flash = []
                 try? await Task.sleep(for: .seconds(pressed))
             }
         }
@@ -268,6 +284,14 @@ struct ClassicDPadView: View {
     private func stopRepeat() {
         repeatTask?.cancel()
         repeatTask = nil
+        flash = []
+    }
+
+    /// A direction is lit while it is held, except during a retrigger's
+    /// release gap — that gap is what makes the repeat look like a click.
+    private func isLit(_ id: String?) -> Bool {
+        guard let id else { return false }
+        return held.contains(id) && !flash.contains(id)
     }
 
     private func crossBar(width: CGFloat, height: CGFloat, corner: CGFloat) -> some View {
@@ -282,7 +306,7 @@ struct ClassicDPadView: View {
 
     private func armHighlight(id: String?, width: CGFloat, height: CGFloat, x: CGFloat, y: CGFloat) -> some View {
         RoundedRectangle(cornerRadius: min(width, height) * 0.28, style: .continuous)
-            .fill(id.map { held.contains($0) } ?? false ? theme.padActive() : .clear)
+            .fill(isLit(id) ? theme.padActive() : .clear)
             .frame(width: width, height: height)
             .offset(x: x, y: y)
     }
@@ -319,6 +343,7 @@ struct ThumbstickView: View {
     @State private var held: Set<String> = []
     @State private var knob: CGSize = .zero
     @State private var active = false
+    @State private var taps = TapPressTiming()
 
     private var buttons: [String: ControllerButton] {
         [up, down, left, right].compactMap { $0 }.reduce(into: [:]) { $0[$1.id] = $1 }
@@ -362,9 +387,9 @@ struct ThumbstickView: View {
                     }
                     let want = directionIDs(for: vector, up: up, down: down, left: left, right: right)
                         .filter { buttons[$0]?.isAnalog != true }
-                    held = syncDirections(want, held: held, buttons: buttons, handler: handler)
+                    held = taps.sync(want, held: held, buttons: buttons, handler: handler)
                 }
-                .onEnded { _ in
+                .onEnded { value in
                     withAnimation(.spring(response: 0.18)) {
                         knob = .zero
                     }
@@ -372,7 +397,23 @@ struct ThumbstickView: View {
                     if hasAnalog {
                         driveAnalog(.zero)
                     }
-                    held = syncDirections([], held: held, buttons: buttons, handler: handler)
+                    // Digital systems: a tap can end without an update, so
+                    // press the direction under the finger for a moment. An
+                    // analog stick has nothing to report without movement, so
+                    // a tap there stays centered.
+                    if !hasAnalog, held.isEmpty {
+                        let center = CGPoint(x: diameter / 2, y: diameter / 2)
+                        let vector = stickVector(at: value.location, center: center, radius: diameter / 2)
+                        let want = directionIDs(for: vector, up: up, down: down, left: left, right: right)
+                            .filter { buttons[$0]?.isAnalog != true }
+                        for id in want {
+                            if let button = buttons[id] {
+                                taps.press(button.systemKey, handler: handler)
+                                taps.release(button.systemKey, handler: handler)
+                            }
+                        }
+                    }
+                    held = taps.sync([], held: held, buttons: buttons, handler: handler)
                 }
         )
         .accessibilityLabel("Joystick")
@@ -418,9 +459,16 @@ struct HoldableButton<Label: View>: View {
     let button: ControllerButton
     let handler: any ControlPressHandler
     let theme: ButtonTheme
+    /// D-pad caps retrigger while held; face buttons never do.
+    var repeatsWhenHeld = false
     @ViewBuilder let label: (Bool) -> Label
 
     @State private var isPressed = false
+    @State private var taps = TapPressTiming()
+    @State private var repeatTask: Task<Void, Never>?
+
+    @AppStorage(DirectionRepeat.enabledKey) private var repeatEnabled = false
+    @AppStorage(DirectionRepeat.rateKey) private var repeatRate = DirectionRepeat.defaultRate
 
     var body: some View {
         label(isPressed)
@@ -435,15 +483,51 @@ struct HoldableButton<Label: View>: View {
                     .onChanged { _ in
                         guard !isPressed else { return }
                         isPressed = true
-                        handler.press(button.systemKey)
+                        taps.press(button.systemKey, handler: handler)
+                        restartRepeat()
                     }
                     .onEnded { _ in
                         isPressed = false
-                        handler.release(button.systemKey)
+                        stopRepeat()
+                        // A quick tap can end without ever reporting a change;
+                        // endTap reports the press so the tap still counts.
+                        taps.endTap(button.systemKey, handler: handler)
                     }
             )
+            .onDisappear { stopRepeat() }
             .accessibilityLabel(button.label)
             .accessibilityAddTraits(.isButton)
+    }
+
+    /// Retrigger a held cap so games that need a fresh press keep stepping.
+    ///
+    /// Each cycle releases and presses again, and the press animation follows
+    /// it, so a held direction visibly clicks at the repeat rate.
+    private func restartRepeat() {
+        stopRepeat()
+        guard repeatsWhenHeld, repeatEnabled else { return }
+
+        let period = 1 / max(repeatRate, 1)
+        let gap = min(DirectionRepeat.releaseGap, period * 0.5)
+        let pressed = max(period - gap, 0.01)
+
+        repeatTask = Task { @MainActor in
+            try? await Task.sleep(for: .seconds(DirectionRepeat.initialDelay))
+            while !Task.isCancelled {
+                handler.release(button.systemKey)
+                isPressed = false
+                try? await Task.sleep(for: .seconds(gap))
+                guard !Task.isCancelled else { return }
+                handler.press(button.systemKey)
+                isPressed = true
+                try? await Task.sleep(for: .seconds(pressed))
+            }
+        }
+    }
+
+    private func stopRepeat() {
+        repeatTask?.cancel()
+        repeatTask = nil
     }
 }
 
@@ -524,7 +608,7 @@ struct SplitButtonsPad: View {
     private func padCap(_ button: ControllerButton?, symbol: String) -> some View {
         Group {
             if let button {
-                HoldableButton(button: button, handler: handler, theme: theme) { pressed in
+                HoldableButton(button: button, handler: handler, theme: theme, repeatsWhenHeld: true) { pressed in
                     ControlPadShape(cornerFactor: 0.22)
                         .fill(pressed ? theme.padActive() : (isSolid ? theme.padCap() : theme.padBase()))
                         .overlay {
@@ -588,7 +672,6 @@ final class PreviewPressHandler: ObservableObject, ControlPressHandler {
 
     private var labels: [UInt: String] = [:]
     private var lastAnalogBucket = -1
-    private let feedback = UIImpactFeedbackGenerator(style: .light)
 
     func register(_ button: ControllerButton) {
         labels[button.keyIndex] = button.label
@@ -597,7 +680,7 @@ final class PreviewPressHandler: ObservableObject, ControlPressHandler {
     func press(_ button: OESystemKey) {
         lastLabel = labels[button.key] ?? "…"
         pressCount += 1
-        feedback.impactOccurred()
+        ButtonHaptics.impact()
     }
 
     func release(_ button: OESystemKey) { }
