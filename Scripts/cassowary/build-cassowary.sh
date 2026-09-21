@@ -22,8 +22,8 @@
 # Device builds only:
 #
 #   --team       the Apple team to sign with. The default is DEVELOPMENT_TEAM
-#                from the environment, then the Apple Development certificate
-#                already on this Mac, then the team Xcode is set up to use.
+#                from the environment, then the team Xcode is set up with,
+#                then the Apple Development certificate on this Mac.
 #   --udid       the iPhone to build for. The default is the only device
 #                devicectl can see. The phone is added to the provisioning
 #                profile, which is what lets the app install.
@@ -101,16 +101,19 @@ SUPPORTED="iphoneos iphonesimulator macosx"
 APP_DESTINATION=$DESTINATION
 SIGN_FLAGS=()
 if [[ "$MODE" == device && $SIGN -eq 1 ]]; then
-  # The team to sign with: what the caller passed, then the Apple
-  # Development certificate on this Mac, then the team Xcode is set up
-  # with — xcodebuild can create a certificate for that one on demand.
-  if [[ -z "$TEAM_ID" ]]; then
-    TEAM_ID=$(security find-identity -v -p codesigning 2>/dev/null \
-      | sed -n 's/.*Apple Development: .*(\([A-Z0-9]\{10\}\)).*/\1/p' \
-      | head -1 || true)
-  fi
+  # The team to sign with: what the caller passed, then the team Xcode is
+  # set up with, then the Apple Development certificate on this Mac.
+  #
+  # A certificate's team is its OU. The value in the common name's
+  # parentheses is not a team ID for personal teams, even though it looks
+  # like one, and xcodebuild rejects it as an unknown team.
   if [[ -z "$TEAM_ID" ]]; then
     TEAM_ID=$(defaults read com.apple.dt.Xcode IDEProvisioningTeamManagerLastSelectedTeamID 2>/dev/null || true)
+  fi
+  if [[ -z "$TEAM_ID" ]]; then
+    TEAM_ID=$(security find-certificate -a -c "Apple Development" -p 2>/dev/null \
+      | openssl x509 -noout -subject 2>/dev/null \
+      | sed -n 's/.*OU=\([A-Z0-9][A-Z0-9]*\).*/\1/p' | head -1 || true)
   fi
   if [[ -z "$TEAM_ID" ]]; then
     print -u2 -- "error: no Apple signing identity or team found."
