@@ -11,6 +11,8 @@
 #   Scripts/cassowary/run-cassowary.sh --game FILE  copy FILE into the app before launching
 #   Scripts/cassowary/run-cassowary.sh --device     install and launch on a real iPhone
 #   Scripts/cassowary/run-cassowary.sh --udid UDID  the iPhone to use, with --device
+#   Scripts/cassowary/run-cassowary.sh --ipad       run on the iPad mini Simulator
+#   Scripts/cassowary/run-cassowary.sh --ipad-pro   run on the 13-inch iPad Pro Simulator
 #   Scripts/cassowary/run-cassowary.sh --catalyst   run on the Mac (Mac Catalyst)
 #
 # Notes on running the app on the Mac itself:
@@ -42,11 +44,26 @@ while [[ $# -gt 0 ]]; do
     --rebuild) REBUILD=1; shift ;;
     --device) TARGET_MODE=device; shift ;;
     --udid) DEVICE_UDID=${2:?--udid needs a device UDID}; shift 2 ;;
+    --ipad) TARGET_MODE=ipad; shift ;;
+    --ipad-pro) TARGET_MODE=ipad-pro; shift ;;
     --catalyst) TARGET_MODE=catalyst; shift ;;
     --game) GAME="$2"; shift 2 ;;
     *) print -u2 -- "unknown option: $1"; exit 1 ;;
   esac
 done
+
+# The iPad modes are the same Simulator app build as the iPhone; only the
+# device it is installed on differs. One app, every screen.
+case "$TARGET_MODE" in
+  ipad)
+    DEVICE_NAME="Cassowary-iPad-mini"
+    DEVICE_TYPE="com.apple.CoreSimulator.SimDeviceType.iPad-mini-A17-Pro"
+    ;;
+  ipad-pro)
+    DEVICE_NAME="Cassowary-iPad-Pro-13"
+    DEVICE_TYPE="com.apple.CoreSimulator.SimDeviceType.iPad-Pro-13-inch-M5-16GB"
+    ;;
+esac
 
 # --- A real iPhone --------------------------------------------------------
 #
@@ -171,8 +188,17 @@ if ! xcrun simctl list devices | grep -q "$DEVICE_ID) (Booted)"; then
 fi
 xcrun simctl bootstatus "$DEVICE_ID" -b >/dev/null 2>&1 || true
 
-# Show the window so the app is actually visible.
-open -a Simulator
+# Show the device window so the app is actually visible. Xcode 27 replaced
+# the Simulator app with Device Hub; older Xcodes still have Simulator.
+# Missing either one is not fatal — simctl does the work, the window is just
+# for watching.
+DEVELOPER_DIR=$(xcode-select -p)
+DEVICE_HUB="${DEVELOPER_DIR:h}/Applications/DeviceHub.app"
+if [[ -d "$DEVICE_HUB" ]]; then
+  open -a "$DEVICE_HUB"
+else
+  open -a Simulator 2>/dev/null || true
+fi
 
 # --- Build ----------------------------------------------------------------
 
@@ -205,6 +231,6 @@ print -- "launching..."
 xcrun simctl launch "$DEVICE_ID" "$BUNDLE_ID" >/dev/null
 
 print -- ""
-print -- "running. the app is in the Simulator window."
-print -- "press Control-Command-Z to send the Simulator a shake, or use the"
-print -- "Simulator's Device menu to rotate."
+print -- "running. the app is in the $DEVICE_NAME window."
+print -- "rotate it with Command-Left or Command-Right while the Device Hub"
+print -- "window for the device is focused."

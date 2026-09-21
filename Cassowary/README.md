@@ -19,7 +19,9 @@ credits and per-core licenses.
 - Vectrex via the VecXGL core, which draws its vector display with Metal
 - Nintendo 64 via Mupen64Plus, rendering through paraLLEl-RDP on MoltenVK
 - Multi-core library: systems sidebar, per-system default cores, Play With…
-- On-screen controls generated from each system plugin's own control list
+- On-screen controls generated from each system plugin's own control list: the
+  pad follows each console's arrangement, and the system controls — Start,
+  Select, Mode — stay with the buttons on the right, drawn as symbols
 - Physical controllers through Apple's GameController framework — a paired
   gamepad drives the same buttons as the on-screen pad, using the mapping the
   system plugin already ships
@@ -35,6 +37,28 @@ credits and per-core licenses.
   VHS, …), switchable while playing and settable per system in Settings
 - Cover art: box art downloaded from libretro-thumbnails, and from
   ScreenScraper too once an app key is set up (Settings → Cover Art)
+
+## Devices and screen formats
+
+One app runs on every Apple screen it supports — iPhone, iPad, Mac
+(Catalyst), and foldables such as the iPhone Duo. The layout follows the
+window's size class, not the device name or the orientation:
+
+| Window | Library |
+|---|---|
+| Compact (iPhone held upright, a foldable's cover display, iPad Slide Over) | One column: the systems list, which pushes the games on tap |
+| Regular (iPad, a foldable's inner display, Mac, iPhone Max in landscape) | The system's own two-column split view, with a sidebar toggle |
+| Compact but wide (a standard iPhone in landscape) | Two columns: the systems list keeps its own column beside the games, and the sidebar button folds it away |
+
+A foldable opening or closing changes the size class while the app is running.
+The library keeps the system you were looking at on screen across that change,
+and the on-screen controls are sized from the shorter side of the screen, so
+they stay the same size when the device turns or unfolds. The controls also
+stay inside the safe area, clear of the sensor housing in landscape and of the
+system bars on a foldable.
+
+The app builds for iPad from the same target as the iPhone: iPadOS is a
+supported destination of the one app, declared in `Cassowary/project.yml`.
 
 ## How it is put together
 
@@ -57,15 +81,18 @@ them with `dlopen` as long as they are signed with the app's team.
 
 ```bash
 ./Scripts/cassowary/build-cassowary.sh              # for the Simulator
-./Scripts/cassowary/build-cassowary.sh --device     # for a real iPhone
+./Scripts/cassowary/build-cassowary.sh --device     # for a real iPhone or iPad
 ./Scripts/cassowary/build-cassowary.sh --catalyst   # for the Mac, natively
 ```
 
 One-command dev loop and end-to-end test:
 
 ```bash
-./Scripts/cassowary/run-cassowary.sh
-./Scripts/cassowary/test-cassowary.sh
+./Scripts/cassowary/run-cassowary.sh            # iPhone Simulator
+./Scripts/cassowary/run-cassowary.sh --ipad     # iPad mini Simulator
+./Scripts/cassowary/run-cassowary.sh --ipad-pro # 13-inch iPad Pro Simulator
+./Scripts/cassowary/test-cassowary.sh           # end-to-end check
+./Scripts/cassowary/test-cassowary.sh --ipad    # the same check on iPad
 ```
 
 ## Running on a real iPhone

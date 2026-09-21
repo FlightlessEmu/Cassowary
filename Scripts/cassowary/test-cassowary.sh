@@ -17,6 +17,7 @@
 #
 # Usage:
 #   Scripts/cassowary/test-cassowary.sh [--device-id <udid>] [--skip-build]
+#                                       [--ipad | --ipad-pro]
 
 set -euo pipefail
 
@@ -26,6 +27,9 @@ setopt NULL_GLOB 2>/dev/null || true
 BUNDLE_ID=org.cassowary.Cassowary
 DEVICE_ID=""
 SKIP_BUILD=0
+DEVICE_NAME=""
+DEVICE_TYPE=""
+RUNTIME="com.apple.CoreSimulator.SimRuntime.iOS-26-5"
 APP="build/cassowary-simulator/app/Build/Products/Debug-iphonesimulator/Cassowary.app"
 SHOTS="build/cassowary-test-shots"
 
@@ -33,9 +37,39 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --device-id) DEVICE_ID="$2"; shift 2 ;;
     --skip-build) SKIP_BUILD=1; shift ;;
+    --ipad)
+      DEVICE_NAME="Cassowary-iPad-mini"
+      DEVICE_TYPE="com.apple.CoreSimulator.SimDeviceType.iPad-mini-A17-Pro"
+      shift
+      ;;
+    --ipad-pro)
+      DEVICE_NAME="Cassowary-iPad-Pro-13"
+      DEVICE_TYPE="com.apple.CoreSimulator.SimDeviceType.iPad-Pro-13-inch-M5-16GB"
+      shift
+      ;;
     *) print -u2 -- "unknown option: $1"; exit 1 ;;
   esac
 done
+
+# --ipad and --ipad-pro boot the same Simulator device the run script uses,
+# creating it first if this is the first time.
+if [[ -n "$DEVICE_NAME" && -z "$DEVICE_ID" ]]; then
+  if ! xcrun simctl list devices | grep -q "$DEVICE_NAME"; then
+    print -- "creating simulator $DEVICE_NAME"
+    xcrun simctl create "$DEVICE_NAME" "$DEVICE_TYPE" "$RUNTIME" >/dev/null
+  fi
+  DEVICE_ID=$(xcrun simctl list devices available \
+    | sed -n "s/.*$DEVICE_NAME (\([0-9A-F-]\{36\}\)).*/\1/p" | head -1)
+  if [[ -z "$DEVICE_ID" ]]; then
+    print -u2 -- "error: could not find the $DEVICE_NAME simulator"
+    exit 1
+  fi
+  if ! xcrun simctl list devices | grep -q "$DEVICE_ID) (Booted)"; then
+    print -- "booting $DEVICE_NAME"
+    xcrun simctl boot "$DEVICE_ID" 2>/dev/null || true
+  fi
+  xcrun simctl bootstatus "$DEVICE_ID" -b >/dev/null 2>&1 || true
+fi
 
 if [[ -z "$DEVICE_ID" ]]; then
   DEVICE_ID=$(xcrun simctl list devices available \

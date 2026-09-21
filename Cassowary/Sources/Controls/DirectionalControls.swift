@@ -651,9 +651,18 @@ struct FaceButtonView: View {
                 }
                 .frame(width: size, height: size)
                 .overlay {
-                    Text(button.label)
-                        .font(.system(size: size * 0.28, weight: .semibold))
-                        .foregroundStyle(.white.opacity(pressed ? 1 : 0.9))
+                    // A button the plugin names with a shape — Start, Select,
+                    // △, a C button — is drawn as that shape; the rest keep
+                    // their own letters.
+                    if let symbol = ButtonGlyph.symbol(for: button) {
+                        Image(systemName: symbol)
+                            .font(.system(size: size * 0.4, weight: .semibold))
+                            .foregroundStyle(.white.opacity(pressed ? 1 : 0.9))
+                    } else {
+                        Text(button.label)
+                            .font(.system(size: size * 0.28, weight: .semibold))
+                            .foregroundStyle(.white.opacity(pressed ? 1 : 0.9))
+                    }
                 }
         }
     }

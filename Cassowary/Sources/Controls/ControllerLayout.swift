@@ -107,6 +107,11 @@ struct ControllerLayout {
     /// stick and a physical stick do the same thing.
     let leftStick: DirectionalButtons
 
+    /// The direction buttons a right stick drives, when the system has one.
+    /// The pad does not draw this stick; its directions are kept out of the
+    /// action cluster so they are not mistaken for four face buttons.
+    let rightStick: DirectionalButtons
+
     static let deadzone: CGFloat = 0.18
 
     var allButtons: [ControllerButton] { groups.flatMap { $0 } }
@@ -177,6 +182,10 @@ struct ControllerLayout {
             stick = pad
         }
         self.leftStick = stick
+
+        // A right stick is not drawn, so it gets no fallback: an empty set
+        // means the system has none.
+        self.rightStick = Self.directions(controls, .rightStickUp, .rightStickDown, .rightStickLeft, .rightStickRight)
     }
 
     // MARK: - Reading the plugin

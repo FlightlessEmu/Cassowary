@@ -37,6 +37,12 @@ targets:
   Cassowary:
     type: application
     platform: iOS
+    # iPadOS builds from the same iOS SDK and ships as the same binary, so
+    # there is no second target: iPad is a supported destination of this one.
+    # Listing it here is what ticks iPad in the project's Supported
+    # Destinations (and keeps TARGETED_DEVICE_FAMILY at "1,2" below); Mac
+    # Catalyst is declared separately with SUPPORTS_MACCATALYST.
+    supportedDestinations: [iOS, iPadOS]
     deploymentTarget: "17.0"
     sources:
       - path: Sources

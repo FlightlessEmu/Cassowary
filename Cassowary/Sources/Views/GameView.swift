@@ -86,8 +86,10 @@ struct GameView: View {
                 )
                 .ignoresSafeArea()
 
+                // The controls respect the safe area on every edge: in
+                // landscape that keeps them clear of the sensor housing, and
+                // on a foldable it keeps them clear of the system bars.
                 OnScreenControls(layout: layout, session: session)
-                    .ignoresSafeArea(edges: .horizontal)
 
                 if isPaused {
                     pausedOverlay(session: session)
