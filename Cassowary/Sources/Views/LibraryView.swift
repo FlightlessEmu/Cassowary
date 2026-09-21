@@ -113,6 +113,17 @@ struct LibraryView: View {
                 .navigationSplitViewStyle(.balanced)
             }
         }
+        // Games are added by dropping files anywhere on the library, so the
+        // target is the whole window: on the Mac and iPad that includes the
+        // sidebar, and on iPhone it includes the first screen, which is the
+        // sidebar until a system is opened.
+        .contentShape(Rectangle())
+        .onDrop(of: [.fileURL, .item], isTargeted: $dropTargeted, perform: handleDrop)
+        .overlay {
+            if dropTargeted {
+                dropHighlight
+            }
+        }
         .fullScreenCover(item: $playing) { active in
             GameView(game: active.game, core: active.core) {
                 playing = nil
@@ -301,16 +312,6 @@ struct LibraryView: View {
                 grid(for: target)
             }
         }
-        // Games are added by dropping files onto the library. The whole pane
-        // is the target, including the empty state — that is where a user with
-        // no games will try it.
-        .contentShape(Rectangle())
-        .onDrop(of: [.fileURL], isTargeted: $dropTargeted, perform: handleDrop)
-        .overlay {
-            if dropTargeted {
-                dropHighlight
-            }
-        }
         .navigationTitle(detailTitle(for: target))
         .searchable(text: $searchText, prompt: "Search games")
         .toolbar {
@@ -443,8 +444,12 @@ struct LibraryView: View {
     /// session stops handing out its payload once it does. The copy itself
     /// happens afterwards, in the library.
     private func handleDrop(providers: [NSItemProvider]) -> Bool {
+        // File drops only. A provider that offers no file URL at all is still
+        // taken on, so the attempt ends with an explanation rather than the
+        // drag silently doing nothing.
         let fileProviders = providers.filter {
             $0.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier)
+                || $0.hasItemConformingToTypeIdentifier(UTType.item.identifier)
         }
         guard !fileProviders.isEmpty else { return false }
 
