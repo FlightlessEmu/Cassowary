@@ -36,8 +36,13 @@ struct ControllerButton: Identifiable, Hashable {
     let isAnalog: Bool
 
     /// The key to hand to the responder when this button is pressed.
+    ///
+    /// Player numbers are 1-based all the way down: the responders hand the
+    /// number straight to the cores, which index their per-player pad state
+    /// with `player - 1`. Passing 0 here underflows that subtraction, so the
+    /// press lands outside the pad array and the game never sees it.
     var systemKey: OESystemKey {
-        OESystemKey(key: keyIndex, player: 0, isAnalogic: isAnalog)
+        OESystemKey(key: keyIndex, player: 1, isAnalogic: isAnalog)
     }
 }
 

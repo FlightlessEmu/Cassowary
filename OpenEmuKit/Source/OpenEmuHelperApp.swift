@@ -30,6 +30,12 @@ import OpenEmuSystem
 import OpenEmuKitPrivate
 import OpenEmuShaders
 internal import os.log
+// MetalFX is available on iOS 16 and up, and on the Mac through Catalyst.
+// OpenEmuKit still builds for macOS 12, where the framework exists but its
+// API is not available, so a native macOS build keeps the plain picture.
+#if canImport(MetalFX) && !os(macOS)
+import MetalFX
+#endif
 
 extension OSLog {
     static let display  = OSLog(subsystem: "org.openemu.OpenEmuKit", category: "display")
@@ -85,6 +91,12 @@ extension OSLog {
     public var systemResponder: OESystemResponder? { _systemResponder }
 #endif
     var _filterChain: FilterChain!
+    /// Whether the final picture is handed to MetalFX to be enlarged.
+    var _metalFXUpscalingEnabled = false
+#if canImport(MetalFX) && !os(macOS)
+    /// The MetalFX scaler, reused until the picture or the screen changes size.
+    var _metalFXUpscaler: MetalFXSpatialUpscaler?
+#endif
     var _screenshot: Screenshot!
     /// Only send 1 frame at once to the GPU.
     /// Since we aren't synced to the display, even one more
@@ -287,6 +299,46 @@ extension OSLog {
 #endif
         }
     }
+    
+#if canImport(MetalFX) && !os(macOS)
+    /// The MetalFX scaler for this frame, built or reused.
+    ///
+    /// The sizes come from the picture the filter chain produced and the
+    /// bounds that picture will fill on screen. A nil answer means MetalFX is
+    /// not a fit here — the picture is already screen-sized, its pixel format
+    /// is unsupported, or this GPU has no scaler — and the caller draws the
+    /// final pass the normal way.
+    private func metalFXUpscaler(for source: MTLTexture) -> MetalFXSpatialUpscaler? {
+        let bounds = _filterChain.outputBounds
+        let inputSize = CGSize(width: source.width, height: source.height)
+        let outputSize = CGSize(width: bounds.width.rounded(), height: bounds.height.rounded())
+        
+        guard inputSize.width > 0, inputSize.height > 0,
+              outputSize.width > inputSize.width,
+              outputSize.height > inputSize.height
+        else { return nil }
+        
+        if let existing = _metalFXUpscaler,
+           existing.inputSize == inputSize,
+           existing.outputSize == outputSize,
+           existing.canScale(source)
+        {
+            return existing
+        }
+        
+        guard let scaler = MetalFXSpatialUpscaler(device: _device,
+                                                  inputSize: inputSize,
+                                                  outputSize: outputSize,
+                                                  pixelFormat: source.pixelFormat)
+        else { return nil }
+        
+        NSLog("[Cassowary] MetalFX spatial upscaling %ld×%ld → %ld×%ld",
+              Int(inputSize.width), Int(inputSize.height),
+              Int(outputSize.width), Int(outputSize.height))
+        _metalFXUpscaler = scaler
+        return scaler
+    }
+#endif
     
     // MARK: - Game Core methods
     
@@ -528,6 +580,15 @@ extension OSLog {
         _adaptiveSyncEnabled = enabled
     }
     
+    /// Turn MetalFX spatial upscaling on or off for the running game.
+    ///
+    /// The renderer decides per frame whether it can use the scaler. Where it
+    /// cannot — the Simulator has no MetalFX, and some GPUs or frame sizes are
+    /// not supported — the picture is drawn the normal way.
+    public func setMetalFXUpscalingEnabled(_ enabled: Bool) {
+        _metalFXUpscalingEnabled = enabled
+    }
+    
     public func setShaderURL(_ url: URL, parameters: [String: NSNumber]?, completionHandler block: @escaping (Error?) -> Void) {
         gameCore.perform {
             do {
@@ -539,6 +600,15 @@ extension OSLog {
         }
     }
     
+    /// Remove the active shader, going back to unfiltered output.
+    public func clearShader(_ completionHandler: @escaping () -> Void) {
+        gameCore.perform {
+            self._filterChain.clearShader()
+            self._currentShader = nil
+            completionHandler()
+        }
+    }
+
     func setShaderURL(_ url: URL, parameters: [String: Double]?) throws {
         if _currentShader != url {
             try _filterChain.setShader(fromURL: url, options: .makeOptions())
@@ -894,6 +964,14 @@ extension OSLog {
     public func gameCoreDidFinishFrameRefreshThread(_ gameCore: OEGameCore) {
         CFRunLoopStop(CFRunLoopGetCurrent())
     }
+
+    /// A game is shaking a controller. Pass it straight to the host, which
+    /// decides how (and how hard) to play it.
+    public func gameCore(_ gameCore: OEGameCore, didChangeRumble enabled: Bool, forPlayer player: UInt) {
+        Task { @MainActor in
+            gameCoreOwner.didChangeRumble?(enabled, forPlayer: player)
+        }
+    }
     
     public func gameCoreWillBeginFrame(_ isExecuting: Bool) {
         _scope.begin()
@@ -940,13 +1018,29 @@ extension OSLog {
             rpd.colorAttachments[0].loadAction = .clear
             rpd.colorAttachments[0].texture    = drawable.texture
             
-            guard
-                let finalCB = _commandQueue.makeCommandBuffer(),
-                let rce     = finalCB.makeRenderCommandEncoder(descriptor: rpd)
-            else { return }
+            guard let finalCB = _commandQueue.makeCommandBuffer() else { return }
             finalCB.label = "final"
             
-            _filterChain.renderFinalPass(withCommandEncoder: rce, flipVertically: flipVertically)
+            // MetalFX enlarges the game's own picture to the size it appears
+            // on screen. It runs only where it can: a supported GPU, a
+            // picture smaller than the space it would fill, and no filter
+            // whose last pass already draws at screen size.
+            var upscaled: MTLTexture?
+#if canImport(MetalFX) && !os(macOS)
+            if _metalFXUpscalingEnabled,
+               let source = _filterChain.finalSourceTexture,
+               let scaler = metalFXUpscaler(for: source) {
+                scaler.encode(commandBuffer: finalCB, colorTexture: source)
+                upscaled = scaler.outputTexture
+            }
+#endif
+            
+            guard let rce = finalCB.makeRenderCommandEncoder(descriptor: rpd) else { return }
+            if let upscaled {
+                _filterChain.renderFinalTexture(upscaled, withCommandEncoder: rce, flipVertically: flipVertically)
+            } else {
+                _filterChain.renderFinalPass(withCommandEncoder: rce, flipVertically: flipVertically)
+            }
             rce.endEncoding()
             
             skipped = nil
@@ -1069,3 +1163,79 @@ extension OSLog {
         gameCoreOwner.lastDisplayMode()
     }
 }
+
+#if canImport(MetalFX) && !os(macOS)
+/// MetalFX's spatial scaler, set up for one picture size and one screen size.
+///
+/// The scaler works around fixed sizes: build one for the sizes a frame has
+/// now, and rebuild it when either changes. Creation is allowed to fail — an
+/// older GPU, or sizes MetalFX will not take — and the caller then draws the
+/// frame the normal way.
+final class MetalFXSpatialUpscaler {
+    let inputSize: CGSize
+    let outputSize: CGSize
+    /// The enlarged picture. The final render pass draws this on screen.
+    let outputTexture: MTLTexture
+    
+    private let scaler: any MTLFXSpatialScaler
+    private let colorFormat: MTLPixelFormat
+    
+    init?(device: MTLDevice, inputSize: CGSize, outputSize: CGSize, pixelFormat: MTLPixelFormat) {
+        guard MTLFXSpatialScalerDescriptor.supportsDevice(device) else { return nil }
+        
+        let width = Int(inputSize.width.rounded(.down))
+        let height = Int(inputSize.height.rounded(.down))
+        let outputWidth = Int(outputSize.width.rounded())
+        let outputHeight = Int(outputSize.height.rounded())
+        
+        guard width > 0, height > 0, outputWidth > width, outputHeight > height else { return nil }
+        
+        let descriptor = MTLFXSpatialScalerDescriptor()
+        descriptor.colorTextureFormat = pixelFormat
+        descriptor.outputTextureFormat = pixelFormat
+        descriptor.inputWidth = width
+        descriptor.inputHeight = height
+        descriptor.outputWidth = outputWidth
+        descriptor.outputHeight = outputHeight
+        // Emulator frames are already in display (perceptual) color, which is
+        // what MetalFX expects by default.
+        descriptor.colorProcessingMode = .perceptual
+        
+        guard let scaler = descriptor.makeSpatialScaler(device: device) else { return nil }
+        
+        // The scaler writes to a private texture, which the final pass then
+        // samples, so it needs both usages.
+        let td = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: pixelFormat,
+                                                          width: outputWidth,
+                                                          height: outputHeight,
+                                                          mipmapped: false)
+        td.storageMode = .private
+        td.usage = scaler.outputTextureUsage.union(.shaderRead)
+        guard let outputTexture = device.makeTexture(descriptor: td) else { return nil }
+        outputTexture.label = "MetalFX Output"
+        
+        self.scaler = scaler
+        self.colorFormat = pixelFormat
+        self.inputSize = inputSize
+        self.outputSize = outputSize
+        self.outputTexture = outputTexture
+    }
+    
+    /// Whether the scaler can take this texture as its input.
+    func canScale(_ texture: MTLTexture) -> Bool {
+        texture.pixelFormat == colorFormat
+            && texture.width == Int(inputSize.width)
+            && texture.height == Int(inputSize.height)
+            && texture.usage.contains(scaler.colorTextureUsage)
+    }
+    
+    /// Enlarge `colorTexture` into `outputTexture` on `commandBuffer`.
+    func encode(commandBuffer: MTLCommandBuffer, colorTexture: MTLTexture) {
+        scaler.colorTexture = colorTexture
+        scaler.inputContentWidth = colorTexture.width
+        scaler.inputContentHeight = colorTexture.height
+        scaler.outputTexture = outputTexture
+        scaler.encode(commandBuffer: commandBuffer)
+    }
+}
+#endif

@@ -93,7 +93,7 @@ XcodeGen spec, and build scripts:
 |---|---|
 | `Cassowary/project.yml` | XcodeGen spec. `Cassowary.xcodeproj` is generated from it and is not committed. |
 | `Cassowary/Sources/` | Swift sources, grouped by role: `App/`, `Views/`, `Controls/`, `Models/`, `Session/`. |
-| `Cassowary/Resources/`, `Frameworks/`, `PlugIns/` | Info.plist, the embedded frameworks, and the staged core/system plugins. |
+| `Cassowary/Resources/`, `Frameworks/`, `PlugIns/` | Info.plist, the bundled video-filter shader presets, the embedded frameworks, and the staged core/system plugins. |
 | `Scripts/cassowary/` | Build, run, and test scripts for the app. |
 
 See [`Cassowary/README.md`](../Cassowary/README.md) for how to build and run it.

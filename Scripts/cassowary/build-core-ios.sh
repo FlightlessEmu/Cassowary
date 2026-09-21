@@ -29,6 +29,7 @@ SDK_NAME=iphonesimulator
 TARGET=arm64-apple-ios17.0-simulator
 KEEP_GOING=0
 QUIET=0
+INTERPRETER=0
 
 for arg in "$@"; do
   case "$arg" in
@@ -44,15 +45,19 @@ for arg in "$@"; do
       ;;
     --keep-going) KEEP_GOING=1 ;;
     --quiet) QUIET=1 ;;
+    # N64 only: build the pure interpreter instead of the ARM64 dynarec.
+    # iOS does not allow JIT, so a device build has to use this.
+    --interpreter) INTERPRETER=1 ;;
     *) print -u2 -- "unknown option: $arg"; exit 1 ;;
   esac
 done
 
 SDK=$(xcrun --sdk "$SDK_NAME" --show-sdk-path)
-case "$PLATFORM" in
-  catalyst) SDK_BUILD="$PWD/build/catalyst" ;;
-  *)        SDK_BUILD="$PWD/OpenEmu-SDK/build/Debug-iphone${PLATFORM}" ;;
-esac
+# Keep this in step with build-cassowary.sh, which builds the SDK frameworks
+# into build/cassowary-<mode> before asking for cores to be built. Looking
+# anywhere else makes this script rebuild them, and for Catalyst that used to
+# mean plain macOS frameworks.
+SDK_BUILD="$PWD/build/cassowary-${PLATFORM}"
 
 # Mac Catalyst builds against the macOS SDK plus the iOS support frameworks;
 # without this, UIKit and friends are not on the search path.
@@ -65,14 +70,34 @@ SHELL_FILE="build/cassowary-core-info-${CORE}.sh"
 
 if [[ ! -d "$SDK_BUILD/OpenEmuBase.framework" ]]; then
   print -u2 -- "building the SDK frameworks for iOS first..."
+  case "$PLATFORM" in
+    catalyst) DESTINATION="platform=macOS,variant=Mac Catalyst" ; SDK_OPT=() ;;
+    device)   DESTINATION="generic/platform=iOS"                 ; SDK_OPT=(-sdk iphoneos) ;;
+    *)        DESTINATION="generic/platform=iOS Simulator"       ; SDK_OPT=(-sdk iphonesimulator) ;;
+  esac
   xcodebuild -project OpenEmu-SDK/OpenEmu-SDK.xcodeproj \
     -target OpenEmuBase -target OpenEmuSystem \
-    -configuration Debug -sdk "$SDK_NAME" \
-    ARCHS=arm64 ONLY_ACTIVE_ARCH=NO build >/dev/null
+    -configuration Debug "${SDK_OPT[@]}" -destination "$DESTINATION" \
+    ARCHS=arm64 ONLY_ACTIVE_ARCH=NO \
+    CONFIGURATION_BUILD_DIR="$SDK_BUILD" build >/dev/null
 fi
 
 mkdir -p build
-python3 Scripts/cassowary/core-info.py "$CORE" > "$INFO_FILE" 2>/dev/null || {
+
+# Some cores ship several video plugins and only one can build off macOS.
+# Mupen64Plus pulls GLideN64 in through its target dependencies; the
+# paraLLEl-RDP plugin replaces it on this path.
+EXCLUDE_TARGETS=()
+case "$CORE" in
+  Mupen64Plus) EXCLUDE_TARGETS=(
+    --exclude-target mupen64plus-video-GLideN64
+    --exclude-target mupen64plus-video-angrylion-rdp-plus
+    --exclude-target mupen64plus-rsp-cxd4
+    --exclude-target mupen64plus-rsp-hle
+  ) ;;
+esac
+
+python3 Scripts/cassowary/core-info.py "$CORE" "${EXCLUDE_TARGETS[@]}" > "$INFO_FILE" 2>/dev/null || {
   print -u2 -- "error: could not read the project for $CORE"
   exit 1
 }
@@ -81,10 +106,11 @@ python3 Scripts/cassowary/core-info.py "$CORE" > "$INFO_FILE" 2>/dev/null || {
 # with `eval "$(python3 ... <<HEREDOC)"`. A heredoc inside a command
 # substitution confuses zsh's parser badly enough that it silently reassigns
 # PATH to the last value on the longest line.
-python3 Scripts/cassowary/core-info.py "$CORE" --shell > "$SHELL_FILE"
+python3 Scripts/cassowary/core-info.py "$CORE" "${EXCLUDE_TARGETS[@]}" --shell > "$SHELL_FILE"
 source "$SHELL_FILE"
 
 # Per-core additions the projects cannot state for an iOS build.
+LINK_FRAMEWORKS=()
 case "$CORE" in
   4DO)
     # libcue.h lives at libcue-1.4.0/src/libcue, below the stale
@@ -121,6 +147,33 @@ case "$CORE" in
     # genplusgx_source first restores Xcode's resolution — macros.h is the
     # only basename the two directories share.
     QUOTE_INCLUDES=("$PWD/cores/GenesisPlus/genplusgx_source" "${QUOTE_INCLUDES[@]}")
+    ;;
+  Mupen64Plus)
+    # Apple marks a few calls unavailable that this core uses:
+    # pthread_jit_write_protect_np in the JIT (iOS and Catalyst) and system()
+    # in the RSP's config launcher. These switches replace them with no-ops.
+    if [[ "$INTERPRETER" == 1 ]]; then
+      # Pure interpreter: drop the dynarec defines and skip its sources,
+      # which only build with NEW_DYNAREC set. This is the iOS-device path,
+      # since iOS does not permit JIT.
+      EXTRA_CFLAGS=(${EXTRA_CFLAGS:#-DDYNAREC})
+      EXTRA_CFLAGS=(${EXTRA_CFLAGS:#-DNEW_DYNAREC=*})
+      kept_sources=()
+      kept_flags=()
+      for i in {1..${#SOURCES[@]}}; do
+        [[ "${SOURCES[$i]}" == */new_dynarec/* ]] && continue
+        kept_sources+=("${SOURCES[$i]}")
+        kept_flags+=("${SOURCE_FLAGS[$i]}")
+      done
+      SOURCES=("${kept_sources[@]}")
+      SOURCE_FLAGS=("${kept_flags[@]}")
+      print -- "building $CORE with the interpreter (no JIT)"
+    fi
+    EXTRA_CFLAGS+=(-DMUPEN_NO_JIT_WRITE_PROTECT -DMUPEN_NO_SYSTEM)
+    if [[ "$PLATFORM" == catalyst ]]; then
+      # Compatibility/vidext.m still calls glGetIntegerv on Catalyst.
+      LINK_FRAMEWORKS+=(-framework OpenGL)
+    fi
     ;;
   VirtualC64)
     # The emulator is VirtualC64's VCCore, a CMake project, so it is built
@@ -315,6 +368,7 @@ fi
 
 PLUGIN_DIR="build/cassowary-plugins/${PRODUCT}.${WRAPPER}"
 case "$PLATFORM" in
+  device)   PLUGIN_DIR="build/cassowary-plugins-device/${PRODUCT}.${WRAPPER}" ;;
   catalyst) PLUGIN_DIR="build/cassowary-plugins-catalyst/${PRODUCT}.${WRAPPER}" ;;
 esac
 rm -rf "$PLUGIN_DIR"
@@ -352,6 +406,7 @@ xcrun -sdk "$SDK_NAME" clang++ \
   -framework Foundation \
   -framework Metal \
   -framework CoreGraphics \
+  "${LINK_FRAMEWORKS[@]}" \
   "${LIB_FLAGS[@]}" \
   "${LINK_EXTRA[@]}" \
   -Wl,-rpath,@executable_path/../../Frameworks \
@@ -440,5 +495,28 @@ PY
 for lproj in "$PROJECT_DIR"/*.lproj; do
   [[ -d "$lproj" ]] && cp -R "$lproj" "$PLUGIN_DIR/" 2>/dev/null || true
 done
+
+# Mupen64Plus renders through the paraLLEl-RDP video plugin, which the core
+# loads from its own PlugIns directory at runtime. The plugin is built
+# separately (it needs MoltenVK and the parallel-rdp sources): see
+# build/spike/parallel-plugin/build.sh. Override the directory with
+# MUPEN_PARALLEL_PLUGIN_DIR when the plugin lives somewhere else.
+if [[ "$CORE" == Mupen64Plus ]]; then
+  case "$PLATFORM" in
+    simulator) MUPEN_PLUGIN_PLATFORM="simulator" ;;
+    catalyst)  MUPEN_PLUGIN_PLATFORM="catalyst" ;;
+    *)         MUPEN_PLUGIN_PLATFORM="macos" ;;
+  esac
+  MUPEN_PLUGIN_SRC="${MUPEN_PARALLEL_PLUGIN_DIR:-$PWD/build/spike/parallel-plugin/build-$MUPEN_PLUGIN_PLATFORM}"
+  if [[ -f "$MUPEN_PLUGIN_SRC/mupen64plus-video-parallel.dylib" ]]; then
+    mkdir -p "$PLUGIN_DIR/PlugIns"
+    cp -f "$MUPEN_PLUGIN_SRC/mupen64plus-video-parallel.dylib" "$PLUGIN_DIR/PlugIns/"
+    cp -f "$MUPEN_PLUGIN_SRC/mupen64plus-rsp-cxd4.dylib" "$PLUGIN_DIR/PlugIns/"
+    cp -f "$MUPEN_PLUGIN_SRC/libMoltenVK.dylib" "$PLUGIN_DIR/PlugIns/"
+    print -- "staged the paraLLEl-RDP video and RSP plugins"
+  else
+    print -u2 -- "warning: no paraLLEl-RDP plugins at $MUPEN_PLUGIN_SRC"
+  fi
+fi
 
 print -- "linked $PLUGIN_DIR"

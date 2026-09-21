@@ -23,6 +23,7 @@
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import SwiftUI
+import UniformTypeIdentifiers
 import OpenEmuKit
 
 /// Which games the library shows.
@@ -43,6 +44,13 @@ private struct CorePickerRequest: Identifiable {
     let id = UUID()
     let game: Game
     let system: SystemEntry
+}
+
+/// A drop the library could not take in full, and needs to explain.
+private struct ImportNotice: Identifiable {
+    let id = UUID()
+    let title: String
+    let message: String
 }
 
 private enum SortOption: String, CaseIterable, Identifiable {
@@ -69,6 +77,7 @@ struct LibraryView: View {
 
     @StateObject private var library = GameLibrary()
     @StateObject private var catalog = CoreCatalog()
+    @StateObject private var coverArt = CoverArtStore.shared
 
     @State private var selection: LibrarySelection? = .all
     @State private var path = NavigationPath()
@@ -77,6 +86,12 @@ struct LibraryView: View {
     @State private var playing: ActiveGame?
     @State private var pickerRequest: CorePickerRequest?
     @State private var showSettings = false
+    @State private var showCoverArtSettings = false
+    @State private var dropTargeted = false
+    @State private var importNotice: ImportNotice?
+    @State private var showFileImporter = false
+
+    @AppStorage(CoverArtSetting.automaticKey) private var downloadCoverArt = true
 
     @Environment(\.horizontalSizeClass) private var sizeClass
 
@@ -103,6 +118,17 @@ struct LibraryView: View {
                 .navigationSplitViewStyle(.balanced)
             }
         }
+        // Games are added by dropping files anywhere on the library, so the
+        // target is the whole window: on the Mac and iPad that includes the
+        // sidebar, and on iPhone it includes the first screen, which is the
+        // sidebar until a system is opened.
+        .contentShape(Rectangle())
+        .onDrop(of: [.fileURL, .item], isTargeted: $dropTargeted, perform: handleDrop)
+        .overlay {
+            if dropTargeted {
+                dropHighlight
+            }
+        }
         .fullScreenCover(item: $playing) { active in
             GameView(game: active.game, core: active.core) {
                 playing = nil
@@ -117,6 +143,27 @@ struct LibraryView: View {
         .sheet(isPresented: $showSettings) {
             SettingsView()
         }
+        .sheet(isPresented: $showCoverArtSettings) {
+            NavigationStack {
+                CoverArtSettingsView()
+            }
+        }
+        .alert(
+            importNotice?.title ?? "",
+            isPresented: importNoticePresented,
+            presenting: importNotice
+        ) { _ in
+            Button("OK", role: .cancel) {}
+        } message: { notice in
+            Text(notice.message)
+        }
+        // The Files browser on iPhone and iPad, an open panel on the Mac.
+        .fileImporter(
+            isPresented: $showFileImporter,
+            allowedContentTypes: [.data],
+            allowsMultipleSelection: true,
+            onCompletion: importPicked
+        )
         .onAppear {
             refreshAll()
 
@@ -133,6 +180,18 @@ struct LibraryView: View {
             // Same deal: only set from the command line.
             if UserDefaults.standard.bool(forKey: "cassowary.showSettings") {
                 showSettings = true
+            }
+
+            // Opens the Cover Art pane directly, for the same reason.
+            if UserDefaults.standard.bool(forKey: "cassowary.showCoverArt") {
+                showCoverArtSettings = true
+            }
+
+            // Used to exercise the add-a-game path without a drag, which the
+            // Simulator cannot perform. Same deal: only set from the command
+            // line, by a test script.
+            if let path = UserDefaults.standard.string(forKey: "cassowary.importFile") {
+                importFileForTesting(at: URL(fileURLWithPath: path))
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .refreshLibrary)) { _ in
@@ -189,6 +248,13 @@ struct LibraryView: View {
         }
         .navigationTitle("Library")
         .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    showFileImporter = true
+                } label: {
+                    Label("Add Games", systemImage: "plus")
+                }
+            }
             ToolbarItem(placement: .primaryAction) {
                 Button {
                     showSettings = true
@@ -279,6 +345,14 @@ struct LibraryView: View {
         .searchable(text: $searchText, prompt: "Search games")
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
+                Button {
+                    showFileImporter = true
+                } label: {
+                    Label("Add Games", systemImage: "plus")
+                }
+                .keyboardShortcut("o", modifiers: .command)
+            }
+            ToolbarItem(placement: .primaryAction) {
                 Menu {
                     Picker("Sort by", selection: $sort) {
                         ForEach(SortOption.allCases) { option in
@@ -300,6 +374,25 @@ struct LibraryView: View {
         }
     }
 
+    /// Shown over the library while a file is held above it.
+    private var dropHighlight: some View {
+        RoundedRectangle(cornerRadius: 16, style: .continuous)
+            .fill(Color.accentColor.opacity(0.08))
+            .overlay {
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .strokeBorder(Color.accentColor, style: StrokeStyle(lineWidth: 2, dash: [8, 6]))
+            }
+            .overlay {
+                Label("Drop to add games", systemImage: "plus.circle.fill")
+                    .font(.headline)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .background(.regularMaterial, in: Capsule())
+            }
+            .padding(10)
+            .allowsHitTesting(false)
+    }
+
     private func grid(for target: LibrarySelection) -> some View {
         ScrollView {
             LazyVGrid(columns: [GridItem(.adaptive(minimum: columnWidth, maximum: 220), spacing: 20)], spacing: 20) {
@@ -307,7 +400,12 @@ struct LibraryView: View {
                     Button {
                         play(game)
                     } label: {
-                        GameTile(game: game, system: catalog.system(forIdentifier: game.system?.identifier ?? ""))
+                        GameTile(
+                            game: game,
+                            system: catalog.system(forIdentifier: game.system?.identifier ?? ""),
+                            artwork: coverArt.image(for: game),
+                            isFetching: coverArt.isFetching(game)
+                        )
                     }
                     .buttonStyle(.plain)
                     .contextMenu {
@@ -322,8 +420,16 @@ struct LibraryView: View {
                                 }
                             }
                         }
+                        if coverArt.hasArtwork(for: game) {
+                            Button("Download New Cover Art") { coverArt.download(for: game) }
+                            Button("Remove Cover Art", role: .destructive) {
+                                coverArt.removeArtwork(for: game)
+                            }
+                        } else {
+                            Button("Download Cover Art") { coverArt.download(for: game) }
+                        }
                         Button("Delete", role: .destructive) {
-                            library.delete(game)
+                            delete(game)
                         }
                     }
                 }
@@ -355,10 +461,12 @@ struct LibraryView: View {
                       !system.hasCore {
                 Text("There is no core installed for \(system.name) yet, so these games cannot be played.")
             } else {
-                Text("Copy ROM files into Cassowary using the Files app or Finder, then tap Refresh.")
+                Text("Use Add Games to pick ROM files from the Files app, or drag them in on iPad and Mac.")
             }
         } actions: {
             if !isSystemWithoutCore(target) {
+                Button("Add Games…") { showFileImporter = true }
+                    .buttonStyle(.borderedProminent)
                 Button("Refresh") { refreshAll() }
             }
         }
@@ -372,11 +480,232 @@ struct LibraryView: View {
         return false
     }
 
+    // MARK: - Adding games
+
+    /// `alert(isPresented:)` wants a `Bool`; this gives the optional notice one.
+    private var importNoticePresented: Binding<Bool> {
+        Binding(
+            get: { importNotice != nil },
+            set: { if !$0 { importNotice = nil } }
+        )
+    }
+
+    /// Add the files picked from the Files app — or from the open panel that
+    /// Mac Catalyst shows for the same button — and explain anything left out.
+    private func importPicked(_ result: Result<[URL], Error>) {
+        switch result {
+        case .success(let urls):
+            Task { @MainActor in
+                importNotice = notice(for: await library.add(contentsOf: urls))
+                refreshCoverArt()
+            }
+        case .failure(let error):
+            // Closing the picker is not a failure worth reporting.
+            let nsError = error as NSError
+            guard !(nsError.domain == NSCocoaErrorDomain && nsError.code == NSUserCancelledError) else {
+                return
+            }
+            NSLog("[Cassowary] could not open the file picker: \(error.localizedDescription)")
+            importNotice = ImportNotice(
+                title: "Couldn't open the Files app",
+                message: error.localizedDescription
+            )
+        }
+    }
+
+    /// Take the file URLs out of a drop and add them to the library.
+    ///
+    /// Reading the item providers starts here, before this returns: the drop
+    /// session stops handing out its payload once it does. The copy itself
+    /// happens afterwards, in the library.
+    private func handleDrop(providers: [NSItemProvider]) -> Bool {
+        // File drops only. A provider that offers no file URL at all is still
+        // taken on, so the attempt ends with an explanation rather than the
+        // drag silently doing nothing.
+        let fileProviders = providers.filter {
+            $0.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier)
+                || $0.hasItemConformingToTypeIdentifier(UTType.item.identifier)
+        }
+        guard !fileProviders.isEmpty else { return false }
+
+        let group = DispatchGroup()
+        let lock = NSLock()
+        var urls: [URL] = []
+
+        for provider in fileProviders {
+            group.enter()
+            Self.resolve(provider) { url in
+                if let url {
+                    lock.lock()
+                    urls.append(url)
+                    lock.unlock()
+                }
+                group.leave()
+            }
+        }
+
+        group.notify(queue: .main) {
+            Task { @MainActor in
+                guard !urls.isEmpty else {
+                    importNotice = ImportNotice(
+                        title: "Nothing was added",
+                        message: "The dropped files could not be read."
+                    )
+                    return
+                }
+                let summary = await library.add(contentsOf: urls)
+                // Copies made below for drops that had no file URL are ours to
+                // clear away.
+                try? FileManager.default.removeItem(at: Self.dropStagingDirectory)
+                importNotice = notice(for: summary)
+                refreshCoverArt()
+            }
+        }
+
+        return true
+    }
+
+    /// The file behind one dropped item, as a URL the library can copy.
+    ///
+    /// A file URL is asked for first, which is what iOS hands over. Mac
+    /// Catalyst hands the same thing back as `Data`, and some sources do not
+    /// offer a file URL at all — a Finder drop can arrive as just the file's
+    /// own type. Those are asked for a file representation instead, which
+    /// gives a temporary copy.
+    private static func resolve(_ provider: NSItemProvider, completion: @escaping (URL?) -> Void) {
+        provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { item, error in
+            if let url = fileURL(from: item) {
+                completion(url)
+                return
+            }
+            if let error {
+                NSLog("[Cassowary] dropped file has no file URL (\(error.localizedDescription)); types: \(provider.registeredTypeIdentifiers)")
+            }
+            stagedCopy(of: provider, completion: completion)
+        }
+    }
+
+    /// The temporary copy of a drop that could not supply a file URL.
+    ///
+    /// The system deletes its copy as soon as the completion returns, so it is
+    /// copied into the app's own temporary folder, where the library's usual
+    /// path can pick it up.
+    private static func stagedCopy(of provider: NSItemProvider, completion: @escaping (URL?) -> Void) {
+        provider.loadFileRepresentation(forTypeIdentifier: UTType.data.identifier) { url, error in
+            guard let url else {
+                NSLog("[Cassowary] dropped file could not be copied: \(error?.localizedDescription ?? "no error given")")
+                completion(nil)
+                return
+            }
+            do {
+                try FileManager.default.createDirectory(at: dropStagingDirectory, withIntermediateDirectories: true)
+                // The system's copy is named after the type it was asked for,
+                // so the provider's own name for the file is preferred.
+                let name = provider.suggestedName ?? url.lastPathComponent
+                let staged = dropStagingDirectory.appendingPathComponent(name)
+                try? FileManager.default.removeItem(at: staged)
+                try FileManager.default.copyItem(at: url, to: staged)
+                completion(staged)
+            } catch {
+                NSLog("[Cassowary] dropped file could not be staged: \(error.localizedDescription)")
+                completion(nil)
+            }
+        }
+    }
+
+    /// Where copies of drops without a file URL wait for the library.
+    private static var dropStagingDirectory: URL {
+        FileManager.default.temporaryDirectory.appendingPathComponent("CassowaryDrops", isDirectory: true)
+    }
+
+    /// The file URL out of one dropped item.
+    ///
+    /// iOS hands back a `URL`; Mac Catalyst hands back the same thing as
+    /// `Data`. Without the `Data` branch a drop on the Mac silently does
+    /// nothing.
+    private static func fileURL(from item: NSSecureCoding?) -> URL? {
+        if let url = item as? URL {
+            return url
+        }
+        if let url = item as? NSURL {
+            return url as URL
+        }
+        if let data = item as? Data {
+            return URL(dataRepresentation: data, relativeTo: nil)
+        }
+        if let path = item as? String {
+            return URL(fileURLWithPath: path)
+        }
+        return nil
+    }
+
+    /// A drop that adds every file needs no alert — the new games appear in
+    /// the grid. Only files that were left out are worth explaining.
+    private func notice(for summary: ImportSummary) -> ImportNotice? {
+        guard !summary.unsupported.isEmpty
+            || !summary.alreadyInLibrary.isEmpty
+            || !summary.failed.isEmpty else {
+            return nil
+        }
+
+        var lines: [String] = []
+        if !summary.unsupported.isEmpty {
+            lines.append("Couldn't tell which system these belong to: \(Self.shortList(summary.unsupported)).")
+        }
+        if !summary.alreadyInLibrary.isEmpty {
+            lines.append("Already in the library: \(Self.shortList(summary.alreadyInLibrary)).")
+        }
+        if !summary.failed.isEmpty {
+            lines.append("Couldn't be copied: \(Self.shortList(summary.failed)).")
+        }
+
+        let count = summary.added.count
+        return ImportNotice(
+            title: count == 0 ? "Nothing was added" : "Added \(count) game\(count == 1 ? "" : "s")",
+            message: lines.joined(separator: "\n")
+        )
+    }
+
+    /// "a.bin, b.bin, c.bin" — or a few names and a count when a drop brought
+    /// in a pile of unsupported files.
+    private static func shortList(_ names: [String]) -> String {
+        let shown = names.prefix(3).joined(separator: ", ")
+        let remaining = names.count - min(names.count, 3)
+        return remaining > 0 ? "\(shown) and \(remaining) more" : shown
+    }
+
+    /// Adds one file with no drag involved, so `simctl` can exercise the same
+    /// path. Only called when the flag is passed on the command line.
+    private func importFileForTesting(at url: URL) {
+        Task { @MainActor in
+            let summary = await library.add(contentsOf: [url])
+            NSLog("[Cassowary] import test: \(summary.added.count) added, \(summary.alreadyInLibrary.count) already in the library, \(summary.unsupported.count) unsupported, \(summary.failed.count) failed")
+            importNotice = notice(for: summary)
+            refreshCoverArt()
+        }
+    }
+
     // MARK: - Data
 
     private func refreshAll() {
         library.refresh()
         catalog.refresh()
+        refreshCoverArt()
+    }
+
+    /// Show the art that is already downloaded and, when the setting allows
+    /// it, fetch what is missing. Downloads run in the background and the grid
+    /// updates as each image arrives.
+    private func refreshCoverArt() {
+        let games = library.games
+        let downloading = downloadCoverArt
+        Task { await coverArt.refresh(for: games, downloading: downloading) }
+    }
+
+    /// Delete a game and the cover art that belongs to it.
+    private func delete(_ game: Game) {
+        coverArt.removeArtwork(for: game)
+        library.delete(game)
     }
 
     private func gameCount(for systemID: String) -> Int {
@@ -470,6 +799,12 @@ private struct GameTile: View {
     let game: Game
     let system: SystemEntry?
 
+    /// The game's downloaded cover art, when it has any.
+    let artwork: UIImage?
+
+    /// Whether a cover art download for this game is running.
+    let isFetching: Bool
+
     /// Whether a save state sits next to the ROM.
     private var hasSaveState: Bool {
         let url = game.url.deletingPathExtension().appendingPathExtension("oesavestate")
@@ -482,7 +817,11 @@ private struct GameTile: View {
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
                     .fill(.quaternary)
 
-                if let icon = system?.icon {
+                if let artwork {
+                    Image(uiImage: artwork)
+                        .resizable()
+                        .scaledToFit()
+                } else if let icon = system?.icon {
                     Image(uiImage: icon)
                         .resizable()
                         .scaledToFit()
@@ -498,17 +837,29 @@ private struct GameTile: View {
                         .foregroundStyle(.secondary)
                 }
 
-                if hasSaveState {
+                if hasSaveState || isFetching {
                     VStack {
                         HStack {
                             Spacer()
-                            Image(systemName: "bookmark.fill")
-                                .font(.caption)
-                                .foregroundStyle(.white)
-                                .padding(7)
-                                .background(.black.opacity(0.45), in: .circle)
+                            if hasSaveState {
+                                Image(systemName: "bookmark.fill")
+                                    .font(.caption)
+                                    .foregroundStyle(.white)
+                                    .padding(7)
+                                    .background(.black.opacity(0.45), in: .circle)
+                            }
                         }
                         Spacer()
+                        HStack {
+                            if isFetching {
+                                ProgressView()
+                                    .controlSize(.small)
+                                    .tint(.white)
+                                    .padding(6)
+                                    .background(.black.opacity(0.45), in: .circle)
+                            }
+                            Spacer()
+                        }
                     }
                     .padding(8)
                 }

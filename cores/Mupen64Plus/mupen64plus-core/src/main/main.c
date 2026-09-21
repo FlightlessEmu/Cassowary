@@ -851,7 +851,10 @@ void new_frame(void)
 }
 
 #define SAMPLE_COUNT 3
-static void apply_speed_limiter(void)
+/* Called on every VI. The OpenEmu front end brings its own new_vi (see
+   Compatibility/main.m), so this is exported there rather than kept inside
+   this file: without it nothing paces the emulator and games run fast. */
+void main_apply_speed_limiter(void)
 {
     static unsigned long totalVIs = 0;
     static int resetOnce = 0;
@@ -972,7 +975,7 @@ void new_vi(void)
 
     gs_apply_cheats(&g_cheat_ctx);
 
-    apply_speed_limiter();
+    main_apply_speed_limiter();
     main_check_inputs();
 
     pause_loop();

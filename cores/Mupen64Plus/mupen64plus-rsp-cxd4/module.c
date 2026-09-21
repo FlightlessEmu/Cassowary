@@ -348,7 +348,11 @@ EXPORT void CALL DllAbout(p_void hParent)
 
 EXPORT void CALL DllConfig(p_void hParent)
 {
+#if !defined(MUPEN_NO_SYSTEM)
+    // system() is unavailable on iOS and Mac Catalyst. It only launched the
+    // desktop settings UI, which does not exist there.
     system("sp_cfgui");
+#endif
     update_conf(CFG_FILE);
 
     if (DMEM == IMEM || GET_RCP_REG(SP_PC_REG) % 4096 == 0x00000000)

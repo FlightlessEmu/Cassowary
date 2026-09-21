@@ -17,6 +17,9 @@
     int videoWidth, videoHeight;
     double sampleRate;
     uint32_t *buffer;
+    /// The buffer allocated here. Only this pointer may be deleted — a
+    /// buffer adopted in -getVideoBufferWithHint: belongs to the renderer.
+    uint32_t *ownedBuffer;
 }
 @end
 @implementation JaguarGameCore
@@ -29,7 +32,8 @@ static JaguarGameCore *current;
         videoWidth = 1024;
         videoHeight = 512;
         sampleRate = 48000;
-        buffer = new uint32_t[videoWidth * videoHeight];
+        ownedBuffer = new uint32_t[videoWidth * videoHeight];
+        buffer = ownedBuffer;
         sampleBuffer = (uint16_t *)malloc(2048 * sizeof(uint16_t));
         memset(sampleBuffer, 0, 2048 * sizeof(uint16_t));
     }
@@ -109,7 +113,7 @@ static JaguarGameCore *current;
 
 - (void)dealloc
 {
-    free(buffer);
+    delete[] ownedBuffer;
     free(sampleBuffer);
 }
 
@@ -130,10 +134,10 @@ static JaguarGameCore *current;
 
 - (const void *)getVideoBufferWithHint:(void *)hint
 {
-    if (hint && hint != buffer) {
-        buffer = (uint32_t *)hint;
-        JaguarSetScreenBuffer(buffer);
-    }
+    // Adopt the renderer's buffer when it offers one so the core draws
+    // straight into it, but never free it. Otherwise use our own.
+    buffer = hint ? (uint32_t *)hint : ownedBuffer;
+    JaguarSetScreenBuffer(buffer);
     return buffer;
 }
 

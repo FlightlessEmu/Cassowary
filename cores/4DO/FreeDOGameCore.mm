@@ -74,6 +74,10 @@ inputState internal_input_state[6];
     BOOL isSwapFrameSignaled;
     
     uint32_t *videoBuffer;
+    /// The buffer allocated here, if one is needed. Only this pointer may be
+    /// freed — a buffer adopted in -getVideoBufferWithHint: belongs to the
+    /// renderer.
+    uint32_t *ownedVideoBuffer;
     int videoWidth, videoHeight;
     int16_t sampleBuffer[TEMP_BUFFER_SIZE];
     uint sampleCurrent;
@@ -241,7 +245,7 @@ static void writeSaveFile(const char* path)
 
 - (void)dealloc
 {
-    free(videoBuffer);
+    free(ownedVideoBuffer);
 }
 
 #pragma mark Execution
@@ -455,10 +459,12 @@ static void writeSaveFile(const char* path)
 {
     // Store the hint as our video buffer so executeFrame writes directly into
     // OpenEmu's backing store. Fall back to our own allocation if no hint.
+    // The hint belongs to the renderer, so it is never freed here.
     if (hint) {
         videoBuffer = (uint32_t *)hint;
     } else {
-        if (!videoBuffer) videoBuffer = (uint32_t *)malloc(videoWidth * videoHeight * 4);
+        if (!ownedVideoBuffer) ownedVideoBuffer = (uint32_t *)malloc(videoWidth * videoHeight * 4);
+        videoBuffer = ownedVideoBuffer;
     }
     return videoBuffer;
 }

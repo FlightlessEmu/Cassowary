@@ -54,6 +54,11 @@ extension GameSession: OEGameCoreOwner {
         // the layer is already available through `videoLayer`.
     }
 
+    /// The core is shaking a controller. Play it on the device.
+    func didChangeRumble(_ enabled: Bool, forPlayer player: UInt) {
+        rumble.setRumbling(enabled, forPlayer: player)
+    }
+
     // MARK: - Actions
 
     func saveState() { }

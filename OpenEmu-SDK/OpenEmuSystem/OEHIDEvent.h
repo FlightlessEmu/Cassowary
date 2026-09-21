@@ -116,6 +116,16 @@ enum {
 - (BOOL)isEqualToEvent:(OEHIDEvent *)anObject;
 - (BOOL)isUsageEqualToEvent:(OEHIDEvent *)anObject; // Checks all properties but state
 
+/*!
+ * @method keyEventWithTimestamp:keyCode:state:
+ * @abstract One keyboard transition, for hosts that read keys themselves.
+ * @discussion The macOS app gets keyboard events from IOKit and the event
+ *   manager. iOS has no IOKit: keys come from GameController and UIKit, so
+ *   the host builds the event and feeds it to the responder directly. The
+ *   keyCode is a HID usage, the same value GCKeyCode and UIKey report.
+ */
++ (instancetype)keyEventWithTimestamp:(NSTimeInterval)timestamp keyCode:(NSUInteger)keyCode state:(OEHIDEventState)state;
+
 @property(readonly) NSUInteger controlIdentifier;
 @property(readonly) NSUInteger controlValueIdentifier;
 

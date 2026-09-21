@@ -43,6 +43,9 @@
 @interface ProSystemGameCore () <OE7800SystemResponderClient>
 {
     uint32_t *_videoBuffer;
+    /// The buffer allocated here. Only this pointer may be freed — a buffer
+    /// adopted in -getVideoBufferWithHint: belongs to the renderer.
+    uint32_t *_ownedVideoBuffer;
     uint32_t _displayPalette[256];
     uint8_t  *_soundBuffer;
     uint8_t _inputState[17];
@@ -58,7 +61,8 @@
 {
     if((self = [super init]))
     {
-        _videoBuffer = (uint32_t *)malloc(320 * 292 * 4);
+        _ownedVideoBuffer = (uint32_t *)malloc(320 * 292 * 4);
+        _videoBuffer = _ownedVideoBuffer;
         _soundBuffer = (uint8_t *)malloc(8192);
     }
 
@@ -67,7 +71,7 @@
 
 - (void)dealloc
 {
-    free(_videoBuffer);
+    free(_ownedVideoBuffer);
     free(_soundBuffer);
 }
 
@@ -172,7 +176,10 @@
 
 - (const void *)getVideoBufferWithHint:(void *)hint
 {
-    return _videoBuffer = (uint32_t*)(hint ?: _videoBuffer);
+    // Adopt the renderer's buffer when it offers one so the core draws
+    // straight into it, but never free it. Otherwise use our own.
+    _videoBuffer = (uint32_t *)(hint ?: _ownedVideoBuffer);
+    return _videoBuffer;
 }
 
 - (OEIntRect)screenRect

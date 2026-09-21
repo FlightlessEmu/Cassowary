@@ -9,6 +9,9 @@
 #   Scripts/cassowary/run-cassowary.sh              build if needed, then run
 #   Scripts/cassowary/run-cassowary.sh --rebuild    always rebuild first
 #   Scripts/cassowary/run-cassowary.sh --game FILE  copy FILE into the app before launching
+#   Scripts/cassowary/run-cassowary.sh --device     install and launch on a real iPhone
+#   Scripts/cassowary/run-cassowary.sh --udid UDID  the iPhone to use, with --device
+#   Scripts/cassowary/run-cassowary.sh --catalyst   run on the Mac (Mac Catalyst)
 #
 # Notes on running the app on the Mac itself:
 #
@@ -33,14 +36,81 @@ RUNTIME="com.apple.CoreSimulator.SimRuntime.iOS-26-5"
 REBUILD=0
 GAME=""
 TARGET_MODE=simulator
+DEVICE_UDID=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --rebuild) REBUILD=1; shift ;;
+    --device) TARGET_MODE=device; shift ;;
+    --udid) DEVICE_UDID=${2:?--udid needs a device UDID}; shift 2 ;;
     --catalyst) TARGET_MODE=catalyst; shift ;;
     --game) GAME="$2"; shift 2 ;;
     *) print -u2 -- "unknown option: $1"; exit 1 ;;
   esac
 done
+
+# --- A real iPhone --------------------------------------------------------
+#
+# The app is built, installed and launched with devicectl. This works over
+# USB and over Wi-Fi: pair the phone once with a cable, tick "Connect via
+# network" in Xcode's Devices and Simulators window, and the same commands
+# keep working with the cable unplugged.
+if [[ "$TARGET_MODE" == device ]]; then
+  APP="build/cassowary-device/app/Build/Products/Debug-iphoneos/Cassowary.app"
+
+  # One connected phone is the common case; with more than one, ask.
+  if [[ -z "$DEVICE_UDID" ]]; then
+    UDIDS=()
+    while read -r udid; do
+      if [[ -n "$udid" ]]; then
+        UDIDS+=("$udid")
+      fi
+    done < <(xcrun devicectl list devices \
+      --hide-default-columns --columns udid --hide-headers \
+      --filter 'hardwareProperties.reality != "simulated"' 2>/dev/null || true)
+
+    if [[ ${#UDIDS[@]} -eq 0 ]]; then
+      print -u2 -- "error: no iPhone found."
+      print -u2 -- "Connect it, tap Trust, and turn on Settings → Privacy & Security"
+      print -u2 -- "→ Developer Mode (iOS 16 and later), then run this again."
+      exit 1
+    fi
+    if [[ ${#UDIDS[@]} -gt 1 ]]; then
+      xcrun devicectl list devices
+      print -u2 -- ""
+      print -u2 -- "error: more than one device; pass --udid <UDID>"
+      exit 1
+    fi
+    DEVICE_UDID="${UDIDS[1]}"
+  fi
+
+  if [[ $REBUILD -eq 1 || ! -d "$APP" ]]; then
+    print -- "building for the iPhone..."
+    ./Scripts/cassowary/build-cassowary.sh --device --udid "$DEVICE_UDID"
+  fi
+  [[ -d "$APP" ]] || { print -u2 -- "error: $APP was not built"; exit 1; }
+
+  print -- "installing..."
+  xcrun devicectl device install app --device "$DEVICE_UDID" "$APP"
+
+  if [[ -n "$GAME" ]]; then
+    [[ -f "$GAME" ]] || { print -u2 -- "error: no such file: $GAME"; exit 1; }
+    print -- "copying $(basename "$GAME")"
+    xcrun devicectl device copy to \
+      --device "$DEVICE_UDID" \
+      --domain-type appDataContainer --domain-identifier "$BUNDLE_ID" \
+      --source "$GAME" --destination Documents/
+  else
+    print -- "no game passed; add one with --game FILE, or in Finder"
+    print -- "(the app shares its Documents folder over file sharing)."
+  fi
+
+  print -- "launching..."
+  xcrun devicectl device process launch --device "$DEVICE_UDID" "$BUNDLE_ID" >/dev/null
+
+  print -- ""
+  print -- "running. The app is on the iPhone."
+  exit 0
+fi
 
 # --- Mac Catalyst ---------------------------------------------------------
 #

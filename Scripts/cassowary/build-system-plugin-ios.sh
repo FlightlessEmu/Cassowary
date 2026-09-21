@@ -43,10 +43,9 @@ if [[ ! -d "$SOURCE_DIR" ]]; then
 fi
 
 SDK=$(xcrun --sdk "$SDK_NAME" --show-sdk-path)
-case "$MODE" in
-  catalyst) SDK_BUILD="$PWD/build/catalyst" ;;
-  *)        SDK_BUILD="$PWD/OpenEmu-SDK/build/Debug-iphone${MODE}" ;;
-esac
+# Keep this in step with build-cassowary.sh, which builds the SDK frameworks
+# into build/cassowary-<mode> before calling this script.
+SDK_BUILD="$PWD/build/cassowary-${MODE}"
 OUT="build/cassowary-plugins-${MODE}/${PLUGIN}.oesystemplugin"
 
 # Never leave a half-built husk: an empty *.oesystemplugin scans as a bundle
@@ -67,10 +66,16 @@ fi
 
 if [[ ! -d "$SDK_BUILD/OpenEmuSystem.framework" ]]; then
   print -u2 -- "building the SDK for iOS first..."
+  case "$MODE" in
+    catalyst) DESTINATION="platform=macOS,variant=Mac Catalyst" ; SDK_OPT=() ;;
+    device)   DESTINATION="generic/platform=iOS"                 ; SDK_OPT=(-sdk iphoneos) ;;
+    *)        DESTINATION="generic/platform=iOS Simulator"       ; SDK_OPT=(-sdk iphonesimulator) ;;
+  esac
   xcodebuild -project OpenEmu-SDK/OpenEmu-SDK.xcodeproj \
     -target OpenEmuBase -target OpenEmuSystem \
-    -configuration Debug -sdk iphone${PLATFORM} \
-    ARCHS=arm64 ONLY_ACTIVE_ARCH=NO build >/dev/null
+    -configuration Debug "${SDK_OPT[@]}" -destination "$DESTINATION" \
+    ARCHS=arm64 ONLY_ACTIVE_ARCH=NO \
+    CONFIGURATION_BUILD_DIR="$SDK_BUILD" build >/dev/null
 fi
 
 rm -rf "$OUT"
@@ -190,9 +195,9 @@ for resource in "$SOURCE_DIR"/*.plist; do
 done
 
 # Asset catalogs have to be compiled, not copied: the app reads them through
-# NSBundle's asset API, which looks for Assets.car.
-ACTOOL_PLATFORM="iphone${MODE}"
-[[ "$MODE" == catalyst ]] && ACTOOL_PLATFORM="macosx"
+# NSBundle's asset API, which looks for Assets.car. actool names platforms the
+# way the SDK does (iphoneos, iphonesimulator, macosx).
+ACTOOL_PLATFORM="$SDK_NAME"
 if [[ -d "$SOURCE_DIR/Images.xcassets" ]]; then
   xcrun actool "$SOURCE_DIR/Images.xcassets" \
     --compile "$OUT" \

@@ -1,7 +1,6 @@
 #ifndef __OSINT_H
 #define __OSINT_H
-#import <OpenGL/gl.h>
-#import <OpenGL/glu.h>
+#include <stdint.h>
 #include "OEVectrexSystemResponderClient.h"
 
 #define EMU_TIMER                   20			// milliseconds per frame
@@ -14,6 +13,7 @@
 #define VECTREX_AUDIO_SAMPLES       441
 
 void osint_render (void);
+void vx_metal_present (void);
 int osint_msgs (void);
 void openCart(const char *romName);
 int osint_defaults (void);
@@ -23,6 +23,7 @@ void osint_btnUp(OEVectrexButton btn);
 void load_overlay(char *filename);
 
 extern uint8_t *pWave;
+extern float VX_color_set[VECTREX_COLORS];
 
 #endif
 

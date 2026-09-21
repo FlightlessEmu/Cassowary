@@ -3046,6 +3046,17 @@
 		<key>OEControllerDevices</key>
 		<array>
 			<dict>
+				<!-- The iOS GameController bridge: GameController does not expose
+				     vendor or product IDs, so it presents the generic profile
+				     under these IDs. -->
+				<key>OEControllerDeviceName</key>
+				<string>MFi Extended Gamepad</string>
+				<key>OEControllerVendorID</key>
+				<integer>0</integer>
+				<key>OEControllerProductID</key>
+				<integer>0</integer>
+			</dict>
+			<dict>
 				<key>OEControllerDeviceName</key>
 				<string>HORIPAD ULTIMATE</string>
 				<key>OEControllerVendorID</key>

@@ -60,6 +60,9 @@
 #include <rc_consoles.h>
 #import "OERetroAchievementsTransport.h"
 
+// The plugin provides this accessor; the core resolves it with dlsym from
+// the loaded GFX plugin handle (see setupEmulation).
+
 NSString *MupenControlNames[] = {
     @"N64_DPadU", @"N64_DPadD", @"N64_DPadL", @"N64_DPadR",
     @"N64_CU", @"N64_CD", @"N64_CL", @"N64_CR",
@@ -71,6 +74,9 @@ NSString *MupenControlNames[] = {
     uint8_t _padData[4][OEN64ButtonCount];
     int8_t _xAxis[4];
     int8_t _yAxis[4];
+    // Which players' Rumble Paks are shaking, so the same state is not
+    // reported to the app twice.
+    BOOL _rumble[4];
     NSUInteger _frameCounter;
     double _sampleRate;
     BOOL _initializing;
@@ -85,11 +91,21 @@ NSString *MupenControlNames[] = {
     BOOL _raHardcoreEnabled;
     id _raHardcoreObserver;
     NSString *_romPath;
+
+    // The paraLLEl-RDP path: the plugin renders through MoltenVK and hands
+    // over finished frames, so the core feeds OpenEmu a bitmap instead of an
+    // OpenGL surface.
+    BOOL _parallelVideo;
+    void *_frameBuffer;
+    int _parallelFrameWidth;
+    int _parallelFrameHeight;
+    void (*_parallelGetFrame)(const uint8_t **pixels, int *width, int *height, int *pitch);
 }
 
 - (void)OE_didReceiveStateChangeForParamType:(m64p_core_param)paramType value:(int)newValue;
 - (void)_beginLoadGame;
 - (void)_postRetroAchievementsSessionSnapshot;
+- (void)copyParallelFrame;
 
 @end
 
@@ -416,9 +432,32 @@ static void *dlopen_myself()
     return dlopen(info.dli_fname, 0);
 }
 
-static void MupenGetKeys(int Control, BUTTONS *Keys)
+// The Rumble Pak is driven through a raw pak write: 0x23 0x01, a
+// JCMD_PAK_WRITE at 0xc000, then 0x20 motor bytes that are all 0x01 while the
+// pak shakes and all 0x00 when it stops. The app turns that into haptics.
+static void MupenControllerCommand(int Control, unsigned char *Command)
 {
     GET_CURRENT_OR_RETURN();
+
+    if (Command[0] == 0x23 && Command[1] == 0x01)
+    {
+        BOOL on = NO;
+
+        for (int i = 5; i < 0x25; i++)
+        {
+            if (Command[i] != 0)
+            {
+                on = YES;
+                break;
+            }
+        }
+
+        [current setRumble:on forPlayer:(NSUInteger)Control];
+    }
+}
+
+static void MupenGetKeys(int Control, BUTTONS *Keys)
+{    GET_CURRENT_OR_RETURN();
 
     Keys->R_DPAD = current->_padData[Control][OEN64ButtonDPadRight];
     Keys->L_DPAD = current->_padData[Control][OEN64ButtonDPadLeft];
@@ -434,14 +473,29 @@ static void MupenGetKeys(int Control, BUTTONS *Keys)
     Keys->U_CBUTTON = current->_padData[Control][OEN64ButtonCUp];
     Keys->R_TRIG = current->_padData[Control][OEN64ButtonR];
     Keys->L_TRIG = current->_padData[Control][OEN64ButtonL];
-    Keys->X_AXIS = current->_xAxis[Control];
-    Keys->Y_AXIS = current->_yAxis[Control];
+
+    // The d-pad is digital and most games steer with the stick, so a d-pad
+    // direction pushes the stick as well. A game reading the d-pad still sees
+    // it, and one that only reads the stick — Mario Kart 64's steering, for
+    // one — answers the arrow keys and the on-screen d-pad. The sign matches
+    // didMoveN64JoystickDirection: up and right are positive.
+    int stickX = current->_xAxis[Control];
+    int stickY = current->_yAxis[Control];
+    if (current->_padData[Control][OEN64ButtonDPadRight]) stickX += 80;
+    if (current->_padData[Control][OEN64ButtonDPadLeft])  stickX -= 80;
+    if (current->_padData[Control][OEN64ButtonDPadUp])    stickY += 80;
+    if (current->_padData[Control][OEN64ButtonDPadDown])  stickY -= 80;
+
+    Keys->X_AXIS = (int8_t)MAX(-128, MIN(127, stickX));
+    Keys->Y_AXIS = (int8_t)MAX(-128, MIN(127, stickY));
 }
 
 static void MupenInitiateControllers (CONTROL_INFO ControlInfo)
 {
     ControlInfo.Controls[0].Present = 1;
-    ControlInfo.Controls[0].Plugin = PLUGIN_MEMPAK;
+    // Player one carries a Rumble Pak. The app plays its motor as haptics,
+    // and nothing persists a Controller Pak today, so the slot is free.
+    ControlInfo.Controls[0].Plugin = PLUGIN_RUMBLE_PAK;
     ControlInfo.Controls[1].Present = 1;
     ControlInfo.Controls[1].Plugin = PLUGIN_MEMPAK;
     ControlInfo.Controls[2].Present = 1;
@@ -621,20 +675,51 @@ static void MupenSetAudioSpeed(int percent)
 
     m64p_dynlib_handle core_handle = dlopen_myself();
 
+    __block m64p_dynlib_handle gfxHandle = NULL;
     void (^LoadPlugin)(m64p_plugin_type, NSString *) = ^(m64p_plugin_type pluginType, NSString *pluginName){
         m64p_dynlib_handle rsp_handle;
         NSString *rspPath = [coreBundle.builtInPlugInsPath stringByAppendingPathComponent:pluginName];
 
         rsp_handle = dlopen(rspPath.fileSystemRepresentation, RTLD_NOW);
+        if (rsp_handle == NULL) {
+            NSLog(@"[Mupen64Plus] could not load %@: %s", pluginName, dlerror());
+            return;
+        }
+
         ptr_PluginStartup rsp_start = (ptr_PluginStartup) osal_dynlib_getproc(rsp_handle, "PluginStartup");
+        if (rsp_start == NULL) {
+            NSLog(@"[Mupen64Plus] %@ has no PluginStartup", pluginName);
+            return;
+        }
         rsp_start(core_handle, (__bridge void *)self, MupenDebugCallback);
         
         CoreAttachPlugin(pluginType, rsp_handle);
+
+        if (pluginType == M64PLUGIN_GFX) {
+            gfxHandle = rsp_handle;
+        }
     };
 
-    // Load Video
-    LoadPlugin(M64PLUGIN_GFX, @"mupen64plus-video-GLideN64.so");
+    // Load Video. The paraLLEl-RDP plugin renders through Vulkan (MoltenVK on
+    // Apple) and hands the core finished frames; GLideN64 is the fallback for
+    // platforms the parallel plugin cannot build on.
+    NSString *parallelVideoPath = [coreBundle.builtInPlugInsPath stringByAppendingPathComponent:@"mupen64plus-video-parallel.dylib"];
+    if ([[NSFileManager defaultManager] fileExistsAtPath:parallelVideoPath]) {
+        LoadPlugin(M64PLUGIN_GFX, @"mupen64plus-video-parallel.dylib");
+        _parallelVideo = YES;
+    } else {
+        LoadPlugin(M64PLUGIN_GFX, @"mupen64plus-video-GLideN64.so");
+    }
     //LoadPlugin(M64PLUGIN_GFX, @"mupen64plus-video-angrylion-rdp-plus.so");
+
+    // The plugin hands frames over through this accessor; resolve it from the
+    // plugin handle so the core does not link against the plugin.
+    if (_parallelVideo && gfxHandle != NULL) {
+        _parallelGetFrame = (void *)osal_dynlib_getproc(gfxHandle, "parallel_video_get_frame");
+        if (_parallelGetFrame == NULL) {
+            NSLog(@"[Mupen64Plus] the paraLLEl video plugin has no parallel_video_get_frame");
+        }
+    }
 
     ptr_OE_ForceUpdateWindowSize = dlsym(RTLD_DEFAULT, "_OE_ForceUpdateWindowSize");
 
@@ -648,6 +733,7 @@ static void MupenSetAudioSpeed(int percent)
     // Load Input
     input.getKeys = MupenGetKeys;
     input.initiateControllers = MupenInitiateControllers;
+    input.controllerCommand = MupenControllerCommand;
     plugin_start(M64PLUGIN_INPUT);
 
     // Load RSP
@@ -672,11 +758,12 @@ static void MupenSetAudioSpeed(int percent)
     m64p_handle configRSP;
     ConfigOpenSection("rsp-cxd4", &configRSP);
     int usingHLE = 1;
-    if(strstr(gfxPluginName, "angrylion's RDP Plus") != 0)
+    if(_parallelVideo || strstr(gfxPluginName, "angrylion's RDP Plus") != 0)
         usingHLE = 0; // LLE GPU plugin
     ConfigSetParameter(configRSP, "DisplayListToGraphicsPlugin", M64TYPE_BOOL, &usingHLE);
 
-    LoadPlugin(M64PLUGIN_RSP, @"mupen64plus-rsp-cxd4.so");
+    // The paraLLEl-RDP path ships its own LLE RSP alongside the video plugin.
+    LoadPlugin(M64PLUGIN_RSP, _parallelVideo ? @"mupen64plus-rsp-cxd4.dylib" : @"mupen64plus-rsp-cxd4.so");
 }
 
 - (void)startEmulation
@@ -698,6 +785,10 @@ static void MupenSetAudioSpeed(int percent)
 
 - (void)videoInterrupt
 {
+    // The plugin has just finished a frame; get it into OpenEmu's buffer
+    // before the renderer is told the frame is done.
+    [self copyParallelFrame];
+
     [self.renderDelegate didRenderFrameOnAlternateThread];
 
     if (_rcClient) {
@@ -773,18 +864,50 @@ static void MupenSetAudioSpeed(int percent)
 
 #pragma mark - Video
 
+// Fixed size for the bitmap path: the plugin's VI output can change with the
+// game, and OpenEmu sizes its buffer once. Frames are copied into the top-left
+// and screenRect reports the live region.
+static const int MupenParallelBufferWidth = 640;
+static const int MupenParallelBufferHeight = 480;
+
 - (OEIntSize)aspectSize
 {
+    if (_parallelVideo && _parallelFrameWidth > 0 && _parallelFrameHeight > 0) {
+        return OEIntSizeMake(_parallelFrameWidth, _parallelFrameHeight);
+    }
     return OEIntSizeMake(ROM_PARAMS.systemtype == SYSTEM_NTSC ? _videoWidth * (120.0 / 119.0) : _videoWidth, _videoHeight);
 }
 
 - (OEIntSize)bufferSize
 {
+    if (_parallelVideo) {
+        return OEIntSizeMake(MupenParallelBufferWidth, MupenParallelBufferHeight);
+    }
     return OEIntSizeMake(_videoWidth, _videoHeight);
+}
+
+- (OEIntRect)screenRect
+{
+    if (_parallelVideo && _parallelFrameWidth > 0 && _parallelFrameHeight > 0) {
+        return OEIntRectMake(0, 0, _parallelFrameWidth, _parallelFrameHeight);
+    }
+    return OEIntRectMake(0, 0, self.bufferSize.width, self.bufferSize.height);
+}
+
+- (NSInteger)bytesPerRow
+{
+    if (_parallelVideo) {
+        return MupenParallelBufferWidth * 4;
+    }
+    return [super bytesPerRow];
 }
 
 - (BOOL)tryToResizeVideoTo:(OEIntSize)size
 {
+    if (_parallelVideo) {
+        return NO; // The bitmap path keeps its fixed buffer.
+    }
+
     VidExt_SetVideoMode(size.width, size.height, 32, M64VIDEO_WINDOWED, 0);
     if (ptr_OE_ForceUpdateWindowSize) ptr_OE_ForceUpdateWindowSize(size.width, size.height);
     return YES;
@@ -792,8 +915,9 @@ static void MupenSetAudioSpeed(int percent)
 
 - (OEGameCoreRendering)gameCoreRendering
 {
-    //return OEGameCoreRenderingOpenGL2Video;
-    return OEGameCoreRenderingOpenGL3Video; // Set for GLideN64
+    // The parallel plugin hands over finished frames, so OpenEmu composites a
+    // bitmap; GLideN64 renders directly into the GL surface as before.
+    return _parallelVideo ? OEGameCoreRenderingBitmap : OEGameCoreRenderingOpenGL3;
 }
 
 - (BOOL)hasAlternateRenderingThread
@@ -806,9 +930,18 @@ static void MupenSetAudioSpeed(int percent)
 //    return YES;
 //}
 
+- (const void *)getVideoBufferWithHint:(void *)hint
+{
+    if (_parallelVideo) {
+        _frameBuffer = hint;
+        return hint;
+    }
+    return [super getVideoBufferWithHint:hint];
+}
+
 - (const void *)videoBuffer
 {
-    return NULL;
+    return _parallelVideo ? _frameBuffer : NULL;
 }
 
 - (uint32_t)pixelFormat
@@ -823,7 +956,43 @@ static void MupenSetAudioSpeed(int percent)
 
 - (uint32_t)internalPixelFormat
 {
-    return GL_RGB8;
+    // Deprecated and unused since OpenEmu 2.1; this was GL_RGB8 in the
+    // OpenGL-era cores. OEPixelFormat_RGB is the closest SDK constant.
+    return OEPixelFormat_RGB;
+}
+
+// Copy the plugin's latest frame into the buffer OpenEmu gave us. The plugin
+// renders RGBA; the bitmap path was set up for BGRA.
+- (void)copyParallelFrame
+{
+    if (!_parallelVideo || !_frameBuffer || _parallelGetFrame == NULL) {
+        return;
+    }
+
+    const uint8_t *pixels = NULL;
+    int width = 0, height = 0, pitch = 0;
+    _parallelGetFrame(&pixels, &width, &height, &pitch);
+    if (!pixels || width <= 0 || height <= 0 || pitch <= 0) {
+        return;
+    }
+
+    _parallelFrameWidth = width;
+    _parallelFrameHeight = height;
+
+    int copyWidth = MIN(width, MupenParallelBufferWidth);
+    int copyHeight = MIN(height, MupenParallelBufferHeight);
+    uint8_t *dst = (uint8_t *)_frameBuffer;
+
+    for (int y = 0; y < copyHeight; y++) {
+        const uint8_t *srcRow = pixels + (size_t)y * (size_t)pitch;
+        uint8_t *dstRow = dst + (size_t)y * (size_t)MupenParallelBufferWidth * 4;
+        for (int x = 0; x < copyWidth; x++) {
+            dstRow[x * 4 + 0] = srcRow[x * 4 + 2];
+            dstRow[x * 4 + 1] = srcRow[x * 4 + 1];
+            dstRow[x * 4 + 2] = srcRow[x * 4 + 0];
+            dstRow[x * 4 + 3] = 0xFF;
+        }
+    }
 }
 
 #pragma mark - Audio
@@ -1005,6 +1174,19 @@ static void MupenSetAudioSpeed(int percent)
 {
     player -= 1;
     _padData[player][button] = 0;
+}
+
+/// Tell the app the Rumble Pak started or stopped. Players are numbered from
+/// one on the way out, which is what the binding stack uses.
+- (void)setRumble:(BOOL)on forPlayer:(NSUInteger)player
+{
+    if (player > 3 || _rumble[player] == on)
+        return;
+
+    _rumble[player] = on;
+
+    if ([self.delegate respondsToSelector:@selector(gameCore:didChangeRumble:forPlayer:)])
+        [self.delegate gameCore:self didChangeRumble:on forPlayer:player + 1];
 }
 
 #pragma mark - Cheats

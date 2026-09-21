@@ -28,6 +28,14 @@
 #include <sys/types.h>  // needed for u_int, u_char, etc
 #include <pthread.h>   // pthread_jit_write_protect_np
 #define MAP_ANONYMOUS MAP_ANON
+// Apple marks pthread_jit_write_protect_np unavailable on iOS and Mac
+// Catalyst, even though the code only needs it to toggle the JIT page
+// permissions on macOS. The build defines MUPEN_NO_JIT_WRITE_PROTECT there.
+#if defined(MUPEN_NO_JIT_WRITE_PROTECT)
+#define MUPEN_JIT_PROTECT(x) ((void)0)
+#else
+#define MUPEN_JIT_PROTECT(x) pthread_jit_write_protect_np(x)
+#endif
 #endif
 
 #include "new_dynarec.h"
@@ -1966,11 +1974,11 @@ static void *dyna_linker(void * src, u_int vaddr)
     int *ptr=(int*)src_rw;
     if((*ptr&0xfc000000)==0x14000000) { //b
 #if defined(__APPLE__)
-      pthread_jit_write_protect_np(0);
+      MUPEN_JIT_PROTECT(0);
 #endif
       add_link(vaddr, add_pointer(src_rw,head->addr));
 #if defined(__APPLE__)
-      pthread_jit_write_protect_np(1);
+      MUPEN_JIT_PROTECT(1);
 #endif
     }
 #else
@@ -2030,11 +2038,11 @@ static void *dyna_linker_ds(void * src, u_int vaddr)
     int *ptr=(int*)src_rw;
     if((*ptr&0xfc000000)==0x14000000) { //b
 #if defined(__APPLE__)
-      pthread_jit_write_protect_np(0);
+      MUPEN_JIT_PROTECT(0);
 #endif
       add_link(vaddr, add_pointer(src_rw,head->addr));
 #if defined(__APPLE__)
-      pthread_jit_write_protect_np(1);
+      MUPEN_JIT_PROTECT(1);
 #endif
     }
 #else
@@ -2220,7 +2228,7 @@ static void invalidate_page(u_int page)
    * These calls happen at runtime (outside new_recompile_block) so the pages
    * are currently in RX mode.  Switch to RW for the duration of this function
    * then back to RX before returning. */
-  pthread_jit_write_protect_np(0);
+  MUPEN_JIT_PROTECT(0);
 #endif
   struct ll_entry *head;
   struct ll_entry *next;
@@ -2249,7 +2257,7 @@ static void invalidate_page(u_int page)
     head=next;
   }
 #if defined(__APPLE__) && defined(__aarch64__)
-  pthread_jit_write_protect_np(1);
+  MUPEN_JIT_PROTECT(1);
 #endif
 }
 void invalidate_block(u_int block)
@@ -7662,9 +7670,9 @@ void new_dynarec_init(void)
 #if defined(__APPLE__) && defined(__aarch64__)
   /* arch_init writes the ARM64 jump table into the MAP_JIT code buffer.
    * Switch to write mode for the duration, then back to execute mode. */
-  pthread_jit_write_protect_np(0);
+  MUPEN_JIT_PROTECT(0);
   arch_init();
-  pthread_jit_write_protect_np(1);
+  MUPEN_JIT_PROTECT(1);
 #else
   arch_init();
 #endif
@@ -7697,11 +7705,11 @@ int new_recompile_block(int addr)
 {
 #if defined(__APPLE__) && defined(__aarch64__)
   /* Each compilation block needs write access to the MAP_JIT code buffer.
-   * pthread_jit_write_protect_np(1) was called after the previous block
+   * MUPEN_JIT_PROTECT(1) was called after the previous block
    * was compiled (or after arch_init).  Re-enable writes here.  The
-   * matching pthread_jit_write_protect_np(1) call is just before
+   * matching MUPEN_JIT_PROTECT(1) call is just before
    * cache_flush, after all code generation is complete. */
-  pthread_jit_write_protect_np(0);
+  MUPEN_JIT_PROTECT(0);
 #endif
 #if defined(RECOMPILER_DEBUG) && !defined(RECOMP_DBG)
   recomp_dbg_block(addr);
@@ -10937,9 +10945,9 @@ int new_recompile_block(int addr)
 #if defined(__APPLE__) && defined(__aarch64__)
   /* Code has been written in RW mode.  Switch to RX before cache_flush and
    * before the caller executes the compiled block.  Future compilations will
-   * call pthread_jit_write_protect_np(0) at the top of new_recompile_block
+   * call MUPEN_JIT_PROTECT(0) at the top of new_recompile_block
    * via the dyna_linker / new_dyna_start entry path. */
-  pthread_jit_write_protect_np(1);
+  MUPEN_JIT_PROTECT(1);
 #endif
   cache_flush((char *)beginning_rx,(char *)out_rx);
   #endif

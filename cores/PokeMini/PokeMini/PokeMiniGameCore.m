@@ -36,6 +36,9 @@
 {
     uint8_t *audioStream;
     uint32_t *videoBuffer;
+    /// The buffer allocated here. Only this pointer may be freed — a buffer
+    /// adopted in -getVideoBufferWithHint: belongs to the renderer.
+    uint32_t *ownedVideoBuffer;
     int videoWidth, videoHeight;
     NSString *romPath;
 }
@@ -71,7 +74,8 @@ int OpenEmu_KeysMapping[] =
         videoHeight = 64;
         
         audioStream = malloc(PMSOUNDBUFF);
-        videoBuffer = malloc(videoWidth*videoHeight*4);
+        ownedVideoBuffer = malloc(videoWidth*videoHeight*4);
+        videoBuffer = ownedVideoBuffer;
         memset(videoBuffer, 0, videoWidth*videoHeight*4);
         memset(audioStream, 0, PMSOUNDBUFF);
     }
@@ -85,7 +89,7 @@ int OpenEmu_KeysMapping[] =
     PokeMini_VideoPalette_Free();
     PokeMini_Destroy();
     free(audioStream);
-    free(videoBuffer);
+    free(ownedVideoBuffer);
 }
 
 #pragma - mark Execution
@@ -246,7 +250,10 @@ int saveEEPROM(const char *filename)
 
 - (const void *)getVideoBufferWithHint:(void *)hint
 {
-    return videoBuffer = (hint ?: videoBuffer);
+    // Adopt the renderer's buffer when it offers one so the core draws
+    // straight into it, but never free it. Otherwise use our own.
+    videoBuffer = hint ? (uint32_t *)hint : ownedVideoBuffer;
+    return videoBuffer;
 }
 
 - (uint32_t)pixelFormat

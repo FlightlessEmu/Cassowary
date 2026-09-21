@@ -43,11 +43,14 @@ One command builds the app for the Simulator, frameworks and plugins included:
 Then:
 
 ```bash
-./Scripts/cassowary/run-cassowary.sh    # build, install, launch
-./Scripts/cassowary/test-cassowary.sh   # end-to-end check
+./Scripts/cassowary/run-cassowary.sh            # build, install, launch
+./Scripts/cassowary/run-cassowary.sh --device   # the same on a real iPhone
+./Scripts/cassowary/test-cassowary.sh           # end-to-end check
 ```
 
-Requirements: macOS with Xcode (latest stable), and an Apple Silicon Mac.
+Requirements: macOS with Xcode (latest stable), and an Apple Silicon Mac. A
+real-device build also needs an Apple ID in Xcode and a trusted iPhone — see
+[`Cassowary/README.md`](Cassowary/README.md).
 
 ---
 

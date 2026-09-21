@@ -67,3 +67,6 @@ cores/Flycast/flycast/core/deps/rcheevos/.build/
 # iOS test output
 build/ios-test-shots/
 __pycache__/
+
+# ScreenScraper app key — never commit credentials
+Cassowary/Resources/ScreenScraperDevCredentials.plist

@@ -68,6 +68,11 @@ final class GameSession: NSObject {
     private let corePlugin: OECorePlugin
     private let romURL: URL
 
+    /// The engine bindings driving this game, and the bridge that keeps the
+    /// responder's key map up to date while the game runs.
+    private var systemBindings: OESystemBindings?
+    private var bindingsForwarder: SystemBindingsForwarder?
+
     /// The display name of the core running this game, for the UI.
     let coreDisplayName: String
 
@@ -81,6 +86,9 @@ final class GameSession: NSObject {
     var systemName: String { systemPlugin.systemName }
 
     var isRunning = false
+
+    /// Plays the emulated Rumble Pak as device haptics.
+    let rumble = RumbleHaptics()
 
     /// Reported by the helper once the core knows its output size.
     var screenSize: OEIntSize = .init()
@@ -160,6 +168,21 @@ final class GameSession: NSObject {
     // MARK: - Lifecycle
 
     func start(completionHandler: @escaping () -> Void) {
+        // The bindings have to be in the responder's key map before the first
+        // frame, or the opening seconds of input go nowhere.
+        attachBindings()
+
+        // Gamepad events reach the responder through the device manager's
+        // unhandled-event monitor, which is off until a game asks for it.
+        helper.setHandleEvents(true)
+
+#if targetEnvironment(macCatalyst)
+        // IOKit hands OEDeviceManager the Mac's controllers.
+#else
+        // iOS has no IOKit: the bridge builds devices from GameController.
+        OEiOSGameControllerManager.shared.start()
+#endif
+
         // The macOS app drives this from its RetroAchievements preferences. The
         // iOS app has no such screen yet, so hardcore mode is off: without it
         // the core refuses to load save states, which is surprising when there
@@ -177,9 +200,93 @@ final class GameSession: NSObject {
 
     func stop() {
         guard isRunning else { return }
+        helper.setHandleEvents(false)
+#if !targetEnvironment(macCatalyst)
+        OEiOSGameControllerManager.shared.stop()
+#endif
+        rumble.stop()
+        detachBindings()
         helper.stopEmulation {}
         isRunning = false
     }
+
+    // MARK: - Bindings
+
+    /// Connect this system's bindings to the responder.
+    ///
+    /// `OESystemBindings` notifies observers of every existing binding as soon
+    /// as one is added, which is what fills the responder's event-to-key map:
+    /// the plugin's defaults first, then the user's remaps over them.
+    private func attachBindings() {
+        guard systemBindings == nil,
+              let responder = helper.systemResponder,
+              let bindings = InputBindings.systemBindings(for: systemPlugin)
+        else { return }
+
+        let forwarder = SystemBindingsForwarder(responder: responder)
+        bindings.add(forwarder)
+
+        systemBindings = bindings
+        bindingsForwarder = forwarder
+    }
+
+    private func detachBindings() {
+        if let systemBindings, let bindingsForwarder {
+            systemBindings.remove(bindingsForwarder)
+        }
+        systemBindings = nil
+        bindingsForwarder = nil
+    }
+
+    /// Deliver one keyboard transition, resolved through the bindings.
+    func handleKeyEvent(keyCode: Int, isDown: Bool) {
+        guard let responder = helper.systemResponder,
+              let event = InputBindings.keyEvent(keyCode: keyCode, isDown: isDown)
+        else { return }
+
+        responder.handle(event)
+    }
+
+#if DEBUG
+    /// Press the key bound to a named button, for the automated test.
+    ///
+    /// The Simulator does not hand its hardware keyboard to GameController, so
+    /// the test drives the same path a real key press would: the binding the
+    /// settings screen shows decides which key is pressed.
+    func pressBoundKey(forButtonID buttonID: String) {
+        guard let player = systemBindings?.keyboardPlayerBindings(forPlayer: 1),
+              let description = systemPlugin.controller?.keyBindingsDescriptions[buttonID],
+              let event = player.bindingEvents[description]
+        else {
+            NSLog("[Cassowary] no key is bound to %@", buttonID)
+            return
+        }
+
+        NSLog("[Cassowary] test keyboard: %@ pressed by key %@", buttonID, KeyboardKey.name(for: Int(event.keycode)))
+        handleKeyEvent(keyCode: Int(event.keycode), isDown: true)
+    }
+
+    /// Remap a button through the same call the settings screen makes, so the
+    /// automated test can prove a remap survives a relaunch.
+    func remapForTesting(buttonID: String, keyCode: Int) {
+        guard let player = systemBindings?.keyboardPlayerBindings(forPlayer: 1),
+              let event = InputBindings.keyEvent(keyCode: keyCode, isDown: true)
+        else { return }
+
+        player.assign(event, toKeyWithName: buttonID)
+        InputBindings.save()
+        NSLog("[Cassowary] test remap: %@ → %@", buttonID, KeyboardKey.name(for: keyCode))
+    }
+
+    /// Hold the gamepad control with a HID usage, for the automated test.
+    ///
+    /// The Simulator has no hardware controller, so the test drives the same
+    /// path a controller input would: the bridge dispatches the value and the
+    /// bindings decide which emulator key it becomes.
+    func holdGamepadControl(usage: UInt32) {
+        OEiOSGameControllerManager.shared.holdControl(withUsage: usage)
+    }
+#endif
 
     // MARK: - Input
 
@@ -193,6 +300,17 @@ final class GameSession: NSObject {
             return
         }
         press(button.systemKey)
+    }
+
+    /// Report an analog deflection by button name, for automated testing.
+    ///
+    /// Mirrors what the on-screen thumbstick and a physical gamepad stick do.
+    func moveAnalogButton(named name: String, value: CGFloat = 1) {
+        guard let layout, let button = layout.allButtons.first(where: { $0.id == name }) else {
+            NSLog("[Cassowary] no button named %@; have %@", name, layout?.allButtons.map(\.id).joined(separator: ",") ?? "none")
+            return
+        }
+        moveAnalog(button.systemKey, value: value)
     }
 
     /// Release a button by its name.
@@ -220,7 +338,45 @@ final class GameSession: NSObject {
 
     func setPaused(_ paused: Bool) {
         isPaused = paused
+        // Pausing after the session has stopped is a no-op. The core is
+        // already gone at that point, and asking the helper to pause it
+        // would trap.
+        guard isRunning else { return }
         helper.setPauseEmulation(paused)
+    }
+
+    // MARK: - Video filter
+
+    /// Switch the running game's filter.
+    ///
+    /// Compiling a shader takes a moment, so the work happens on the core's
+    /// own thread and `completionHandler` reports when it is done. `nil` goes
+    /// back to plain, unfiltered output.
+    func setShader(_ shader: OEShaderModel?, completionHandler: ((Result<Void, Error>) -> Void)? = nil) {
+        guard let shader else {
+            helper.clearShader {
+                completionHandler?(.success(()))
+            }
+            return
+        }
+
+        helper.setShaderURL(shader.url, parameters: nil) { error in
+            if let error {
+                completionHandler?(.failure(error))
+            } else {
+                completionHandler?(.success(()))
+            }
+        }
+    }
+
+    // MARK: - Upscaling
+
+    /// Turn MetalFX spatial upscaling on or off for the running game.
+    ///
+    /// The helper falls back to the plain picture wherever the device or the
+    /// frame size does not suit MetalFX, so this is always safe to call.
+    func setMetalFXUpscalingEnabled(_ enabled: Bool) {
+        helper.setMetalFXUpscalingEnabled(enabled)
     }
 
     // MARK: - Save states

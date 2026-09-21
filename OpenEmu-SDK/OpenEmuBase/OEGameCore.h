@@ -186,6 +186,18 @@ typedef NS_ENUM(NSUInteger, OEGameCoreRendering) {
 ///
 /// - Parameter isExecuting: ``YES`` if the core will execute the next frame.
 - (void)gameCoreWillEndFrame:(BOOL)isExecuting;
+
+@optional
+
+/// Called when a core wants the host to start or stop controller rumble.
+///
+/// The player is numbered from one, matching the binding stack.
+///
+/// - Parameters:
+///   - gameCore: The core reporting the change.
+///   - enabled: ``YES`` when the rumble starts, ``NO`` when it stops.
+///   - player: The player whose controller is rumbling.
+- (void)gameCore:(OEGameCore *)gameCore didChangeRumble:(BOOL)enabled forPlayer:(NSUInteger)player;
 @end
 
 #pragma mark -

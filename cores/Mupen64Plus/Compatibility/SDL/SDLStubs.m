@@ -57,7 +57,12 @@ void SDL_DestroyMutex(SDL_mutex *m)
 
 Uint32 SDL_GetTicks(void)
 {
-    return OEMonotonicTime();
+    // SDL counts milliseconds, so the seconds OEMonotonicTime returns have to
+    // be scaled. Mupen's speed limiter subtracts this from a frame budget in
+    // milliseconds; handing it seconds made every frame look wildly overdue,
+    // so the limiter reset itself instead of sleeping and the core ran as
+    // fast as the host would render.
+    return (Uint32)(OEMonotonicTime() * 1000.0);
 }
 
 void SDL_Quit(void)

@@ -68,6 +68,9 @@
 @interface blueMSXGameCore () <OEMSXSystemResponderClient, OEColecoVisionSystemResponderClient>
 {
     uint32_t *_videoBuffer;
+    /// The buffer allocated here. Only this pointer may be freed — a buffer
+    /// adopted in -getVideoBufferWithHint: belongs to the renderer.
+    uint32_t *_ownedVideoBuffer;
     int _videoWidth, _videoHeight;
     int virtualCodeMap[256];
     BOOL _isDoubleWidth;
@@ -104,7 +107,7 @@ static int framebufferScanline = 0;
 
 - (void)dealloc
 {
-    free(_videoBuffer);
+    free(_ownedVideoBuffer);
     propDestroy(properties);
     mixerSetWriteCallback(mixer, NULL, NULL, 0);
     mixerDestroy(mixer);
@@ -615,11 +618,15 @@ static int framebufferScanline = 0;
 
 - (const void *)getVideoBufferWithHint:(void *)hint
 {
-    if (!hint) {
-        if (!_videoBuffer) _videoBuffer = (uint32_t *)malloc(FB_MAX_WIDTH * FB_MAX_HEIGHT * sizeof(uint32_t));
-        hint = _videoBuffer;
+    if (hint) {
+        // The renderer's buffer. Draw into it, but never free it.
+        _videoBuffer = (uint32_t *)hint;
+    } else {
+        // No buffer offered, so use one of our own.
+        if (!_ownedVideoBuffer) _ownedVideoBuffer = (uint32_t *)malloc(FB_MAX_WIDTH * FB_MAX_HEIGHT * sizeof(uint32_t));
+        _videoBuffer = _ownedVideoBuffer;
     }
-    return _videoBuffer = (uint32_t *)hint;
+    return _videoBuffer;
 }
 
 - (uint32_t)pixelFormat
