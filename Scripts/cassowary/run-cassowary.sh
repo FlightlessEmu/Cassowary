@@ -65,7 +65,8 @@ if [[ "$TARGET_MODE" == device ]]; then
         UDIDS+=("$udid")
       fi
     done < <(xcrun devicectl list devices \
-      --hide-default-columns --columns udid --hide-headers 2>/dev/null || true)
+      --hide-default-columns --columns udid --hide-headers \
+      --filter 'hardwareProperties.reality != "simulated"' 2>/dev/null || true)
 
     if [[ ${#UDIDS[@]} -eq 0 ]]; then
       print -u2 -- "error: no iPhone found."

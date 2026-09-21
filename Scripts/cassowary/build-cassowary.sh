@@ -56,11 +56,13 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-# The UDIDs CoreDevice can see, one per line. devicectl reports the hardware
-# UDID, which is the same string xcodebuild's -destination wants.
+# The UDIDs of the physical devices CoreDevice can see, one per line.
+# devicectl lists simulators alongside them, so they are filtered out here.
+# The UDID is the hardware one, which is what xcodebuild's -destination wants.
 device_udids() {
   xcrun devicectl list devices \
-    --hide-default-columns --columns udid --hide-headers 2>/dev/null \
+    --hide-default-columns --columns udid --hide-headers \
+    --filter 'hardwareProperties.reality != "simulated"' 2>/dev/null \
     | awk 'NF' | sort -u || true
 }
 
