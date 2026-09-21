@@ -63,6 +63,16 @@ public typealias OEContextID = UInt32
     func setDiscCount(_ discCount: UInt)
     func setDisplayModes(_ displayModes: [[String: Any]])
     func setRemoteContextID(_ contextID: OEContextID)
+
+    /// Called when a game starts or stops a controller's rumble.
+    ///
+    /// The host turns this into haptics, at whatever strength the player
+    /// picked in the in-game menu.
+    ///
+    /// - Parameters:
+    ///   - enabled: `true` when the rumble starts, `false` when it stops.
+    ///   - player: The player whose controller is rumbling, numbered from one.
+    @objc optional func didChangeRumble(_ enabled: Bool, forPlayer player: UInt)
     
     /// Invoked when the game core execution has terminated.
     ///
@@ -90,7 +100,6 @@ public typealias OEContextID = UInt32
     /// Called when the helper receives updated RetroAchievements metadata for the active game.
     /// The payload contains property-list-safe values using `OERetroAchievements*Key` constants.
     @objc optional func retroAchievementsSessionUpdated(_ info: [String: Any])
-
     /// Called when rcheevos emits a gameplay UI event such as challenge/progress
     /// indicator changes, leaderboard tracker updates, mastery, or server state.
     /// The payload contains property-list-safe values using `OERetroAchievementsEvent*Key` constants.

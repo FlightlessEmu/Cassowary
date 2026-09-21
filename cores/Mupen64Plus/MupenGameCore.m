@@ -74,6 +74,9 @@ NSString *MupenControlNames[] = {
     uint8_t _padData[4][OEN64ButtonCount];
     int8_t _xAxis[4];
     int8_t _yAxis[4];
+    // Which players' Rumble Paks are shaking, so the same state is not
+    // reported to the app twice.
+    BOOL _rumble[4];
     NSUInteger _frameCounter;
     double _sampleRate;
     BOOL _initializing;
@@ -429,9 +432,32 @@ static void *dlopen_myself()
     return dlopen(info.dli_fname, 0);
 }
 
-static void MupenGetKeys(int Control, BUTTONS *Keys)
+// The Rumble Pak is driven through a raw pak write: 0x23 0x01, a
+// JCMD_PAK_WRITE at 0xc000, then 0x20 motor bytes that are all 0x01 while the
+// pak shakes and all 0x00 when it stops. The app turns that into haptics.
+static void MupenControllerCommand(int Control, unsigned char *Command)
 {
     GET_CURRENT_OR_RETURN();
+
+    if (Command[0] == 0x23 && Command[1] == 0x01)
+    {
+        BOOL on = NO;
+
+        for (int i = 5; i < 0x25; i++)
+        {
+            if (Command[i] != 0)
+            {
+                on = YES;
+                break;
+            }
+        }
+
+        [current setRumble:on forPlayer:(NSUInteger)Control];
+    }
+}
+
+static void MupenGetKeys(int Control, BUTTONS *Keys)
+{    GET_CURRENT_OR_RETURN();
 
     Keys->R_DPAD = current->_padData[Control][OEN64ButtonDPadRight];
     Keys->L_DPAD = current->_padData[Control][OEN64ButtonDPadLeft];
@@ -467,7 +493,9 @@ static void MupenGetKeys(int Control, BUTTONS *Keys)
 static void MupenInitiateControllers (CONTROL_INFO ControlInfo)
 {
     ControlInfo.Controls[0].Present = 1;
-    ControlInfo.Controls[0].Plugin = PLUGIN_MEMPAK;
+    // Player one carries a Rumble Pak. The app plays its motor as haptics,
+    // and nothing persists a Controller Pak today, so the slot is free.
+    ControlInfo.Controls[0].Plugin = PLUGIN_RUMBLE_PAK;
     ControlInfo.Controls[1].Present = 1;
     ControlInfo.Controls[1].Plugin = PLUGIN_MEMPAK;
     ControlInfo.Controls[2].Present = 1;
@@ -705,6 +733,7 @@ static void MupenSetAudioSpeed(int percent)
     // Load Input
     input.getKeys = MupenGetKeys;
     input.initiateControllers = MupenInitiateControllers;
+    input.controllerCommand = MupenControllerCommand;
     plugin_start(M64PLUGIN_INPUT);
 
     // Load RSP
@@ -1145,6 +1174,19 @@ static const int MupenParallelBufferHeight = 480;
 {
     player -= 1;
     _padData[player][button] = 0;
+}
+
+/// Tell the app the Rumble Pak started or stopped. Players are numbered from
+/// one on the way out, which is what the binding stack uses.
+- (void)setRumble:(BOOL)on forPlayer:(NSUInteger)player
+{
+    if (player > 3 || _rumble[player] == on)
+        return;
+
+    _rumble[player] = on;
+
+    if ([self.delegate respondsToSelector:@selector(gameCore:didChangeRumble:forPlayer:)])
+        [self.delegate gameCore:self didChangeRumble:on forPlayer:player + 1];
 }
 
 #pragma mark - Cheats

@@ -87,6 +87,9 @@ final class GameSession: NSObject {
 
     var isRunning = false
 
+    /// Plays the emulated Rumble Pak as device haptics.
+    let rumble = RumbleHaptics()
+
     /// Reported by the helper once the core knows its output size.
     var screenSize: OEIntSize = .init()
     var aspectSize: OEIntSize = .init()
@@ -201,6 +204,7 @@ final class GameSession: NSObject {
 #if !targetEnvironment(macCatalyst)
         OEiOSGameControllerManager.shared.stop()
 #endif
+        rumble.stop()
         detachBindings()
         helper.stopEmulation {}
         isRunning = false

@@ -48,6 +48,7 @@ struct GameView: View {
     @State private var notice: String?
     @StateObject private var shaderCatalog = ShaderCatalog()
     @State private var shaderName: String?
+    @AppStorage(RumbleHaptics.strengthKey) private var rumbleStrength = RumbleStrength.medium.rawValue
 
     var body: some View {
         ZStack {
@@ -166,6 +167,18 @@ struct GameView: View {
                         }
                     } label: {
                         Label("Video Filter", systemImage: "camera.filters")
+                    }
+                    Divider()
+                    Menu {
+                        ForEach(RumbleStrength.allCases) { strength in
+                            Button {
+                                rumbleStrength = strength.rawValue
+                            } label: {
+                                filterMenuLabel(strength.title, selected: rumbleStrength == strength.rawValue)
+                            }
+                        }
+                    } label: {
+                        Label("Rumble", systemImage: "waveform")
                     }
                     Divider()
                     Button("Close Game", role: .destructive) {

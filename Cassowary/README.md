@@ -17,15 +17,19 @@ credits and per-core licenses.
 
 - Game Boy via the Gambatte core
 - Vectrex via the VecXGL core, which draws its vector display with Metal
+- Nintendo 64 via Mupen64Plus, rendering through paraLLEl-RDP on MoltenVK
 - Multi-core library: systems sidebar, per-system default cores, Play With…
 - On-screen controls generated from each system plugin's own control list
 - Physical controllers through Apple's GameController framework — a paired
   gamepad drives the same buttons as the on-screen pad, using the mapping the
   system plugin already ships
+- Keyboard input, remappable per system in Settings → Keyboard Bindings
 - Three directional styles (Buttons, D-Pad, Thumbstick with analog support)
   and three button themes, with a pressable test pad in Settings → Controls
 - Optional auto-repeat for the D-Pad: a held direction retriggers at a rate set
   in Settings → Controls, for games that only act on a fresh press
+- Haptics: on-screen presses buzz, and the N64's Rumble Pak plays through the
+  device, at Off/Low/Medium/High from the in-game menu
 - Save states (plumbing in place; minimal UI)
 - Video filters: OpenEmu's shader presets (CRT Geom, CRT Royale Kurozumi, NTSC,
   VHS, …), switchable while playing and settable per system in Settings

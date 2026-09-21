@@ -903,6 +903,14 @@ extension OSLog {
     public func gameCoreDidFinishFrameRefreshThread(_ gameCore: OEGameCore) {
         CFRunLoopStop(CFRunLoopGetCurrent())
     }
+
+    /// A game is shaking a controller. Pass it straight to the host, which
+    /// decides how (and how hard) to play it.
+    public func gameCore(_ gameCore: OEGameCore, didChangeRumble enabled: Bool, forPlayer player: UInt) {
+        Task { @MainActor in
+            gameCoreOwner.didChangeRumble?(enabled, forPlayer: player)
+        }
+    }
     
     public func gameCoreWillBeginFrame(_ isExecuting: Bool) {
         _scope.begin()
