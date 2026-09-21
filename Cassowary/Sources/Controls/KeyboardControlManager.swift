@@ -28,34 +28,26 @@ import OpenEmuSystem
 
 /// Runs the hardware keyboard while a game is running.
 ///
-/// Keys resolve through `KeyboardBindings`, so a remap in Settings changes the
-/// game with no other wiring, and the presses go to `GameSession` exactly like
-/// the on-screen pad and a physical gamepad. On systems with a real analog
-/// stick, a bound direction key reports full deflection while it is held and
-/// centers on release, matching the thumbstick.
+/// Keys become `OEHIDEvent`s handed to the game's responder, which resolves
+/// them through the system's bindings — the same map Settings edits. A remap
+/// therefore reaches the game with no other wiring, and the engine decides
+/// whether a bound key is digital or analog.
+///
+/// Events come from two sources on purpose: GameController's `GCKeyboard`,
+/// which matches how gamepads are read but can be absent at launch, and a
+/// first-responder view in the game (see `KeyboardKeyCaptureView`). The
+/// responder deduplicates a repeated press, and whichever source reports the
+/// release first is enough.
 @MainActor
 final class KeyboardControlManager {
 
-    private let session: any ControlPressHandler
-    private let bindings: KeyboardBindings
-
-    /// The buttons each key drives, built once from the bindings.
-    private let keyMap: [Int: [ControllerButton]]
+    private let session: GameSession
 
     private var input: GCKeyboardInput?
     private var observers: [NSObjectProtocol] = []
 
-    /// The keys currently down. Key repeats do not re-fire the handler, but a
-    /// set makes each transition count exactly once regardless.
+    /// The keys currently down, so a source that repeats does not re-send.
     private var pressedKeys: Set<Int> = []
-
-    /// How many keys hold each button down, so a button shared by two keys
-    /// releases only when the last one does.
-    private var downCounts: [String: Int] = [:]
-    private var downButtons: [String: ControllerButton] = [:]
-
-    /// The analog buttons currently deflected, so they can be centered.
-    private var deflectedButtons: [String: ControllerButton] = [:]
 
     /// Command, Control and Option. A key pressed while one of those is held
     /// belongs to an app shortcut (Cmd+S saves a state), so it is kept out of
@@ -73,10 +65,8 @@ final class KeyboardControlManager {
     /// sent to the game, so their release must not be either.
     private var ignoredKeys: Set<Int> = []
 
-    init(session: any ControlPressHandler, bindings: KeyboardBindings) {
+    init(session: GameSession) {
         self.session = session
-        self.bindings = bindings
-        self.keyMap = bindings.keyMap
     }
 
     func start() {
@@ -106,7 +96,7 @@ final class KeyboardControlManager {
         keyboard.keyChangedHandler = { [weak self] _, _, keyCode, pressed in
             onMain { self?.handle(keyCode: keyCode.rawValue, isDown: pressed) }
         }
-        NSLog("[Cassowary] keyboard connected (%ld keys mapped)", keyMap.count)
+        NSLog("[Cassowary] keyboard connected")
     }
 
     private func detach() {
@@ -120,11 +110,6 @@ final class KeyboardControlManager {
     // MARK: - Translating input
 
     /// Handle one key transition.
-    ///
-    /// Called by the GameController keyboard handler and by the UIKit
-    /// first-responder view, which overlap on purpose: GameController can miss
-    /// events, and the duplicate is filtered here — a key already down is not
-    /// pressed twice, and whichever source reports the release first is enough.
     func handle(keyCode: Int, isDown: Bool) {
         if Self.shortcutModifiers.contains(keyCode) {
             if isDown {
@@ -142,7 +127,7 @@ final class KeyboardControlManager {
                 return
             }
             guard pressedKeys.remove(keyCode) != nil else { return }
-            for button in keyMap[keyCode] ?? [] { release(button) }
+            session.handleKeyEvent(keyCode: keyCode, isDown: false)
             return
         }
 
@@ -155,72 +140,16 @@ final class KeyboardControlManager {
             return
         }
 
-        for button in keyMap[keyCode] ?? [] { press(button) }
+        session.handleKeyEvent(keyCode: keyCode, isDown: true)
     }
 
-    private func press(_ button: ControllerButton) {
-        if button.isAnalog {
-            guard deflectedButtons[button.id] == nil else { return }
-            deflectedButtons[button.id] = button
-            session.moveAnalog(button.systemKey, value: 1)
-        } else {
-            let count = downCounts[button.id] ?? 0
-            downCounts[button.id] = count + 1
-            downButtons[button.id] = button
-            if count == 0 {
-                session.press(button.systemKey)
-            }
-        }
-    }
-
-    private func release(_ button: ControllerButton) {
-        if button.isAnalog {
-            guard deflectedButtons.removeValue(forKey: button.id) != nil else { return }
-            session.moveAnalog(button.systemKey, value: 0)
-        } else {
-            guard let count = downCounts[button.id], count > 0 else { return }
-            if count == 1 {
-                downCounts.removeValue(forKey: button.id)
-                downButtons.removeValue(forKey: button.id)
-                session.release(button.systemKey)
-            } else {
-                downCounts[button.id] = count - 1
-            }
-        }
-    }
-
-    /// Let go of everything currently held, on keyboard disconnect or when
-    /// the game stops.
+    /// Let go of every key still down, on keyboard disconnect or game stop.
     private func releaseAll() {
-        for button in deflectedButtons.values {
-            session.moveAnalog(button.systemKey, value: 0)
+        for keyCode in pressedKeys where !ignoredKeys.contains(keyCode) {
+            session.handleKeyEvent(keyCode: keyCode, isDown: false)
         }
-        for button in downButtons.values {
-            session.release(button.systemKey)
-        }
-        deflectedButtons.removeAll()
-        downCounts.removeAll()
-        downButtons.removeAll()
         pressedKeys.removeAll()
         heldShortcutModifiers.removeAll()
         ignoredKeys.removeAll()
     }
-
-#if DEBUG
-    /// Press the key bound to a named button, for the automated test.
-    ///
-    /// The simulator does not deliver its hardware keyboard to GameController,
-    /// so the test drives the same handler a real key press would.
-    func pressBoundKey(forButtonID buttonID: String) {
-        guard let button = bindings.layout.allButtons.first(where: { $0.id == buttonID }),
-              let keyCode = bindings.keyCode(for: button)
-        else {
-            NSLog("[Cassowary] no key is bound to %@; bound: %@", buttonID, bindings.layout.allButtons.map(\.id).joined(separator: ","))
-            return
-        }
-
-        NSLog("[Cassowary] test keyboard: %@ pressed by key %@", buttonID, KeyboardKey.name(for: keyCode))
-        handle(keyCode: keyCode, isDown: true)
-    }
-#endif
 }

@@ -629,6 +629,11 @@ static CGEventSourceRef _keyboardEventSource;
     return ret;
 }
 
++ (instancetype)keyEventWithTimestamp:(NSTimeInterval)timestamp keyCode:(NSUInteger)keyCode state:(OEHIDEventState)state
+{
+    return [self keyEventWithTimestamp:timestamp keyCode:keyCode state:state cookie:OEUndefinedCookie];
+}
+
 + (instancetype)keyEventWithTimestamp:(NSTimeInterval)timestamp keyCode:(NSUInteger)keyCode state:(OEHIDEventState)state cookie:(NSUInteger)cookie
 {
     OEHIDEvent *ret = [[self alloc] initWithDeviceHandler:nil timestamp:timestamp cookie:cookie];

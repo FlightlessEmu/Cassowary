@@ -282,7 +282,6 @@ struct GameView: View {
 
         do {
             let session = try GameSession(romURL: game.url, core: core)
-            var keyboard: KeyboardControlManager?
 
             if let plugin = game.system.flatMap({ system in
                 OESystemPlugin.allPlugins.first { $0.systemIdentifier == system.identifier }
@@ -297,34 +296,24 @@ struct GameView: View {
                 controllers.start()
                 padControllers = controllers
 
-                // A hardware keyboard drives them too, through the bindings
-                // Settings edits for this system.
-                let bindings = KeyboardBindings(systemPlugin: plugin, layout: layout)
-                let manager = KeyboardControlManager(session: session, bindings: bindings)
+                // A hardware keyboard drives them too, resolved through the
+                // engine bindings the settings screen edits.
+                let manager = KeyboardControlManager(session: session)
                 manager.start()
                 keyboardInput = manager
-                keyboard = manager
-
-#if DEBUG
-                // Writes a remap through the settings editor's own call, so
-                // the automated test can prove it survives a relaunch.
-                if let spec = UserDefaults.standard.string(forKey: "cassowary.testKeyboardRemap") {
-                    KeyboardBindings.testRemap(spec, systemPlugin: plugin, layout: layout)
-                }
-#endif
             }
 
             self.session = session
             session.start {}
 
-            runTestHooks(session, keyboard: keyboard)
+            runTestHooks(session)
         } catch {
             errorMessage = error.localizedDescription
         }
     }
 
     /// Automated test hooks, set on the command line by Scripts/cassowary/test-cassowary.sh.
-    private func runTestHooks(_ session: GameSession, keyboard: KeyboardControlManager?) {
+    private func runTestHooks(_ session: GameSession) {
 #if DEBUG
         if let button = UserDefaults.standard.string(forKey: "cassowary.testHoldButton") {
             Task {
@@ -339,7 +328,17 @@ struct GameView: View {
         if let button = UserDefaults.standard.string(forKey: "cassowary.testKeyboardButton") {
             Task {
                 try? await Task.sleep(for: .seconds(3))
-                keyboard?.pressBoundKey(forButtonID: button)
+                session.pressBoundKey(forButtonID: button)
+            }
+        }
+
+        // Rewrite a binding through the settings editor's own call, so the
+        // test can prove a remap reaches a running game and survives a
+        // relaunch.
+        if let spec = UserDefaults.standard.string(forKey: "cassowary.testKeyboardRemap") {
+            let parts = spec.split(separator: ":")
+            if parts.count == 2, let keyCode = Int(parts[1]) {
+                session.remapForTesting(buttonID: String(parts[0]), keyCode: keyCode)
             }
         }
 

@@ -29,16 +29,15 @@ import OpenEmuKit
 
 /// Picks a system to remap the keyboard for.
 ///
-/// The keys are per system because the buttons are: Game Boy has eight
-/// controls, the N64 has analog C buttons, and the ColecoVision has a number
-/// pad of its own. Listing the systems here keeps the binding editor one tap
-/// away from the system it belongs to.
+/// The bindings are the engine's: `OEBindingsController` holds one
+/// `OESystemBindings` per system, filled from the plugin's
+/// `Keyboard-Mappings.plist` and persisted in `Default.oebindings`. Listing
+/// the systems here keeps the editor one tap from the system it belongs to.
 struct KeyboardBindingsView: View {
 
     @ObservedObject var catalog: CoreCatalog
 
-    /// "8 keys · Defaults" and friends, built once per visit: reading every
-    /// plugin's control list on every row redraw would be wasteful.
+    /// "8 keys · Defaults" and friends, built once per visit.
     @State private var summaries: [String: String] = [:]
 
     var body: some View {
@@ -76,23 +75,33 @@ struct KeyboardBindingsView: View {
         var summaries: [String: String] = [:]
 
         for system in catalog.systems {
-            guard let plugin = OESystemPlugin.allPlugins.first(where: { $0.systemIdentifier == system.id }) else {
+            guard let plugin = OESystemPlugin.allPlugins.first(where: { $0.systemIdentifier == system.id }),
+                  let controller = plugin.controller,
+                  let bindings = InputBindings.systemBindings(for: plugin)
+            else {
                 summaries[system.id] = "Not installed"
                 continue
             }
 
-            let layout = ControllerLayout(systemPlugin: plugin)
-            guard layout.hasButtons else {
-                summaries[system.id] = "No controls to bind"
-                continue
-            }
-
-            let bindings = KeyboardBindings(systemPlugin: plugin, layout: layout)
-            let keys = bindings.boundCount == 1 ? "1 key" : "\(bindings.boundCount) keys"
-            summaries[system.id] = bindings.isCustomized ? "\(keys) · Customized" : "\(keys) · Defaults"
+            let player = bindings.keyboardPlayerBindings(forPlayer: 1)
+            let bound = player?.bindingEvents.count ?? 0
+            let keys = bound == 1 ? "1 key" : "\(bound) keys"
+            summaries[system.id] = isCustomized(player, controller: controller) ? "\(keys) · Customized" : "\(keys) · Defaults"
         }
 
         self.summaries = summaries
+    }
+
+    /// Whether any bound key differs from the plugin's default.
+    private func isCustomized(_ player: OEKeyboardPlayerBindings?, controller: OESystemController) -> Bool {
+        guard let player else { return false }
+
+        let defaults = controller.defaultKeyboardControls ?? [:]
+        for (description, event) in player.bindingEvents {
+            guard let usage = defaults[description.name]?.uint32Value else { return true }
+            if Int(usage) != Int(event.keycode) { return true }
+        }
+        return false
     }
 }
 
@@ -102,15 +111,21 @@ struct SystemKeyboardBindingsView: View {
     let systemID: String
     let systemName: String
 
-    @State private var bindings: KeyboardBindings?
+    @State private var layout: ControllerLayout?
+    @State private var controller: OESystemController?
+    @State private var bindings: OESystemBindings?
     @State private var recording: ControllerButton?
     @State private var loadMessage: String?
 
+    /// Bumped after every edit; the bindings are plain Objective-C objects, so
+    /// this is what tells SwiftUI the row text has changed.
+    @State private var revision = 0
+
     var body: some View {
         Group {
-            if let bindings {
+            if let layout, let bindings {
                 List {
-                    ForEach(Array(bindings.layout.groups.enumerated()), id: \.offset) { _, group in
+                    ForEach(Array(layout.groups.enumerated()), id: \.offset) { _, group in
                         Section {
                             ForEach(group) { button in
                                 row(button, in: bindings)
@@ -120,11 +135,12 @@ struct SystemKeyboardBindingsView: View {
 
                     Section {
                         Button("Restore Defaults") { reset() }
-                            .disabled(!bindings.isCustomized)
+                            .disabled(!isCustomized)
                     } footer: {
                         Text("Press a button to record a new key for it. Swipe left on a button to clear its key. \"—\" means the button has no key.")
                     }
                 }
+                .id(revision)
             } else {
                 ContentUnavailableView {
                     Label("No Keyboard Map", systemImage: "keyboard")
@@ -147,14 +163,14 @@ struct SystemKeyboardBindingsView: View {
 
     // MARK: - Rows
 
-    private func row(_ button: ControllerButton, in bindings: KeyboardBindings) -> some View {
+    private func row(_ button: ControllerButton, in bindings: OESystemBindings) -> some View {
         Button {
             recording = button
         } label: {
             HStack {
                 Text(button.label)
                 Spacer()
-                Text(bindings.keyName(for: button))
+                Text(keyName(for: button) ?? "—")
                     .foregroundStyle(.secondary)
             }
             .contentShape(Rectangle())
@@ -163,8 +179,38 @@ struct SystemKeyboardBindingsView: View {
         .swipeActions(edge: .trailing) {
             Button("Clear") { clear(button) }
                 .tint(.gray)
-                .disabled(bindings.keyCode(for: button) == nil)
+                .disabled(keyCode(for: button) == nil)
         }
+    }
+
+    // MARK: - Reading the bindings
+
+    private var player: OEKeyboardPlayerBindings? {
+        bindings?.keyboardPlayerBindings(forPlayer: 1)
+    }
+
+    private func keyCode(for button: ControllerButton) -> Int? {
+        guard let player,
+              let description = controller?.keyBindingsDescriptions[button.id],
+              let event = player.bindingEvents[description]
+        else { return nil }
+
+        return Int(event.keycode)
+    }
+
+    private func keyName(for button: ControllerButton) -> String? {
+        keyCode(for: button).map(KeyboardKey.name(for:))
+    }
+
+    private var isCustomized: Bool {
+        guard let player, let controller else { return false }
+
+        let defaults = controller.defaultKeyboardControls ?? [:]
+        for (description, event) in player.bindingEvents {
+            guard let usage = defaults[description.name]?.uint32Value else { return true }
+            if Int(usage) != Int(event.keycode) { return true }
+        }
+        return false
     }
 
     // MARK: - Editing
@@ -172,37 +218,63 @@ struct SystemKeyboardBindingsView: View {
     private func load() {
         guard bindings == nil else { return }
 
-        guard let plugin = OESystemPlugin.allPlugins.first(where: { $0.systemIdentifier == systemID }) else {
+        guard let plugin = OESystemPlugin.allPlugins.first(where: { $0.systemIdentifier == systemID }),
+              let systemController = plugin.controller
+        else {
             loadMessage = "The \(systemName) system plugin is not installed."
             return
         }
 
-        let layout = ControllerLayout(systemPlugin: plugin)
-        guard layout.hasButtons else {
+        let controlLayout = ControllerLayout(systemPlugin: plugin)
+        guard controlLayout.hasButtons else {
             loadMessage = "The \(systemName) system plugin does not describe any buttons."
             return
         }
-        bindings = KeyboardBindings(systemPlugin: plugin, layout: layout)
+        guard let systemBindings = InputBindings.systemBindings(for: plugin) else {
+            loadMessage = "The \(systemName) bindings could not be created."
+            return
+        }
+
+        controller = systemController
+        layout = controlLayout
+        bindings = systemBindings
     }
 
     private func assign(_ keyCode: Int, to button: ControllerButton) {
-        guard var current = bindings else { return }
-        current.assign(keyCode, to: button)
-        bindings = current
+        guard let player,
+              let event = InputBindings.keyEvent(keyCode: keyCode, isDown: true)
+        else { return }
+
+        player.assign(event, toKeyWithName: button.id)
+        InputBindings.save()
+        revision += 1
         recording = nil
         NSLog("[Cassowary] %@: %@ → %@", systemName, button.label, KeyboardKey.name(for: keyCode))
     }
 
     private func clear(_ button: ControllerButton) {
-        guard var current = bindings else { return }
-        current.clear(button)
-        bindings = current
+        player?.removeEventForKey(withName: button.id)
+        InputBindings.save()
+        revision += 1
     }
 
+    /// Put the plugin's defaults back: every key it ships gets its key again,
+    /// and everything else is left unbound.
     private func reset() {
-        guard var current = bindings else { return }
-        current.reset()
-        bindings = current
+        guard let player, let controller else { return }
+
+        let defaults = controller.defaultKeyboardControls ?? [:]
+        for name in controller.keyBindingsDescriptions.keys {
+            if let usage = defaults[name]?.uint32Value,
+               let event = InputBindings.keyEvent(keyCode: Int(usage), isDown: true) {
+                player.assign(event, toKeyWithName: name)
+            } else {
+                player.removeEventForKey(withName: name)
+            }
+        }
+
+        InputBindings.save()
+        revision += 1
     }
 }
 
@@ -226,18 +298,16 @@ private struct KeyCaptureSheet: View {
             }
             .padding(.top, 32)
 
-            Group {
-                VStack(spacing: 12) {
-                    Image(systemName: "keyboard")
-                        .font(.system(size: 40))
-                        .foregroundStyle(.secondary)
-                    Text("Waiting for a key…")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                    Text("Keys come from a hardware keyboard.")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-                }
+            VStack(spacing: 12) {
+                Image(systemName: "keyboard")
+                    .font(.system(size: 40))
+                    .foregroundStyle(.secondary)
+                Text("Waiting for a key…")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                Text("Keys come from a hardware keyboard.")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
             }
             .padding(.top, 8)
 
