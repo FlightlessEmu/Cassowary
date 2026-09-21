@@ -1,7 +1,0 @@
-THIS
-IS
-NOT
-A
-CUE
-SHEET
-:P
