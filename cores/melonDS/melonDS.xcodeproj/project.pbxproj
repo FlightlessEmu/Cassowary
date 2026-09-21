@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		321FB9D6DF3772FB937B029E /* MelonDSPlatform.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 1DAA42789FE591B7BD4C04FC /* MelonDSPlatform.cpp */; };
+		CE5C7E0EE7E6B72E7675E6A9 /* MelonDSMetalRenderer.mm in Sources */ = {isa = PBXBuildFile; fileRef = A0ED272106585F3C1F191AD8 /* MelonDSMetalRenderer.mm */; };
 		D8D703FFEA717A9957307DFB /* MelonDSGameCore.mm in Sources */ = {isa = PBXBuildFile; fileRef = 5D70DD470E38258939614A04 /* MelonDSGameCore.mm */; };
 /* End PBXBuildFile section */
 
@@ -15,8 +16,11 @@
 		0E16F2CF8BAB7597A6FCA9CB /* MelonDSGameCore.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = MelonDSGameCore.h; sourceTree = "<group>"; };
 		1DAA42789FE591B7BD4C04FC /* MelonDSPlatform.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = MelonDSPlatform.cpp; sourceTree = "<group>"; };
 		5D70DD470E38258939614A04 /* MelonDSGameCore.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = MelonDSGameCore.mm; sourceTree = "<group>"; };
+		8BCC40441476AF1C2E9CFE64 /* MelonDSMetalShaders.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = MelonDSMetalShaders.h; sourceTree = "<group>"; };
+		A0ED272106585F3C1F191AD8 /* MelonDSMetalRenderer.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = MelonDSMetalRenderer.mm; sourceTree = "<group>"; };
 		A80CEFCF2CB046748969F368 /* MelonDSPlatform.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = MelonDSPlatform.h; sourceTree = "<group>"; };
 		CCBE6DAA26ECBC7720EC14BF /* MelonDSHost.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = MelonDSHost.h; sourceTree = "<group>"; };
+		CE5E94BA48330FCFDDD0D298 /* MelonDSMetalRenderer.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = MelonDSMetalRenderer.h; sourceTree = "<group>"; };
 		FCC341D17C2E9D2CDF58C308 /* melonDS.bundle */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = melonDS.bundle; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -35,6 +39,9 @@
 				0E16F2CF8BAB7597A6FCA9CB /* MelonDSGameCore.h */,
 				5D70DD470E38258939614A04 /* MelonDSGameCore.mm */,
 				CCBE6DAA26ECBC7720EC14BF /* MelonDSHost.h */,
+				CE5E94BA48330FCFDDD0D298 /* MelonDSMetalRenderer.h */,
+				A0ED272106585F3C1F191AD8 /* MelonDSMetalRenderer.mm */,
+				8BCC40441476AF1C2E9CFE64 /* MelonDSMetalShaders.h */,
 				1DAA42789FE591B7BD4C04FC /* MelonDSPlatform.cpp */,
 				A80CEFCF2CB046748969F368 /* MelonDSPlatform.h */,
 			);
@@ -105,6 +112,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				D8D703FFEA717A9957307DFB /* MelonDSGameCore.mm in Sources */,
+				CE5C7E0EE7E6B72E7675E6A9 /* MelonDSMetalRenderer.mm in Sources */,
 				321FB9D6DF3772FB937B029E /* MelonDSPlatform.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

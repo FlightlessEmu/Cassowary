@@ -74,17 +74,15 @@ final class MTL3DGameRenderer: GameRenderer {
     var canChangeBufferSize: Bool { true }
     
     func willExecuteFrame() {
-        if isFPSLimiting.load(ordering: .sequentiallyConsistent) != 0 {
-            renderingThreadCanProceed.signal()
-        }
+        // A core that hands the app its own Metal texture draws that frame
+        // inside -executeFrame, on this very thread, so there is no rendering
+        // thread to hand over to and nothing to wait for. The semaphores below
+        // are for a core that renders on its own thread, which none of the
+        // Metal cores do — waiting on them here stops the frame loop after its
+        // first frame.
     }
     
     func didExecuteFrame() {
-        // Wait for the rendering thread to complete this frame.
-        // Most cores with rendering threads don't seem to handle timing themselves - they're probably relying on Vsync.
-        if isFPSLimiting.load(ordering: .sequentiallyConsistent) != 0 {
-            executeThreadCanProceed.wait()
-        }
     }
     
     func resumeFPSLimiting() {

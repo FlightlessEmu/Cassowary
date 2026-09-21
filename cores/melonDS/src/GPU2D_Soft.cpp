@@ -307,7 +307,10 @@ void SoftRenderer::DrawScanline(u32 line, Unit* unit)
 
 void SoftRenderer::VBlankEnd(Unit* unitA, Unit* unitB)
 {
-#ifdef OGLRENDERER_ENABLED
+    // Not guarded on the OpenGL renderer: any accelerated renderer keeps its
+    // 3D layer out of reach of the CPU (Metal included), so capture needs the
+    // same "copy your frame out" call. A software renderer reports
+    // Accelerated == false and is skipped.
     if (Renderer3D& renderer3d = GPU.GPU3D.GetCurrentRenderer(); renderer3d.Accelerated)
     {
         if ((unitA->CaptureCnt & (1<<31)) && (((unitA->CaptureCnt >> 29) & 0x3) != 1))
@@ -315,7 +318,6 @@ void SoftRenderer::VBlankEnd(Unit* unitA, Unit* unitB)
             renderer3d.PrepareCaptureFrame();
         }
     }
-#endif
 }
 
 void SoftRenderer::DoCapture(u32 line, u32 width)
