@@ -323,6 +323,10 @@ final class GameSession: NSObject {
 
     func setPaused(_ paused: Bool) {
         isPaused = paused
+        // Pausing after the session has stopped is a no-op. The core is
+        // already gone at that point, and asking the helper to pause it
+        // would trap.
+        guard isRunning else { return }
         helper.setPauseEmulation(paused)
     }
 

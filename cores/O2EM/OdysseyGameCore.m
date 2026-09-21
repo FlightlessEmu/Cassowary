@@ -62,6 +62,10 @@
 //uint16_t mbmp[EMUWIDTH * EMUHEIGHT];
 //unsigned short int mbmp[TEX_WIDTH * TEX_HEIGHT];
 uint16_t *mbmp;
+// The buffer allocated here, if one is needed. Only this pointer may be
+// freed — a buffer adopted in -getVideoBufferWithHint: belongs to the
+// renderer, not to the core.
+static uint16_t *ownedMbmp;
 //short signed int SNDBUF[1024*2];
 uint8_t soundBuffer[1056];
 int SND;
@@ -394,10 +398,7 @@ OdysseyGameCore *current;
 	close_voice();
 	close_display();
 	retro_destroybmp();
-    if(mbmp)
-    {
-        free(mbmp);
-    }
+    free(ownedMbmp);
 }
 
 #pragma mark Execution
@@ -522,16 +523,20 @@ OdysseyGameCore *current;
 
 - (const void *)getVideoBufferWithHint:(void *)hint
 {
-    if(!hint)
+    if(hint)
     {
-        if(!mbmp)
-        {
-            hint = mbmp = (uint16_t*)malloc(TEX_WIDTH * TEX_HEIGHT * sizeof(uint16_t));
-        }
+        // The renderer offers its own buffer so the core can draw straight
+        // into it. Adopt it as the draw target, but never free it.
+        mbmp = hint;
     }
     else
     {
-        mbmp = hint;
+        // No buffer offered, so use one of our own.
+        if(!ownedMbmp)
+        {
+            ownedMbmp = (uint16_t*)malloc(TEX_WIDTH * TEX_HEIGHT * sizeof(uint16_t));
+        }
+        mbmp = ownedMbmp;
     }
 
     return mbmp;

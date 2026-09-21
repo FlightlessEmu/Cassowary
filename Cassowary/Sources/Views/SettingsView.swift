@@ -38,6 +38,8 @@ struct SettingsView: View {
     @AppStorage("cassowary.buttonTheme") private var themeRaw: String = ButtonTheme.glass.rawValue
     @AppStorage(DirectionRepeat.enabledKey) private var repeatEnabled = false
     @AppStorage(DirectionRepeat.rateKey) private var repeatRate = DirectionRepeat.defaultRate
+    @AppStorage(ButtonHaptics.enabledKey) private var hapticsEnabled = true
+    @AppStorage(ButtonHaptics.styleKey) private var hapticStyle = "light"
 
     private var selectedStyle: DPadStyle { DPadStyle(rawValue: styleRaw) ?? .buttons }
     private var selectedTheme: ButtonTheme { ButtonTheme(rawValue: themeRaw) ?? .glass }
@@ -76,9 +78,9 @@ struct SettingsView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
-                    // Only the D-Pad style retriggers a held direction, so the
-                    // option only appears when that style is the one in use.
-                    if selectedStyle == .dpad {
+                    // The button pad and the cross both retrigger a held
+                    // direction; the thumbstick follows the finger instead.
+                    if selectedStyle != .stick {
                         Toggle("Repeat While Held", isOn: $repeatEnabled)
 
                         if repeatEnabled {
@@ -109,6 +111,21 @@ struct SettingsView: View {
                         }
                     }
                     Text((ButtonTheme(rawValue: themeRaw) ?? .glass).blurb)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    Toggle("Button Haptics", isOn: $hapticsEnabled)
+
+                    if hapticsEnabled {
+                        Picker("Haptic Strength", selection: $hapticStyle) {
+                            Text("Light").tag("light")
+                            Text("Medium").tag("medium")
+                            Text("Heavy").tag("heavy")
+                        }
+                        .pickerStyle(.segmented)
+                    }
+
+                    Text("Buzzes the phone when an on-screen button is pressed. Try it on the pad below.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
