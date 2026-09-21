@@ -45,6 +45,7 @@ This file is the source of truth for what each term means *in this codebase*. If
 | **RetroAchievements (RA)** | Third-party achievement system. The rcheevos C library is built into cores. |
 | **hardcore mode** | A RetroAchievements concept (no save states or rewind) — *not currently supported*. Do not claim it in release notes or documentation. |
 | **save state** | A snapshot of a running game, stored as an `.oesavestate` file next to the ROM. |
+| **video filter** / **shader preset** | A post-processing effect on the game picture. The filter is a libretro-style shader preset — a `.slangp` file plus its shader sources — kept in `Cassowary/Resources/Shaders/` and compiled to Metal by OpenEmuShaders. "None" is the unfiltered picture, and is the default. |
 
 ---
 

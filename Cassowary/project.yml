@@ -41,12 +41,20 @@ targets:
     sources:
       - path: Sources
       # Info.plist is picked up through INFOPLIST_FILE; listing the directory
-      # would also copy it as a resource, which conflicts.
+      # would also copy it as a resource, which conflicts. Shaders are excluded
+      # here and added as a folder reference below, because the bundle has to
+      # keep the Shaders/<name>/<name>.slangp layout OEShaderStore reads; a flat
+      # resource copy would lose it.
       - path: Resources
         buildPhase: resources
         excludes:
           - Info.plist
           - "*.entitlements"
+          - Shaders
+      # The video filters, copied as one folder so the tree survives.
+      - path: Resources/Shaders
+        type: folder
+        buildPhase: resources
 
     settings:
       base:

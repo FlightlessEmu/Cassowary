@@ -26,6 +26,8 @@ credits and per-core licenses.
 - Optional auto-repeat for the D-Pad: a held direction retriggers at a rate set
   in Settings → Controls, for games that only act on a fresh press
 - Save states (plumbing in place; minimal UI)
+- Video filters: OpenEmu's shader presets (CRT Geom, CRT Royale Kurozumi, NTSC,
+  VHS, …), switchable while playing and settable per system in Settings
 
 ## How it is put together
 

@@ -809,6 +809,11 @@ public final class FilterChain {
         hasShader = false
     }
     
+    /// Remove the active shader and go back to unfiltered output.
+    public func clearShader() {
+        freeShaderResources()
+    }
+
     public func setCompiledShader(_ container: CompiledShaderContainer) throws {
         freeShaderResources()
         
