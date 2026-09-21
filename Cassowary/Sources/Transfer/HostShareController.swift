@@ -134,7 +134,9 @@ final class HostShareController: ObservableObject {
         self.server = server
         isRunning = true
         port = server.port
-        NSLog("[Cassowary] sharing started on port %d as %@", server.port, identity.name)
+        // The port is not known until the listener is ready; the media server
+        // logs it when that happens.
+        NSLog("[Cassowary] sharing started as %@", identity.name)
 
         // Serving needs the app awake and in front, so the screen stays on
         // while sharing is switched on.

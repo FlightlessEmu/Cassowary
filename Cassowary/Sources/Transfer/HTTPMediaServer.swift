@@ -146,6 +146,9 @@ final class HTTPMediaServer {
             case .ready:
                 self.port = listener.port?.rawValue ?? 0
                 self.isRunning = true
+                // The port is only known once the listener is up, so this is
+                // the line to read when a test needs to know where to look.
+                NSLog("[Cassowary] sharing listening on port %d", self.port)
             case .failed(let error):
                 NSLog("[Cassowary] media server failed: %@", error.localizedDescription)
                 self.isRunning = false

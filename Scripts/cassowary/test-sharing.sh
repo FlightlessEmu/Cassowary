@@ -96,12 +96,21 @@ launch_phone() {
   xcrun simctl launch "$PHONE_UDID" org.cassowary.Cassowary \
     -cassowary.sharing.enabled YES \
     -cassowary.sharing.trustAll YES \
+    -cassowary.sharing.deviceName "Cassowary Test Phone" \
     -cassowary.sharing.port "$PORT" >/dev/null
 }
 
 print -- "launching the phone..."
 launch_phone
-sleep 4
+
+# Wait for the server to answer instead of guessing a delay: the app needs a
+# moment to bring it up, and the Simulator can be slow right after a build.
+for _ in {1..60}; do
+  if curl -s -m 2 -o /dev/null "http://127.0.0.1:$PORT/v1/info"; then
+    break
+  fi
+  sleep 1
+done
 
 if [[ "$MODE" == tv ]]; then
   print -- "phone ready"
@@ -127,7 +136,15 @@ else
 
   LIB=$(curl -s -m 10 -H "X-Cassowary-Protocol: 1" -H "X-Cassowary-Token: $TOKEN" \
     "http://127.0.0.1:$PORT/v1/library")
-  GAME_ID=$(print -- "$LIB" | python3 -c 'import sys,json; d=json.load(sys.stdin); print(d["games"][0]["id"] if d["games"] else "")')
+  # Pick the demo this script copied in, not merely the first game: the phone
+  # simulator is shared with test-cassowary.sh, which leaves its own ROM in
+  # the same folder, and the checks below compare bytes and saves by identity.
+  GAME_ID=$(print -- "$LIB" | python3 -c '
+import sys, json
+games = json.load(sys.stdin).get("games", [])
+mine = [g for g in games
+        if "SharedDemo" in (g.get("fileName") or "") or "SharedDemo" in (g.get("title") or "")]
+print((mine or games)[0]["id"] if games else "")')
   GAME_COUNT=$(print -- "$LIB" | python3 -c 'import sys,json; print(len(json.load(sys.stdin)["games"]))')
 
   if [[ "$GAME_COUNT" -ge 1 ]]; then
@@ -174,11 +191,10 @@ fi
 if [[ "$MODE" != host ]]; then
   print -- "building the Apple TV app..."
   if [[ $SKIP_BUILD -eq 0 ]]; then
-    xcodegen generate --spec Cassowary/project.yml --project Cassowary >/dev/null
-    xcodebuild -project Cassowary/Cassowary.xcodeproj -scheme CassowaryTV -configuration Debug \
-      -destination 'generic/platform=tvOS Simulator' -sdk appletvsimulator \
-      -derivedDataPath "$PWD/build/cassowary-tvos-sim/app" ARCHS=arm64 ONLY_ACTIVE_ARCH=NO \
-      build >/dev/null
+    # Through the build script, not xcodebuild directly: it keeps each mode's
+    # frameworks and plugins staged apart, so a phone or device build that ran
+    # last cannot leave the wrong binaries behind for this one.
+    ./Scripts/cassowary/build-cassowary.sh --tvos-sim --app-only >/dev/null
   fi
 
   TV_UDID=$(simulator_udid "$TV_NAME" "$TV_TYPE" "$TV_RUNTIME")
@@ -195,7 +211,8 @@ if [[ "$MODE" != host ]]; then
   xcrun simctl launch "$TV_UDID" org.cassowary.CassowaryTV \
     -cassowary.tvAutoConnectFirstHost YES \
     -cassowary.autoPlayFirstGame YES \
-    -cassowary.testHoldButton OEGBButtonRight >/dev/null
+    -cassowary.sharing.deviceName "Cassowary Test Apple TV" \
+    -cassowary.testHoldButton OEGBButtonA,OEGBButtonRight >/dev/null
 
   print -- "waiting for the Apple TV to download a game (up to 120s)..."
   TV_CONTAINER=$(xcrun simctl get_app_container "$TV_UDID" org.cassowary.CassowaryTV data)
@@ -261,6 +278,14 @@ if [[ "$MODE" != host ]]; then
 
   print -- ""
   print -- "screenshots in $SHOTS"
+fi
+
+# Leave nothing advertising. A Simulator shares the Mac's Wi-Fi, so a phone
+# Simulator left serving shows up in a real Apple TV's Sources list — where
+# the name "Cassowary Test Phone" makes clear it is not the owner's phone.
+xcrun simctl terminate "$PHONE_UDID" org.cassowary.Cassowary 2>/dev/null || true
+if [[ -n "${TV_UDID:-}" ]]; then
+  xcrun simctl terminate "$TV_UDID" org.cassowary.CassowaryTV 2>/dev/null || true
 fi
 
 print -- ""
