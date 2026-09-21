@@ -67,7 +67,12 @@ const char* projectVersion;
 @interface mGBAGameCore () <OEGBASystemResponderClient>
 {
 	struct mCore* core;
+	/// Where the core draws right now: either the renderer's buffer, handed
+	/// over by -getVideoBufferWithHint:, or the one allocated here.
 	void* outputBuffer;
+	/// The buffer allocated here. Only this pointer may be freed — the
+	/// renderer's buffer belongs to the renderer.
+	void* ownedOutputBuffer;
 	NSMutableDictionary *cheatSets;
 	OERetroAchievementsBridge *_raBridge;
     NSString *_romPath;
@@ -133,10 +138,12 @@ static struct mLogger logger = { .log = _log };
 		mCoreConfigLoadDefaults(&core->config, &opts);
 		core->init(core);
 		outputBuffer = nil;
+		ownedOutputBuffer = nil;
 
 		unsigned width, height;
 		core->desiredVideoDimensions(core, &width, &height);
-		outputBuffer = malloc(width * height * BYTES_PER_PIXEL);
+		ownedOutputBuffer = malloc(width * height * BYTES_PER_PIXEL);
+		outputBuffer = ownedOutputBuffer;
 		core->setVideoBuffer(core, outputBuffer, width);
 		core->setAudioBufferSize(core, SAMPLES);
 
@@ -171,7 +178,7 @@ static struct mLogger logger = { .log = _log };
 {
     mCoreConfigDeinit(&core->config);
 	core->deinit(core);
-	free(outputBuffer);
+	free(ownedOutputBuffer);
 }
 
 #pragma mark - Execution
@@ -268,15 +275,22 @@ static struct mLogger logger = { .log = _log };
 {
 	OEIntSize bufferSize = [self bufferSize];
 
-	if (!hint)
+	if (hint)
 	{
-		hint = outputBuffer;
+		// The renderer offers its own buffer so the core can draw straight
+		// into it. Adopt it as the draw target, but never free it: the
+		// renderer owns that memory.
+		outputBuffer = hint;
+	}
+	else
+	{
+		// No buffer offered this time, so use the one allocated in -init.
+		outputBuffer = ownedOutputBuffer;
 	}
 
-	outputBuffer = hint;
-	core->setVideoBuffer(core, hint, bufferSize.width);
+	core->setVideoBuffer(core, outputBuffer, bufferSize.width);
 
-	return hint;
+	return outputBuffer;
 }
 
 - (uint32_t)pixelFormat
