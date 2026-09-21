@@ -77,6 +77,7 @@ struct LibraryView: View {
 
     @StateObject private var library = GameLibrary()
     @StateObject private var catalog = CoreCatalog()
+    @StateObject private var coverArt = CoverArtStore.shared
 
     @State private var selection: LibrarySelection? = .all
     @State private var path = NavigationPath()
@@ -85,9 +86,12 @@ struct LibraryView: View {
     @State private var playing: ActiveGame?
     @State private var pickerRequest: CorePickerRequest?
     @State private var showSettings = false
+    @State private var showCoverArtSettings = false
     @State private var dropTargeted = false
     @State private var importNotice: ImportNotice?
     @State private var showFileImporter = false
+
+    @AppStorage(CoverArtSetting.automaticKey) private var downloadCoverArt = true
 
     @Environment(\.horizontalSizeClass) private var sizeClass
 
@@ -139,6 +143,11 @@ struct LibraryView: View {
         .sheet(isPresented: $showSettings) {
             SettingsView()
         }
+        .sheet(isPresented: $showCoverArtSettings) {
+            NavigationStack {
+                CoverArtSettingsView()
+            }
+        }
         .alert(
             importNotice?.title ?? "",
             isPresented: importNoticePresented,
@@ -171,6 +180,11 @@ struct LibraryView: View {
             // Same deal: only set from the command line.
             if UserDefaults.standard.bool(forKey: "cassowary.showSettings") {
                 showSettings = true
+            }
+
+            // Opens the Cover Art pane directly, for the same reason.
+            if UserDefaults.standard.bool(forKey: "cassowary.showCoverArt") {
+                showCoverArtSettings = true
             }
 
             // Used to exercise the add-a-game path without a drag, which the
@@ -386,7 +400,12 @@ struct LibraryView: View {
                     Button {
                         play(game)
                     } label: {
-                        GameTile(game: game, system: catalog.system(forIdentifier: game.system?.identifier ?? ""))
+                        GameTile(
+                            game: game,
+                            system: catalog.system(forIdentifier: game.system?.identifier ?? ""),
+                            artwork: coverArt.image(for: game),
+                            isFetching: coverArt.isFetching(game)
+                        )
                     }
                     .buttonStyle(.plain)
                     .contextMenu {
@@ -401,8 +420,16 @@ struct LibraryView: View {
                                 }
                             }
                         }
+                        if coverArt.hasArtwork(for: game) {
+                            Button("Download New Cover Art") { coverArt.download(for: game) }
+                            Button("Remove Cover Art", role: .destructive) {
+                                coverArt.removeArtwork(for: game)
+                            }
+                        } else {
+                            Button("Download Cover Art") { coverArt.download(for: game) }
+                        }
                         Button("Delete", role: .destructive) {
-                            library.delete(game)
+                            delete(game)
                         }
                     }
                 }
@@ -470,6 +497,7 @@ struct LibraryView: View {
         case .success(let urls):
             Task { @MainActor in
                 importNotice = notice(for: await library.add(contentsOf: urls))
+                refreshCoverArt()
             }
         case .failure(let error):
             // Closing the picker is not a failure worth reporting.
@@ -530,6 +558,7 @@ struct LibraryView: View {
                 // clear away.
                 try? FileManager.default.removeItem(at: Self.dropStagingDirectory)
                 importNotice = notice(for: summary)
+                refreshCoverArt()
             }
         }
 
@@ -652,6 +681,7 @@ struct LibraryView: View {
             let summary = await library.add(contentsOf: [url])
             NSLog("[Cassowary] import test: \(summary.added.count) added, \(summary.alreadyInLibrary.count) already in the library, \(summary.unsupported.count) unsupported, \(summary.failed.count) failed")
             importNotice = notice(for: summary)
+            refreshCoverArt()
         }
     }
 
@@ -660,6 +690,22 @@ struct LibraryView: View {
     private func refreshAll() {
         library.refresh()
         catalog.refresh()
+        refreshCoverArt()
+    }
+
+    /// Show the art that is already downloaded and, when the setting allows
+    /// it, fetch what is missing. Downloads run in the background and the grid
+    /// updates as each image arrives.
+    private func refreshCoverArt() {
+        let games = library.games
+        let downloading = downloadCoverArt
+        Task { await coverArt.refresh(for: games, downloading: downloading) }
+    }
+
+    /// Delete a game and the cover art that belongs to it.
+    private func delete(_ game: Game) {
+        coverArt.removeArtwork(for: game)
+        library.delete(game)
     }
 
     private func gameCount(for systemID: String) -> Int {
@@ -753,6 +799,12 @@ private struct GameTile: View {
     let game: Game
     let system: SystemEntry?
 
+    /// The game's downloaded cover art, when it has any.
+    let artwork: UIImage?
+
+    /// Whether a cover art download for this game is running.
+    let isFetching: Bool
+
     /// Whether a save state sits next to the ROM.
     private var hasSaveState: Bool {
         let url = game.url.deletingPathExtension().appendingPathExtension("oesavestate")
@@ -765,7 +817,11 @@ private struct GameTile: View {
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
                     .fill(.quaternary)
 
-                if let icon = system?.icon {
+                if let artwork {
+                    Image(uiImage: artwork)
+                        .resizable()
+                        .scaledToFit()
+                } else if let icon = system?.icon {
                     Image(uiImage: icon)
                         .resizable()
                         .scaledToFit()
@@ -781,17 +837,29 @@ private struct GameTile: View {
                         .foregroundStyle(.secondary)
                 }
 
-                if hasSaveState {
+                if hasSaveState || isFetching {
                     VStack {
                         HStack {
                             Spacer()
-                            Image(systemName: "bookmark.fill")
-                                .font(.caption)
-                                .foregroundStyle(.white)
-                                .padding(7)
-                                .background(.black.opacity(0.45), in: .circle)
+                            if hasSaveState {
+                                Image(systemName: "bookmark.fill")
+                                    .font(.caption)
+                                    .foregroundStyle(.white)
+                                    .padding(7)
+                                    .background(.black.opacity(0.45), in: .circle)
+                            }
                         }
                         Spacer()
+                        HStack {
+                            if isFetching {
+                                ProgressView()
+                                    .controlSize(.small)
+                                    .tint(.white)
+                                    .padding(6)
+                                    .background(.black.opacity(0.45), in: .circle)
+                            }
+                            Spacer()
+                        }
                     }
                     .padding(8)
                 }
