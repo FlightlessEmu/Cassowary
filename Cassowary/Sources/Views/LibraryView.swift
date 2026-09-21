@@ -199,30 +199,39 @@ struct LibraryView: View {
         }
     }
 
+    /// iPad and Catalyst sidebar.
+    ///
+    /// Each row is a value-based `NavigationLink` rather than a plain `Label`
+    /// with a `.tag`. On the Mac (Catalyst) a tagged row in this list never
+    /// becomes selected when clicked, so tapping a system left the detail pane
+    /// stuck on All Games. A `NavigationLink` ties the tap to the list's
+    /// selection, which then drives the detail.
     private var sidebar: some View {
         List(selection: $selection) {
             Section {
-                Label {
-                    Text("All Games")
-                } icon: {
-                    Image(systemName: "gamecontroller.fill")
+                NavigationLink(value: LibrarySelection.all) {
+                    Label {
+                        Text("All Games")
+                    } icon: {
+                        Image(systemName: "gamecontroller.fill")
+                    }
                 }
-                .tag(LibrarySelection.all)
                 .badge(library.games.count)
             }
 
             Section("Systems") {
                 ForEach(catalog.systems) { system in
-                    Label {
-                        Text(system.name)
-                    } icon: {
-                        if let icon = system.icon {
-                            Image(uiImage: icon)
-                        } else {
-                            Image(systemName: "gamecontroller")
+                    NavigationLink(value: LibrarySelection.system(system.id)) {
+                        Label {
+                            Text(system.name)
+                        } icon: {
+                            if let icon = system.icon {
+                                Image(uiImage: icon)
+                            } else {
+                                Image(systemName: "gamecontroller")
+                            }
                         }
                     }
-                    .tag(LibrarySelection.system(system.id))
                     .badge(gameCount(for: system.id))
                 }
             }
