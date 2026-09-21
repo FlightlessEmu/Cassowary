@@ -87,6 +87,7 @@ struct LibraryView: View {
     @State private var showSettings = false
     @State private var dropTargeted = false
     @State private var importNotice: ImportNotice?
+    @State private var showFileImporter = false
 
     @Environment(\.horizontalSizeClass) private var sizeClass
 
@@ -147,6 +148,13 @@ struct LibraryView: View {
         } message: { notice in
             Text(notice.message)
         }
+        // The Files browser on iPhone and iPad, an open panel on the Mac.
+        .fileImporter(
+            isPresented: $showFileImporter,
+            allowedContentTypes: [.data],
+            allowsMultipleSelection: true,
+            onCompletion: importPicked
+        )
         .onAppear {
             refreshAll()
 
@@ -316,6 +324,14 @@ struct LibraryView: View {
         .searchable(text: $searchText, prompt: "Search games")
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
+                Button {
+                    showFileImporter = true
+                } label: {
+                    Label("Add Games", systemImage: "plus")
+                }
+                .keyboardShortcut("o", modifiers: .command)
+            }
+            ToolbarItem(placement: .primaryAction) {
                 Menu {
                     Picker("Sort by", selection: $sort) {
                         ForEach(SortOption.allCases) { option in
@@ -411,10 +427,12 @@ struct LibraryView: View {
                       !system.hasCore {
                 Text("There is no core installed for \(system.name) yet, so these games cannot be played.")
             } else {
-                Text("Drag ROM files onto this window to add them. On iPhone and iPad they can also be copied in with the Files app.")
+                Text("Pick ROM files from the Files app, or drag them onto this window.")
             }
         } actions: {
             if !isSystemWithoutCore(target) {
+                Button("Add Games…") { showFileImporter = true }
+                    .buttonStyle(.borderedProminent)
                 Button("Refresh") { refreshAll() }
             }
         }
@@ -436,6 +454,28 @@ struct LibraryView: View {
             get: { importNotice != nil },
             set: { if !$0 { importNotice = nil } }
         )
+    }
+
+    /// Add the files picked from the Files app — or from the open panel that
+    /// Mac Catalyst shows for the same button — and explain anything left out.
+    private func importPicked(_ result: Result<[URL], Error>) {
+        switch result {
+        case .success(let urls):
+            Task { @MainActor in
+                importNotice = notice(for: await library.add(contentsOf: urls))
+            }
+        case .failure(let error):
+            // Closing the picker is not a failure worth reporting.
+            let nsError = error as NSError
+            guard !(nsError.domain == NSCocoaErrorDomain && nsError.code == NSUserCancelledError) else {
+                return
+            }
+            NSLog("[Cassowary] could not open the file picker: \(error.localizedDescription)")
+            importNotice = ImportNotice(
+                title: "Couldn't open the Files app",
+                message: error.localizedDescription
+            )
+        }
     }
 
     /// Take the file URLs out of a drop and add them to the library.
