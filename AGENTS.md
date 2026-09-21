@@ -136,7 +136,7 @@ are not included.
 | MSX | blueMSX |
 | NES / Famicom Disk System | Nestopia, FCEU |
 | Nintendo 64 | Mupen64Plus |
-| Nintendo DS | DeSmuME |
+| Nintendo DS | melonDS |
 | Odyssey² / Videopac+ | O2EM |
 | PC Engine / PC-FX / Sega Saturn / PlayStation / WonderSwan / Virtual Boy / Atari Lynx / Neo Geo Pocket | Mednafen |
 | Pokémon Mini | PokeMini |

@@ -49,6 +49,7 @@ Three principles:
 | `core: SNES` | BSNES, SNES9x |
 | `core: Sega` | GenesisPlus, CrabEmu (Genesis, SMS, Game Gear, SG-1000, Sega CD) |
 | `core: N64` | Mupen64Plus |
+| `core: NDS` | melonDS |
 | `core: Atari` | Stella (2600), ProSystem (7800), Atari800 (5200/8-bit) |
 | `core: PS2` | PCSX2 |
 | `core: C64` | VirtualC64 / VICE |

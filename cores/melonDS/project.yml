@@ -1,0 +1,45 @@
+# XcodeGen definition for the melonDS core plugin.
+#
+# The plugin bundle contains only the OpenEmu glue in MelonDS/. The emulator
+# lives in src/ (upstream melonDS) and is compiled into static libraries by
+# Scripts/cassowary/build-melonds-ios.sh; build-core-ios.sh links those into
+# the bundle.
+#
+# Regenerate with:
+#   xcodegen generate --spec cores/melonDS/project.yml --project cores/melonDS
+#
+# The committed melonDS.xcodeproj is what the build scripts read (they take
+# the source list and build settings from it), so regenerate it whenever this
+# file changes.
+
+name: melonDS
+
+options:
+  bundleIdPrefix: org.openemu
+  createIntermediateGroups: true
+
+targets:
+  melonDS:
+    type: bundle
+    platform: macOS
+    deploymentTarget: "10.13"
+    sources:
+      - path: MelonDS
+        excludes:
+          - "*.plist"
+          - "CMakeLists.txt"
+    settings:
+      base:
+        PRODUCT_NAME: melonDS
+        PRODUCT_BUNDLE_IDENTIFIER: org.openemu.melonDS
+        WRAPPER_EXTENSION: oecoreplugin
+        INFOPLIST_FILE: MelonDS/MelonDS-Info.plist
+        CLANG_ENABLE_OBJC_ARC: "YES"
+        CLANG_CXX_LANGUAGE_STANDARD: c++17
+        GCC_SYMBOLS_PRIVATE_EXTERN: "YES"
+        # melonDS's arithmetic relies on two's complement wrapping.
+        OTHER_CFLAGS:
+          - "-fwrapv"
+        HEADER_SEARCH_PATHS:
+          - "$(SRCROOT)/src"
+          - "$(SRCROOT)/src/teakra/include"

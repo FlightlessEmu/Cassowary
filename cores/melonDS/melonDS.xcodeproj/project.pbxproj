@@ -1,0 +1,310 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		321FB9D6DF3772FB937B029E /* MelonDSPlatform.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 1DAA42789FE591B7BD4C04FC /* MelonDSPlatform.cpp */; };
+		D8D703FFEA717A9957307DFB /* MelonDSGameCore.mm in Sources */ = {isa = PBXBuildFile; fileRef = 5D70DD470E38258939614A04 /* MelonDSGameCore.mm */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		0E16F2CF8BAB7597A6FCA9CB /* MelonDSGameCore.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = MelonDSGameCore.h; sourceTree = "<group>"; };
+		1DAA42789FE591B7BD4C04FC /* MelonDSPlatform.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = MelonDSPlatform.cpp; sourceTree = "<group>"; };
+		5D70DD470E38258939614A04 /* MelonDSGameCore.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = MelonDSGameCore.mm; sourceTree = "<group>"; };
+		A80CEFCF2CB046748969F368 /* MelonDSPlatform.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = MelonDSPlatform.h; sourceTree = "<group>"; };
+		CCBE6DAA26ECBC7720EC14BF /* MelonDSHost.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = MelonDSHost.h; sourceTree = "<group>"; };
+		FCC341D17C2E9D2CDF58C308 /* melonDS.bundle */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = melonDS.bundle; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		27912941B7D53DDB384AEE0F /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				FCC341D17C2E9D2CDF58C308 /* melonDS.bundle */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		8648FE522ACF57F16A5DEF5B /* MelonDS */ = {
+			isa = PBXGroup;
+			children = (
+				0E16F2CF8BAB7597A6FCA9CB /* MelonDSGameCore.h */,
+				5D70DD470E38258939614A04 /* MelonDSGameCore.mm */,
+				CCBE6DAA26ECBC7720EC14BF /* MelonDSHost.h */,
+				1DAA42789FE591B7BD4C04FC /* MelonDSPlatform.cpp */,
+				A80CEFCF2CB046748969F368 /* MelonDSPlatform.h */,
+			);
+			path = MelonDS;
+			sourceTree = "<group>";
+		};
+		99E6ABCF902E57D5367CE096 = {
+			isa = PBXGroup;
+			children = (
+				8648FE522ACF57F16A5DEF5B /* MelonDS */,
+				27912941B7D53DDB384AEE0F /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		C5E50FCD8CA89EC1F393194D /* melonDS */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 8CDB9D45F2ADCB0807EB1B97 /* Build configuration list for PBXNativeTarget "melonDS" */;
+			buildPhases = (
+				6B5C92F16533C46A0039DD67 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = melonDS;
+			packageProductDependencies = (
+			);
+			productName = melonDS;
+			productReference = FCC341D17C2E9D2CDF58C308 /* melonDS.bundle */;
+			productType = "com.apple.product-type.bundle";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		4154A4A50A3FF4D579EDB070 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+				};
+			};
+			buildConfigurationList = 635CB55418C4779E08971AFD /* Build configuration list for PBXProject "melonDS" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 99E6ABCF902E57D5367CE096;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 27912941B7D53DDB384AEE0F /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				C5E50FCD8CA89EC1F393194D /* melonDS */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		6B5C92F16533C46A0039DD67 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D8D703FFEA717A9957307DFB /* MelonDSGameCore.mm in Sources */,
+				321FB9D6DF3772FB937B029E /* MelonDSPlatform.cpp in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		31D64A77B52BE3F06E2B0327 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		AB259D86D4ADCF71B63A5CC1 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		BF6F6698EAFDD257F7692B40 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_CXX_LANGUAGE_STANDARD = "c++17";
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COMBINE_HIDPI_IMAGES = YES;
+				GCC_SYMBOLS_PRIVATE_EXTERN = YES;
+				HEADER_SEARCH_PATHS = (
+					"$(SRCROOT)/src",
+					"$(SRCROOT)/src/teakra/include",
+				);
+				INFOPLIST_FILE = "MelonDS/MelonDS-Info.plist";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 10.13;
+				OTHER_CFLAGS = (
+					"-fwrapv",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = org.openemu.melonDS;
+				PRODUCT_NAME = melonDS;
+				SDKROOT = macosx;
+				WRAPPER_EXTENSION = oecoreplugin;
+			};
+			name = Debug;
+		};
+		DD6821DD53ECF1605795EBD3 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_CXX_LANGUAGE_STANDARD = "c++17";
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COMBINE_HIDPI_IMAGES = YES;
+				GCC_SYMBOLS_PRIVATE_EXTERN = YES;
+				HEADER_SEARCH_PATHS = (
+					"$(SRCROOT)/src",
+					"$(SRCROOT)/src/teakra/include",
+				);
+				INFOPLIST_FILE = "MelonDS/MelonDS-Info.plist";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 10.13;
+				OTHER_CFLAGS = (
+					"-fwrapv",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = org.openemu.melonDS;
+				PRODUCT_NAME = melonDS;
+				SDKROOT = macosx;
+				WRAPPER_EXTENSION = oecoreplugin;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		635CB55418C4779E08971AFD /* Build configuration list for PBXProject "melonDS" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AB259D86D4ADCF71B63A5CC1 /* Debug */,
+				31D64A77B52BE3F06E2B0327 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		8CDB9D45F2ADCB0807EB1B97 /* Build configuration list for PBXNativeTarget "melonDS" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				BF6F6698EAFDD257F7692B40 /* Debug */,
+				DD6821DD53ECF1605795EBD3 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 4154A4A50A3FF4D579EDB070 /* Project object */;
+}

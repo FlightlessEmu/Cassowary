@@ -215,7 +215,7 @@ if [[ $APP_ONLY -eq 0 ]]; then
   CORES=(
     4DO:4DO Atari800:Atari800 Bliss:Bliss blueMSX:blueMSX BSNES:BSNES
     CrabEmu:CrabEmu FCEU:FCEU Gambatte:Gambatte GenesisPlus:GenesisPlus
-    JollyCV:JollyCV MAME:MAME Mednafen:Mednafen mGBA:mGBA
+    JollyCV:JollyCV MAME:MAME Mednafen:Mednafen melonDS:melonDS mGBA:mGBA
     Mupen64Plus:Mupen64Plus Nestopia:Nestopia O2EM:O2EM picodrive:Picodrive
     PokeMini:PokeMini Potator-Core:Potator ProSystem:ProSystem SNES9x:SNES9x
     Stella:Stella VecXGL:VecXGL VirtualC64:VirtualC64

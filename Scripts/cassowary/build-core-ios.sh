@@ -201,6 +201,29 @@ case "$CORE" in
       -lz
     )
     ;;
+  melonDS)
+    # The emulator is a CMake project, so it is built separately as static
+    # archives. Build it here if it is missing, so that a single
+    # build-core-ios.sh run is enough.
+    case "$PLATFORM" in
+      simulator) MELONDS_FLAG="" ;;
+      *)         MELONDS_FLAG="--$PLATFORM" ;;
+    esac
+    MELONDS_LIB_DIR="$PWD/build/cassowary-melonds-$PLATFORM/lib"
+    if [[ ! -f "$MELONDS_LIB_DIR/libcore.a" ]]; then
+      print -- "building the melonDS emulator library first..."
+      ./Scripts/cassowary/build-melonds-ios.sh $MELONDS_FLAG
+    fi
+    # Static archives do not carry their dependencies, so the plugin link
+    # needs the core and the DSP emulator it links against, in that order.
+    EXTRA_LINK_FLAGS=(
+      "$MELONDS_LIB_DIR/libcore.a"
+      "$MELONDS_LIB_DIR/libteakra.a"
+    )
+    # The emulator is built without its JIT for now (see build-melonds-ios.sh),
+    # and NDS.h and ARM.h change shape with the JIT, so the glue has to be
+    # compiled the same way: without JIT_ENABLED.
+    ;;
   MAME)
     # The project compiles MAMEGameCore.m as ObjC++
     # (GCC_INPUT_FILETYPE = sourcecode.cpp.objcpp): it assigns braced lists

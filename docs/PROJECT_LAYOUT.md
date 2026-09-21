@@ -67,7 +67,7 @@ All paths are relative to `cores/`.
 | MSX | `blueMSX/` |
 | NES / FDS | `Nestopia/`, `FCEU/` |
 | Nintendo 64 | `Mupen64Plus/` |
-| Nintendo DS | `DeSmuME/` |
+| Nintendo DS | `melonDS/`, `DeSmuME/` |
 | Odyssey² | `O2EM/` |
 | PC Engine / PC-FX / Saturn / PSX / WonderSwan / Virtual Boy | `Mednafen/` |
 | Pokémon Mini | `PokeMini/` |
