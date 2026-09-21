@@ -181,6 +181,18 @@ struct SettingsView: View {
                 }
 
                 Section {
+                    NavigationLink {
+                        ShareSettingsView()
+                    } label: {
+                        Label("Share with Apple TV", systemImage: "appletv")
+                    }
+                } header: {
+                    Text("Sharing")
+                } footer: {
+                    Text("Serve your games to an Apple TV on the same network. The TV copies a game before playing it and sends saves back. Keep this app open while you play.")
+                }
+
+                Section {
                     ForEach(catalog.systems) { system in
                         NavigationLink {
                             SystemCoresView(catalog: catalog, shaderCatalog: shaderCatalog, systemID: system.id)

@@ -43,6 +43,21 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<!-- Sharing the library with an Apple TV. The permission is asked for the
+	     first time the sharing server starts. -->
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Cassowary finds your Apple TV on your local network to share games and saves with it.</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_cassowary._tcp</string>
+	</array>
+	<!-- The TV's server and client are plain HTTP on the local network.
+	     Without this, App Transport Security refuses LAN addresses. -->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
 	<key>UIRequiredDeviceCapabilities</key>
 	<array>
 		<string>arm64</string>

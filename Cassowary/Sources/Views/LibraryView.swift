@@ -193,6 +193,12 @@ struct LibraryView: View {
         .onAppear {
             refreshAll()
 
+            // If sharing was left on, start serving again: iOS only serves
+            // while the app is open, so this is where it comes back.
+            if HostShareController.shared.isEnabled {
+                HostShareController.shared.start()
+            }
+
             // Used by Scripts/cassowary/test-cassowary.sh to boot a game without tapping.
             // Harmless in normal use: the flag is only set when passed on the
             // command line.
@@ -824,6 +830,9 @@ struct LibraryView: View {
         library.refresh()
         catalog.refresh()
         refreshCoverArt()
+        // The sharing server serves this list, and indexing it keeps the
+        // content hashes ready for a transfer.
+        HostShareController.shared.updateGames(library.games)
     }
 
     /// Show the art that is already downloaded and, when the setting allows
