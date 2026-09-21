@@ -48,6 +48,7 @@
 #import <OpenEmuSystem/OEEvent.h>
 #import <OpenEmuSystem/OEFile.h>
 #import <OpenEmuSystem/OEHIDEvent.h>
+#import <OpenEmuSystem/OEiOSGameControllerManager.h>
 #import <OpenEmuSystem/OEKeyBindingDescription.h>
 #import <OpenEmuSystem/OEKeyBindingGroupDescription.h>
 #import <OpenEmuSystem/OEPlayerBindings.h>

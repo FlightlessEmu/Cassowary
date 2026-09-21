@@ -291,10 +291,13 @@ struct GameView: View {
                 session.layout = layout
 
                 // Physical gamepads drive the same buttons, through the same
-                // session, as the on-screen pad.
+                // session, as the on-screen pad. On iOS the engine's bridge
+                // does this instead, through the bindings (see GameSession).
+#if targetEnvironment(macCatalyst)
                 let controllers = PhysicalControllerManager(session: session, layout: layout)
                 controllers.start()
                 padControllers = controllers
+#endif
 
                 // A hardware keyboard drives them too, resolved through the
                 // engine bindings the settings screen edits.
@@ -329,6 +332,17 @@ struct GameView: View {
             Task {
                 try? await Task.sleep(for: .seconds(3))
                 session.pressBoundKey(forButtonID: button)
+            }
+        }
+
+        // Hold a gamepad control, exercising the controller binding path
+        // without a hardware controller. Usage 0 is not a real control, so it
+        // doubles as "not set".
+        let gamepadUsage = UserDefaults.standard.integer(forKey: "cassowary.testGamepadUsage")
+        if gamepadUsage > 0 {
+            Task {
+                try? await Task.sleep(for: .seconds(3))
+                session.holdGamepadControl(usage: UInt32(gamepadUsage))
             }
         }
 

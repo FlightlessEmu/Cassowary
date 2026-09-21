@@ -9,11 +9,11 @@
 #   2. builds and installs the app
 #   3. copies the ROM into the app's Documents folder
 #   4. launches the app with the first game auto-booting
-#   5. screenshots, then repeats with A held and with the key the plugin binds
-#      to A held
+#   5. screenshots, then repeats with A held, with the key the plugin binds to
+#      A held, and with the gamepad button it binds to A held
 #   6. checks that the screenshots differ, which proves input reached the
-#      emulator — through the touch path and the keyboard path — and that the
-#      video pipeline is live
+#      emulator — through the touch, keyboard and controller paths — and that
+#      the video pipeline is live
 #
 # Usage:
 #   Scripts/cassowary/test-cassowary.sh [--device-id <udid>] [--skip-build]
@@ -111,21 +111,27 @@ capture idle
 print -- "capturing screen with A held..."
 capture held "-cassowary.testHoldButton OEGBButtonA"
 
-# The key the Game Boy plugin binds to A, pressed through the keyboard path.
-# A hardware keyboard cannot be attached to the Simulator from a script, so
-# the app presses the bound key itself; the mapping, the session and the core
-# are the real ones.
+# The key the Game Boy plugin binds to A, pressed through the keyboard path,
+# and the gamepad button it binds to A, pressed through the device path. A
+# hardware keyboard or controller cannot be attached to the Simulator from a
+# script, so the app presses the bound input itself; the mapping, the session
+# and the core are the real ones.
 print -- "capturing screen with the key bound to A held..."
 capture keyboard "-cassowary.testKeyboardButton OEGBButtonA"
+
+print -- "capturing screen with the gamepad button bound to A held..."
+capture gamepad "-cassowary.testGamepadUsage 1"
 
 IDLE=$(average_brightness "$SHOTS/idle.png")
 HELD=$(average_brightness "$SHOTS/held.png")
 KEYBOARD=$(average_brightness "$SHOTS/keyboard.png")
+GAMEPAD=$(average_brightness "$SHOTS/gamepad.png")
 
 print -- ""
 print -- "idle brightness:     $IDLE"
 print -- "held brightness:     $HELD"
 print -- "keyboard brightness: $KEYBOARD"
+print -- "gamepad brightness:  $GAMEPAD"
 
 if [[ "$IDLE" == "$HELD" ]]; then
   print -u2 -- "FAIL: the screen did not change when A was pressed"
@@ -139,6 +145,12 @@ if [[ "$IDLE" == "$KEYBOARD" ]]; then
   exit 1
 fi
 
+if [[ "$IDLE" == "$GAMEPAD" ]]; then
+  print -u2 -- "FAIL: the screen did not change when the gamepad button bound to A was held"
+  print -u2 -- "      controller input is not reaching the emulator"
+  exit 1
+fi
+
 print -- ""
-print -- "PASS: the screen changed when A and its keyboard key were pressed"
+print -- "PASS: the screen changed when A, its keyboard key and its gamepad button were pressed"
 print -- "      screenshots in $SHOTS"

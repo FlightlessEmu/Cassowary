@@ -34,6 +34,10 @@ import OpenEmuKit
 /// `ControllerLayout`, so both paths share one destination: `GameSession`, and
 /// from there the core. Controllers can come and go while a game is running.
 /// Player 2 and up are not wired up yet.
+///
+/// iOS no longer uses this: `OEiOSGameControllerManager` feeds controllers
+/// through the engine's device bindings there. Mac Catalyst still does, since
+/// the bridge is iOS-only and the Mac's controllers come through here.
 @MainActor
 final class PhysicalControllerManager {
 

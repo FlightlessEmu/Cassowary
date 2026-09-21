@@ -196,6 +196,14 @@ uint64_t IOHIDValueGetTimeStamp(IOHIDValueRef value);
 
 #pragma mark - Device
 
+/// Build a device from properties, for the GameController bridge. iOS has no
+/// IOKit enumeration, so the bridge constructs the device the shared parser
+/// reads instead of waiting for a matching callback.
+IOHIDDeviceRef IOHIDDeviceCreate(NSDictionary *properties);
+
+/// Attach one element to a device. The device takes ownership.
+void IOHIDDeviceAddElement(IOHIDDeviceRef device, IOHIDElementRef element);
+
 uint32_t IOHIDDeviceGetUsage(IOHIDDeviceRef device);
 uint32_t IOHIDDeviceGetUsagePage(IOHIDDeviceRef device);
 CFTypeRef _Nullable IOHIDDeviceGetProperty(IOHIDDeviceRef device, CFStringRef key);

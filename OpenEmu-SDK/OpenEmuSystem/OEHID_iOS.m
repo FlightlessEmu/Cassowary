@@ -225,6 +225,22 @@ uint64_t IOHIDValueGetTimeStamp(IOHIDValueRef value)   { return ((_OEHIDValue *)
 
 #pragma mark - Device
 
+IOHIDDeviceRef IOHIDDeviceCreate(NSDictionary *properties)
+{
+    _OEHIDDevice *d = [[_OEHIDDevice alloc] init];
+    d.usage     = [properties[@"usage"] unsignedIntValue];
+    d.usagePage = [properties[@"usagePage"] unsignedIntValue];
+    [d.properties addEntriesFromDictionary:properties];
+    return (__bridge_retained IOHIDDeviceRef)d;
+}
+
+void IOHIDDeviceAddElement(IOHIDDeviceRef device, IOHIDElementRef element)
+{
+    _OEHIDElement *e = _element(element);
+    e.parent = nil;
+    [_device(device).elements addObject:e];
+}
+
 uint32_t IOHIDDeviceGetUsage(IOHIDDeviceRef device)     { return _device(device).usage; }
 uint32_t IOHIDDeviceGetUsagePage(IOHIDDeviceRef device) { return _device(device).usagePage; }
 
@@ -239,15 +255,23 @@ CFArrayRef _Nullable IOHIDDeviceCopyMatchingElements(IOHIDDeviceRef device, CFDi
     if(matching == NULL)
         return (__bridge_retained CFArrayRef)[all copy];
 
-    // The only matching key OpenEmu uses is the element cookie.
-    NSNumber *cookie = ((__bridge NSDictionary *)matching)[_stringForKey(kIOHIDElementCookieKey)];
-    if(cookie == nil)
+    // OpenEmu matches on the element cookie and, when it partitions a device's
+    // elements, on the usage page. Both have to be honoured or the parser sees
+    // every element in every partition.
+    NSDictionary *criteria = (__bridge NSDictionary *)matching;
+    NSNumber *cookie = criteria[_stringForKey(kIOHIDElementCookieKey)];
+    NSNumber *usagePage = criteria[_stringForKey(kIOHIDElementUsagePageKey)];
+
+    if(cookie == nil && usagePage == nil)
         return (__bridge_retained CFArrayRef)[all copy];
 
     NSMutableArray *filtered = [NSMutableArray array];
     for(_OEHIDElement *e in all) {
-        if(e.cookie == cookie.unsignedIntValue)
-            [filtered addObject:e];
+        if(cookie != nil && e.cookie != cookie.unsignedIntValue)
+            continue;
+        if(usagePage != nil && e.usagePage != usagePage.unsignedIntValue)
+            continue;
+        [filtered addObject:e];
     }
     return (__bridge_retained CFArrayRef)filtered;
 }

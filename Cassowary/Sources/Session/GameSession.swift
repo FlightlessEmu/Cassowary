@@ -169,6 +169,17 @@ final class GameSession: NSObject {
         // frame, or the opening seconds of input go nowhere.
         attachBindings()
 
+        // Gamepad events reach the responder through the device manager's
+        // unhandled-event monitor, which is off until a game asks for it.
+        helper.setHandleEvents(true)
+
+#if targetEnvironment(macCatalyst)
+        // IOKit hands OEDeviceManager the Mac's controllers.
+#else
+        // iOS has no IOKit: the bridge builds devices from GameController.
+        OEiOSGameControllerManager.shared.start()
+#endif
+
         // The macOS app drives this from its RetroAchievements preferences. The
         // iOS app has no such screen yet, so hardcore mode is off: without it
         // the core refuses to load save states, which is surprising when there
@@ -186,6 +197,10 @@ final class GameSession: NSObject {
 
     func stop() {
         guard isRunning else { return }
+        helper.setHandleEvents(false)
+#if !targetEnvironment(macCatalyst)
+        OEiOSGameControllerManager.shared.stop()
+#endif
         detachBindings()
         helper.stopEmulation {}
         isRunning = false
@@ -257,6 +272,15 @@ final class GameSession: NSObject {
         player.assign(event, toKeyWithName: buttonID)
         InputBindings.save()
         NSLog("[Cassowary] test remap: %@ → %@", buttonID, KeyboardKey.name(for: keyCode))
+    }
+
+    /// Hold the gamepad control with a HID usage, for the automated test.
+    ///
+    /// The Simulator has no hardware controller, so the test drives the same
+    /// path a controller input would: the bridge dispatches the value and the
+    /// bindings decide which emulator key it becomes.
+    func holdGamepadControl(usage: UInt32) {
+        OEiOSGameControllerManager.shared.holdControl(withUsage: usage)
     }
 #endif
 
