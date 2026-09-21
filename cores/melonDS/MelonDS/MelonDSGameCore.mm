@@ -34,6 +34,8 @@
 
 #import <OpenEmuBase/OEAudioBuffer.h>
 
+#include "MelonDSMetalRenderer.h"
+
 #include "MelonDSHost.h"
 #include "MelonDSPlatform.h"
 
@@ -135,6 +137,16 @@ private:
     std::unique_ptr<melonDS::NDS> _nds;
     std::unique_ptr<Host> _host;
 
+    /// The Metal renderer, until the emulator takes it over. Kept so the
+    /// texture it draws into can be handed to the app.
+    std::unique_ptr<MelonDSMetal::Renderer> _metalRenderer;
+
+    /// The renderer once melonDS owns it, for asking which texture is finished
+    /// this frame. Borrowed: the emulator destroys it.
+    MelonDSMetal::Renderer *_liveRenderer;
+    __strong id<MTLDevice> _metalDevice;
+    __strong id<MTLTexture> _metalTexture;
+
     /// The picture the app asked us to fill, or our own buffer when the app
     /// has not offered one.
     void *_videoPointer;
@@ -214,6 +226,18 @@ private:
     melonDS::NDSArgs args;
     args.OutputSampleRate = kSampleRate;
     [self loadBIOSInto:args];
+
+    // The Metal renderer draws the picture; the app displays its texture. If
+    // Metal could not start, melonDS's software renderer runs instead.
+    if (_metalRenderer == nullptr && _metalDevice != nil)
+        _metalRenderer = std::make_unique<MelonDSMetal::Renderer>(_metalDevice, (melonDS::u32) kBufferWidth, (melonDS::u32) kBufferHeight);
+
+    if (_metalRenderer != nullptr && _metalRenderer->IsReady())
+    {
+        _metalTexture = _metalRenderer->OutputTexture();
+        _liveRenderer = _metalRenderer.get();
+        args.Renderer3D = std::move(_metalRenderer);
+    }
 
     _nds = std::make_unique<melonDS::NDS>(std::move(args), (void *)_host.get());
 
@@ -391,6 +415,46 @@ private:
 }
 
 #pragma mark - Video
+
+- (OEGameCoreRendering)gameCoreRendering
+{
+    // Both DS screens are drawn into one Metal texture by the core, and the
+    // app puts that texture on screen. The software renderer's bitmap path is
+    // only a fallback for when Metal is not available.
+    return OEGameCoreRenderingMetal2;
+}
+
+- (void)createMetalTextureWithDevice:(id<MTLDevice>)device
+{
+    _metalDevice = device;
+
+    if (_metalRenderer == nullptr)
+        _metalRenderer = std::make_unique<MelonDSMetal::Renderer>(device, (melonDS::u32) kBufferWidth, (melonDS::u32) kBufferHeight);
+
+    _metalTexture = _metalRenderer->OutputTexture();
+
+    // The app loads the ROM before it hands over the device, so the emulator
+    // is usually already running on the software renderer. Switch it over now:
+    // melonDS allows the 3D renderer to be replaced at any time, and it moves
+    // the framebuffers to the accelerated layout as it does.
+    if (_nds != nullptr && _metalRenderer->IsReady())
+    {
+        _liveRenderer = _metalRenderer.get();
+        _nds->SetRenderer3D(std::move(_metalRenderer));
+        NSLog(@"[melonDS] switched to the Metal renderer, accelerated=%d", _nds->GPU.GPU3D.IsRendererAccelerated());
+    }
+    else
+    {
+        NSLog(@"[melonDS] could not switch to the Metal renderer (nds %p ready %d)", _nds.get(), _metalRenderer ? _metalRenderer->IsReady() : -1);
+    }
+}
+
+- (id<MTLTexture>)metalTexture
+{
+    // The renderer swaps its finished texture every frame; hand the app the
+    // one that was just drawn.
+    return _liveRenderer != nullptr ? _liveRenderer->OutputTexture() : _metalTexture;
+}
 
 - (OEIntSize)bufferSize
 {

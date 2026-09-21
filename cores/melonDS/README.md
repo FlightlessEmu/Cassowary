@@ -45,11 +45,17 @@ Apple; see `src/ARMJIT_Memory.cpp` and `src/ARMJIT.cpp`.
 
 - DS games, one frame at a time, with both screens stacked into one picture
   (256×384).
+- The picture is finished by a **Metal renderer** into one texture, which the
+  app displays directly (`OEGameCoreRenderingMetal2`), so the frame never goes
+  through the CPU. The 2D layers are composited by Metal; the 3D layer is
+  drawn by melonDS's software rasteriser for now (see below).
 - Buttons, the touch screen — a finger on iPhone and iPad, a mouse or trackpad
   click-drag on the Mac — and the lid (the `Lid` binding closes it).
 - Sound, resampled to 48 kHz.
 - Battery saves (`.sav` next to the ROM's save), and save states.
 - The Rumble Pak, played through the same haptics path as the N64 core.
+- Display capture (`CaptureCnt`) works: the 3D layer the game captures is read
+  back for the frames a game captures.
 - Optional BIOS and firmware images: drop `bios7.bin`, `bios9.bin` and
   `firmware.bin` into the app's BIOS folder to use a real firmware (the DS
   menu, Pictochat, Download Play). Without them melonDS uses its own FreeBIOS
@@ -57,10 +63,11 @@ Apple; see `src/ARMJIT_Memory.cpp` and `src/ARMJIT.cpp`.
 
 ## What is not done yet
 
-- **The Metal renderer.** The 3D picture is drawn by melonDS's software
-  renderer at 1× for now. A Metal 3D renderer, which also gets us upscaling,
-  is the next milestone — the plan is a `Renderer3D` in `MelonDS/` plus the
-  compositor it needs, in the same shape as melonDS's OpenGL one.
+- **The Metal 3D rasteriser.** The compositor and the display path are done.
+  Polygons are drawn by melonDS's software rasteriser and copied into the 3D
+  texture each frame, so 3D scenes are complete and correct but the 3D work
+  is still on the CPU. See "The Metal renderer" above for the port's plan and
+  where it stands.
 - **Wi-Fi**: no local wireless, no LAN, and no online (Nintendo WFC) yet.
   melonDS keeps all of that in `src/net/`, which the emulator reaches through
   `Platform::MP_*`/`Platform::Net_*`; the glue currently answers "no link".
@@ -69,14 +76,59 @@ Apple; see `src/ARMJIT_Memory.cpp` and `src/ARMJIT.cpp`.
   connection for community WFC servers).
 - **DSi mode**, the camera, and microphone input.
 
+## The Metal renderer
+
+The picture is finished on the GPU. It has two pieces:
+
+- **The compositor** (`MelonDS/MelonDSMetalRenderer.{h,mm}`, with the shaders
+  in `MelonDS/MelonDSMetalShaders.h`). melonDS's accelerated 2D renderer hands
+  it a layer buffer — three layers plus a metadata word per scanline — and it
+  composes both screens into one 256×384 texture that the app displays.
+- **The 3D layer.** Until the Metal rasteriser below is finished, the polygons
+  are drawn by melonDS's software rasteriser and its output is copied into the
+  ​3D texture each frame. That is a CPU cost, but it makes the picture
+  complete and correct, and it gives the Metal rasteriser something to be
+  checked against. `MELONDS_3D=metal` in the environment turns the software
+  rasteriser off, which leaves the 3D layer empty and is how the port is
+  tested step by step.
+
+**The 3D rasteriser**, ported from melonDS's compute renderer
+(`src/GPU3D_Compute.cpp` and `src/GPU3D_Compute_shaders.h`). That renderer
+suits Metal better than the OpenGL one: no stencil buffer, no fixed-function
+blending, everything in compute shaders.
+
+The port follows upstream's passes in order, each stage checked against the
+software renderer with an offline harness that renders the same ROM and frame
+with both:
+
+1. Buffers, uniforms and the CPU-side span setup (`SetupYSpan`,
+   `SetupYSpanDummy`, `SetupAttrs`, polygon and variant collection).
+2. `ClearCoarseBinMask`, `ClearIndirectWorkCount`, `InterpSpans`,
+   `BinCombined`, `CalcOffsets`, `SortWork`.
+3. `Rasterise` (starting with the no-texture Z-buffer variants) and
+   `DepthBlend`.
+4. `FinalPass` without effects, then edge marking, fog and anti-aliasing.
+5. Textures: a Metal texture cache (`Texcache<loader, handle>` from
+   `src/GPU3D_Texcache.h`, with a loader that makes Metal array textures) and
+   the textured shader variants.
+6. Shadow masks, toon and highlight modes, and the W-buffering variants.
+
+Until step 3 lands, the 3D layer comes from the software rasteriser (see
+above), and with it the Metal picture is pixel-for-pixel identical to the
+software one — the offline harness renders the same ROM and frame with both
+and compares them.
+
 ## Patches to upstream
 
-Only two, both for Mac Catalyst:
+Three, all documented where they change the code:
 
 - `src/ARMJIT.cpp` — skips `pthread_jit_write_protect_np`, which the Catalyst
   SDK marks unavailable; Catalyst's JIT pages stay writable without it.
+- `src/GPU2D_Soft.cpp` — calls the renderer's `PrepareCaptureFrame` for any
+  accelerated renderer, not only the OpenGL one. Display capture reads the 3D
+  layer back on the CPU, and a Metal renderer needs the same call.
 - The build itself lives in `MelonDS/CMakeLists.txt`, which includes upstream's
   `src/CMakeLists.txt` rather than copying its source list.
 
-To move to a newer melonDS: replace `src/` with the new release, re-apply the
-`ARMJIT.cpp` patch, and rebuild.
+To move to a newer melonDS: replace `src/` with the new release, re-apply those
+patches, and rebuild.

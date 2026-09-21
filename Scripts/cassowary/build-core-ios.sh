@@ -230,13 +230,27 @@ case "$CORE" in
     # to existing structs, which is valid C++ but not C.
     OBJCPP=1
     # The emulator itself is a separate dylib built by MAME's own makefile
-    # (Scripts/build-mame-core.sh), not by the Xcode project's sources. It is
-    # named without a lib prefix, so it is linked by path, not with -l.
-    MAME_DYLIB="$PWD/cores/MAME/deps/mame/mamearcade_headless.dylib"
-    if [[ -f "$MAME_DYLIB" ]]; then
-      EXTRA_LINK_FLAGS=("$MAME_DYLIB")
-      EMBED_LIBS=("$MAME_DYLIB")
+    # (Scripts/cassowary/build-mame-ios.sh), not by the Xcode project's
+    # sources. It is named without a lib prefix, so it is linked by path, not
+    # with -l. Build it here if missing, so that a single build-core-ios.sh
+    # run is enough — the same pattern as melonDS and VirtualC64.
+    case "$PLATFORM" in
+      simulator) MAME_DYLIB_NAME=mamearcade_headless.dylib ;;
+      device)    MAME_DYLIB_NAME=mamearcade_headless-device.dylib ;;
+      catalyst)  MAME_DYLIB_NAME=mamearcade_headless-catalyst.dylib ;;
+    esac
+    MAME_DYLIB="$PWD/cores/MAME/deps/mame/$MAME_DYLIB_NAME"
+    if [[ ! -f "$MAME_DYLIB" ]]; then
+      print -- "building the MAME emulator library first..."
+      MAME_BUILD_FLAGS=()
+      case "$PLATFORM" in
+        device)   MAME_BUILD_FLAGS=(--device) ;;
+        catalyst) MAME_BUILD_FLAGS=(--catalyst) ;;
+      esac
+      ./Scripts/cassowary/build-mame-ios.sh "${MAME_BUILD_FLAGS[@]}"
     fi
+    EXTRA_LINK_FLAGS=("$MAME_DYLIB")
+    EMBED_LIBS=("$MAME_DYLIB")
     ;;
 esac
 
