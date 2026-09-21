@@ -23,6 +23,7 @@
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import SwiftUI
+import UniformTypeIdentifiers
 import OpenEmuKit
 
 /// Which games the library shows.
@@ -43,6 +44,13 @@ private struct CorePickerRequest: Identifiable {
     let id = UUID()
     let game: Game
     let system: SystemEntry
+}
+
+/// A drop the library could not take in full, and needs to explain.
+private struct ImportNotice: Identifiable {
+    let id = UUID()
+    let title: String
+    let message: String
 }
 
 private enum SortOption: String, CaseIterable, Identifiable {
@@ -77,6 +85,8 @@ struct LibraryView: View {
     @State private var playing: ActiveGame?
     @State private var pickerRequest: CorePickerRequest?
     @State private var showSettings = false
+    @State private var dropTargeted = false
+    @State private var importNotice: ImportNotice?
 
     @Environment(\.horizontalSizeClass) private var sizeClass
 
@@ -117,6 +127,15 @@ struct LibraryView: View {
         .sheet(isPresented: $showSettings) {
             SettingsView()
         }
+        .alert(
+            importNotice?.title ?? "",
+            isPresented: importNoticePresented,
+            presenting: importNotice
+        ) { _ in
+            Button("OK", role: .cancel) {}
+        } message: { notice in
+            Text(notice.message)
+        }
         .onAppear {
             refreshAll()
 
@@ -133,6 +152,13 @@ struct LibraryView: View {
             // Same deal: only set from the command line.
             if UserDefaults.standard.bool(forKey: "cassowary.showSettings") {
                 showSettings = true
+            }
+
+            // Used to exercise the add-a-game path without a drag, which the
+            // Simulator cannot perform. Same deal: only set from the command
+            // line, by a test script.
+            if let path = UserDefaults.standard.string(forKey: "cassowary.importFile") {
+                importFileForTesting(at: URL(fileURLWithPath: path))
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .refreshLibrary)) { _ in
@@ -275,6 +301,16 @@ struct LibraryView: View {
                 grid(for: target)
             }
         }
+        // Games are added by dropping files onto the library. The whole pane
+        // is the target, including the empty state — that is where a user with
+        // no games will try it.
+        .contentShape(Rectangle())
+        .onDrop(of: [.fileURL], isTargeted: $dropTargeted, perform: handleDrop)
+        .overlay {
+            if dropTargeted {
+                dropHighlight
+            }
+        }
         .navigationTitle(detailTitle(for: target))
         .searchable(text: $searchText, prompt: "Search games")
         .toolbar {
@@ -298,6 +334,25 @@ struct LibraryView: View {
                 .keyboardShortcut("r", modifiers: .command)
             }
         }
+    }
+
+    /// Shown over the library while a file is held above it.
+    private var dropHighlight: some View {
+        RoundedRectangle(cornerRadius: 16, style: .continuous)
+            .fill(Color.accentColor.opacity(0.08))
+            .overlay {
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .strokeBorder(Color.accentColor, style: StrokeStyle(lineWidth: 2, dash: [8, 6]))
+            }
+            .overlay {
+                Label("Drop to add games", systemImage: "plus.circle.fill")
+                    .font(.headline)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .background(.regularMaterial, in: Capsule())
+            }
+            .padding(10)
+            .allowsHitTesting(false)
     }
 
     private func grid(for target: LibrarySelection) -> some View {
@@ -355,7 +410,7 @@ struct LibraryView: View {
                       !system.hasCore {
                 Text("There is no core installed for \(system.name) yet, so these games cannot be played.")
             } else {
-                Text("Copy ROM files into Cassowary using the Files app or Finder, then tap Refresh.")
+                Text("Drag ROM files onto this window to add them. On iPhone and iPad they can also be copied in with the Files app.")
             }
         } actions: {
             if !isSystemWithoutCore(target) {
@@ -370,6 +425,122 @@ struct LibraryView: View {
             return !system.hasCore
         }
         return false
+    }
+
+    // MARK: - Adding games
+
+    /// `alert(isPresented:)` wants a `Bool`; this gives the optional notice one.
+    private var importNoticePresented: Binding<Bool> {
+        Binding(
+            get: { importNotice != nil },
+            set: { if !$0 { importNotice = nil } }
+        )
+    }
+
+    /// Take the file URLs out of a drop and add them to the library.
+    ///
+    /// Reading the item providers starts here, before this returns: the drop
+    /// session stops handing out its payload once it does. The copy itself
+    /// happens afterwards, in the library.
+    private func handleDrop(providers: [NSItemProvider]) -> Bool {
+        let fileProviders = providers.filter {
+            $0.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier)
+        }
+        guard !fileProviders.isEmpty else { return false }
+
+        let group = DispatchGroup()
+        let lock = NSLock()
+        var urls: [URL] = []
+
+        for provider in fileProviders {
+            group.enter()
+            provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { item, error in
+                if let error {
+                    NSLog("[Cassowary] could not read a dropped file: \(error.localizedDescription)")
+                }
+                if let url = Self.fileURL(from: item) {
+                    lock.lock()
+                    urls.append(url)
+                    lock.unlock()
+                }
+                group.leave()
+            }
+        }
+
+        group.notify(queue: .main) {
+            Task { @MainActor in
+                guard !urls.isEmpty else {
+                    importNotice = ImportNotice(
+                        title: "Nothing was added",
+                        message: "The dropped files could not be read."
+                    )
+                    return
+                }
+                importNotice = notice(for: await library.add(contentsOf: urls))
+            }
+        }
+
+        return true
+    }
+
+    /// The file URL out of one dropped item.
+    ///
+    /// iOS hands back a `URL`; Mac Catalyst hands back the same thing as
+    /// `Data`. Without the `Data` branch a drop on the Mac silently does
+    /// nothing.
+    private static func fileURL(from item: NSSecureCoding?) -> URL? {
+        if let url = item as? URL {
+            return url
+        }
+        if let data = item as? Data {
+            return URL(dataRepresentation: data, relativeTo: nil)
+        }
+        return nil
+    }
+
+    /// A drop that adds every file needs no alert — the new games appear in
+    /// the grid. Only files that were left out are worth explaining.
+    private func notice(for summary: ImportSummary) -> ImportNotice? {
+        guard !summary.unsupported.isEmpty
+            || !summary.alreadyInLibrary.isEmpty
+            || !summary.failed.isEmpty else {
+            return nil
+        }
+
+        var lines: [String] = []
+        if !summary.unsupported.isEmpty {
+            lines.append("Couldn't tell which system these belong to: \(Self.shortList(summary.unsupported)).")
+        }
+        if !summary.alreadyInLibrary.isEmpty {
+            lines.append("Already in the library: \(Self.shortList(summary.alreadyInLibrary)).")
+        }
+        if !summary.failed.isEmpty {
+            lines.append("Couldn't be copied: \(Self.shortList(summary.failed)).")
+        }
+
+        let count = summary.added.count
+        return ImportNotice(
+            title: count == 0 ? "Nothing was added" : "Added \(count) game\(count == 1 ? "" : "s")",
+            message: lines.joined(separator: "\n")
+        )
+    }
+
+    /// "a.bin, b.bin, c.bin" — or a few names and a count when a drop brought
+    /// in a pile of unsupported files.
+    private static func shortList(_ names: [String]) -> String {
+        let shown = names.prefix(3).joined(separator: ", ")
+        let remaining = names.count - min(names.count, 3)
+        return remaining > 0 ? "\(shown) and \(remaining) more" : shown
+    }
+
+    /// Adds one file with no drag involved, so `simctl` can exercise the same
+    /// path. Only called when the flag is passed on the command line.
+    private func importFileForTesting(at url: URL) {
+        Task { @MainActor in
+            let summary = await library.add(contentsOf: [url])
+            NSLog("[Cassowary] import test: \(summary.added.count) added, \(summary.alreadyInLibrary.count) already in the library, \(summary.unsupported.count) unsupported, \(summary.failed.count) failed")
+            importNotice = notice(for: summary)
+        }
     }
 
     // MARK: - Data
