@@ -164,23 +164,33 @@ private:
     __strong id<MTLDevice> _device;
     __strong id<MTLLibrary> _library;
 
-    /// Where the passes read and write: the spans of every polygon, the
-    /// polygons themselves, and the buffers the binning and rasterising passes
-    /// use.
+    /// The spans of every polygon in the frame, the polygons themselves, and
+    /// the values that are the same for all of them.
     __strong id<MTLBuffer> _ySpanSetups;
-    __strong id<MTLBuffer> _xSpanSetups;
+    __strong id<MTLBuffer> _yspanIndices;
     __strong id<MTLBuffer> _renderPolygons;
     __strong id<MTLBuffer> _metaUniform;
-    __strong id<MTLBuffer> _yspanIndices;
-    __strong id<MTLBuffer> _binResult;
-    __strong id<MTLBuffer> _workDesc;
 
-    /// The tile buffers the rasteriser accumulates into before the final pass
-    /// finishes the picture.
-    __strong id<MTLBuffer> _tileMemory[3];
-    __strong id<MTLBuffer> _finalTileMemory;
+    /// The CPU-side copies the buffers are filled from.
+    std::vector<SpanSetupY> _spans;
+    std::vector<SetupIndices> _spanIndices;
+    std::vector<RenderPolygon> _polygons;
+    std::vector<u32> _toonTable;
+
+    u32 _numSpans = 0;
+    u32 _numSpanIndices = 0;
+    u32 _numPolygons = 0;
 
     bool _ready;
+
+    /// Fills the buffers for one frame: every polygon's vertical spans and the
+    /// per-frame values the shaders read.
+    void SetupFrame(melonDS::GPU& gpu) noexcept;
+
+    /// The span setup, ported from melonDS's compute renderer.
+    void SetupAttrs(SpanSetupY* span, melonDS::Polygon* poly, int from, int to) noexcept;
+    void SetupYSpan(RenderPolygon* rp, SpanSetupY* span, melonDS::Polygon* poly, int from, int to, int side, s32 positions[10][2]) noexcept;
+    void SetupYSpanDummy(RenderPolygon* rp, SpanSetupY* span, melonDS::Polygon* poly, int vertex, int side, s32 positions[10][2]) noexcept;
 };
 
 /// Draws the DS's 3D and composites its 2D layers with Metal.
@@ -259,6 +269,9 @@ private:
     /// melonDS's software 3D rasteriser, which draws the 3D layer until the
     /// Metal one is ready. Made on the first frame.
     std::unique_ptr<melonDS::SoftRenderer> _software;
+
+    /// The Metal 3D rasteriser, made the first time MELONDS_3D=metal is used.
+    std::unique_ptr<Rasterizer3D> _rasterizer;
 
     /// The software 3D layer, one word per pixel, converted for upload into
     /// _threeDTexture.

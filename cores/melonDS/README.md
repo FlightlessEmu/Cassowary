@@ -101,8 +101,10 @@ The port follows upstream's passes in order, each stage checked against the
 software renderer with an offline harness that renders the same ROM and frame
 with both:
 
-1. Buffers, uniforms and the CPU-side span setup (`SetupYSpan`,
-   `SetupYSpanDummy`, `SetupAttrs`, polygon and variant collection).
+1. ~~Buffers, uniforms and the CPU-side span setup (`SetupYSpan`,
+   `SetupYSpanDummy`, `SetupAttrs`, polygon and variant collection).~~ Done:
+   `MelonDSMetal::Rasterizer3D` fills the spans, the per-line indices and the
+   per-frame values. The shaders that walk them are next.
 2. `ClearCoarseBinMask`, `ClearIndirectWorkCount`, `InterpSpans`,
    `BinCombined`, `CalcOffsets`, `SortWork`.
 3. `Rasterise` (starting with the no-texture Z-buffer variants) and
