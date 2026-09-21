@@ -103,6 +103,13 @@ run `sudo xcodebuild -license accept` once, and check that **Xcode → Settings
 the phone for development the first time — open **Window → Devices and
 Simulators**, keep the phone unlocked, and wait for that to finish.
 
+After an Xcode update, two components are often missing:
+
+```bash
+xcodebuild -downloadComponent MetalToolchain   # "missing Metal Toolchain"
+sudo xcodebuild -runFirstLaunch                # first-launch packages
+```
+
 ## Running (Simulator by hand)
 
 ```bash
