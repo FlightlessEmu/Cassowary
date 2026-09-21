@@ -116,6 +116,13 @@ final class TVStore: ObservableObject {
     private var client: MediaClient?
     private var host: MediaHost?
     private var syncTask: Task<Void, Never>?
+    private var reconnectTask: Task<Void, Never>?
+    /// Set when the person disconnects or forgets a source on purpose, so the
+    /// reconnect loop does not drag them straight back in.
+    private var autoReconnectPaused = false
+    /// Failed syncs in a row. One is allowed to pass; two mean the phone is
+    /// really gone.
+    private var syncFailures = 0
     private var cancellables: Set<AnyCancellable> = []
     private var artworkFetches: Set<String> = []
 
@@ -129,6 +136,7 @@ final class TVStore: ObservableObject {
     func start() {
         browser.start()
         importBundledDemos()
+        startReconnectLoop()
 
         // Reconnect to the last phone by itself when it shows up again.
         browser.$hosts
@@ -177,6 +185,9 @@ final class TVStore: ObservableObject {
 
     func connect(to found: FoundHost) async {
         guard !isConnecting else { return }
+        // Reaching this point means someone asked for this source, so the
+        // reconnect loop may look after it again.
+        autoReconnectPaused = false
         connection = .connecting(found.name)
         syncSummary = nil
 
@@ -189,7 +200,7 @@ final class TVStore: ObservableObject {
                                  platformName: found.platformName)
             await connect(toHost: host)
         } catch {
-            connection = .failed(error.localizedDescription)
+            connection = .failed(Self.connectionMessage(for: error, host: found.name))
         }
     }
 
@@ -211,7 +222,7 @@ final class TVStore: ObservableObject {
                                  platformName: "ios")
             await connect(toHost: host)
         } catch {
-            connection = .failed(error.localizedDescription)
+            connection = .failed(Self.connectionMessage(for: error, host: "the source"))
         }
     }
 
@@ -256,8 +267,24 @@ final class TVStore: ObservableObject {
             prefetchFavorites()
         } catch {
             NSLog("[Cassowary] connect failed: %@", error.localizedDescription)
-            connection = .failed(error.localizedDescription)
+            connection = .failed(Self.connectionMessage(for: error, host: host.name))
         }
+    }
+
+    /// Turns a networking error into something a person can act on. The one
+    /// that matters: iOS stops serving when the phone's app is put away, so a
+    /// timeout usually means "keep the app open", not a broken network.
+    static func connectionMessage(for error: Error, host: String) -> String {
+        let nsError = error as NSError
+        if nsError.domain == NSURLErrorDomain {
+            switch nsError.code {
+            case NSURLErrorTimedOut, NSURLErrorNotConnectedToInternet, NSURLErrorCannotConnectToHost:
+                return "Can't reach \(host). Keep Cassowary open on it with sharing switched on, and check both devices are on the same Wi-Fi."
+            default:
+                break
+            }
+        }
+        return error.localizedDescription
     }
 
     func disconnect() {
@@ -265,6 +292,7 @@ final class TVStore: ObservableObject {
         syncTask = nil
         client = nil
         host = nil
+        autoReconnectPaused = true
         connection = .idle
     }
 
@@ -679,6 +707,24 @@ final class TVStore: ObservableObject {
         conflicts = ConflictStore.shared.conflicts
         syncSummary = result.summary
         refreshPlayInfo()
+
+        // One failed sync can be a hiccup — the phone's app may have just been
+        // put away and brought back. Two in a row means the link is really
+        // gone: the reconnect loop takes over and the status says why.
+        if let error = result.error {
+            syncFailures += 1
+            let message = Self.connectionMessage(for: error, host: host?.name ?? "the phone")
+            if syncFailures >= 2 {
+                connection = .failed(message)
+            } else {
+                syncSummary = message
+            }
+        } else {
+            syncFailures = 0
+            if case .failed = connection, let host {
+                connection = .connected(host)
+            }
+        }
     }
 
     func resolve(_ conflict: SaveConflict, choice: SaveSyncEngine.ConflictChoice) {
@@ -707,6 +753,35 @@ final class TVStore: ObservableObject {
                 try? await Task.sleep(for: .seconds(120))
                 guard let self, self.connection.isConnected else { return }
                 await self.syncNow()
+            }
+        }
+    }
+
+    /// Tries to get back to a source without being asked. The phone comes and
+    /// goes — its app is put away, the network flaps — and the TV should find
+    /// it again rather than needing a trip to the Sources screen. It only
+    /// looks at hosts the browser can see right now, so a phone that is not
+    /// there is not hammered.
+    private func startReconnectLoop() {
+        guard reconnectTask == nil else { return }
+
+        reconnectTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(8))
+                guard let self else { return }
+                guard !self.autoReconnectPaused,
+                      !self.connection.isConnected,
+                      !self.isConnecting else { continue }
+
+                // The remembered phone comes first. A TV that has never been
+                // connected to anything takes the first source it sees, which
+                // saves a tap on first setup.
+                let remembered = self.state.lastHostDeviceID
+                let target = remembered.flatMap { id in self.browser.hosts.first { $0.deviceID == id } }
+                    ?? (remembered == nil ? self.browser.hosts.first : nil)
+
+                guard let target else { continue }
+                await self.connect(to: target)
             }
         }
     }

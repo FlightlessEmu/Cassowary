@@ -63,7 +63,7 @@ struct ShareSettingsView: View {
                     ))
                     .autocorrectionDisabled()
 
-                    Text("The name the Apple TV shows when it looks for your library.")
+                    Text("The name the Apple TV shows when it finds your library. iOS keeps the phone's own name private from apps, so this starts out as \"iPhone\" — type whatever you want the TV to call it.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

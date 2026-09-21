@@ -26,16 +26,11 @@ import SwiftUI
 
 /// Where the games come from.
 ///
-/// The phone is one source; the demo game in the bundle is another; a network
-/// share would be a third. The TV's own library stays put whatever happens to
-/// a source, so this screen is about finding more games, not about holding the
-/// library together.
-struct TVConnectView: View {
-
-    /// Shown when this screen is opened from the library, so there is a way
-    /// back. When it is the whole app (nothing cached yet), there is nothing
-    /// to go back to and no button is shown.
-    var onClose: (() -> Void)?
+/// The phone is one source; the demo game in the bundle is already in the
+/// library; a network share would be a third. The TV's own library stays put
+/// whatever happens to a source, so this screen is about finding more games,
+/// not about holding the library together.
+struct TVSourcesView: View {
 
     @ObservedObject private var store = TVStore.shared
 
@@ -122,10 +117,7 @@ struct TVConnectView: View {
             }
         }
         .overlay(alignment: .topLeading) {
-            if let onClose {
-                Button("Close", action: onClose)
-                    .padding(40)
-            }
+            EmptyView()
         }
     }
 

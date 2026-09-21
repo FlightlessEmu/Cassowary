@@ -24,13 +24,17 @@
 
 import SwiftUI
 
-/// The Apple TV's home screen: the same shape as the phone's library — a
-/// sidebar of systems, a grid of games — over the TV's own library.
+/// The library: the same shape as the phone's — a sidebar of systems next to
+/// a grid of games — over the TV's own library.
 ///
 /// The games come from a source (the phone, and later a network share), but
 /// the library here is the TV's: what is downloaded stays and plays whether
 /// the source is around or not.
 struct TVLibraryView: View {
+
+    /// Called when a game should start. The root view owns the player so the
+    /// tab bar is not in the way.
+    var onPlay: (TVStore.LocalGame) -> Void
 
     /// What the sidebar has selected.
     private enum Selection: Hashable {
@@ -42,30 +46,26 @@ struct TVLibraryView: View {
 
     @ObservedObject private var store = TVStore.shared
 
-    @State private var playing: TVStore.LocalGame?
-    @State private var showSettings = false
     @State private var showConflict = false
-    @State private var showConnect = false
     @State private var selection: Selection = .all
 
     var body: some View {
-        Group {
-            if let playing, let url = store.playableURL(for: playing) {
-                TVPlayerView(title: playing.title,
-                             url: url,
-                             onFinished: { store.finishPlaying(playing) }) {
-                    self.playing = nil
+        ZStack {
+            Color.black.ignoresSafeArea()
+
+            VStack(alignment: .leading, spacing: 0) {
+                status
+
+                HStack(spacing: 0) {
+                    sidebar
+                        .frame(width: 360)
+
+                    Divider()
+
+                    detail
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
-            } else if showsLibrary && !showConnect {
-                // Anything borrowed before stays visible and playable with no
-                // phone around: the cache is the library here.
-                library
-            } else {
-                TVConnectView(onClose: showsLibrary ? { showConnect = false } : nil)
             }
-        }
-        .sheet(isPresented: $showSettings) {
-            TVSettingsView()
         }
         .sheet(isPresented: $showConflict) {
             if let conflict = store.conflicts.first {
@@ -74,61 +74,30 @@ struct TVLibraryView: View {
         }
         .onAppear {
             store.start()
-            autoPlayIfAsked()
         }
-        .onChange(of: store.games) { _, _ in
-            autoPlayIfAsked()
-        }
-    }
-
-    // MARK: - Library
-
-    private var library: some View {
-        VStack(spacing: 0) {
-            header
-                .padding(.horizontal, 60)
-                .padding(.top, 24)
-                .padding(.bottom, 12)
-
-            HStack(spacing: 0) {
-                sidebar
-                    .frame(width: 380)
-
-                Divider()
-
-                detail
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
-        }
-        .background(Color.black.ignoresSafeArea())
         .onChange(of: store.conflicts.count) { _, count in
             if count > 0 { showConflict = true }
         }
     }
 
-    private var header: some View {
-        HStack(alignment: .firstTextBaseline) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Cassowary")
-                    .font(.system(size: 44, weight: .semibold))
+    // MARK: - Status line
 
-                switch store.connection {
-                case .connected(let host):
-                    Text("Games from \(host.name)")
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                case .connecting(let name):
-                    Text("Connecting to \(name)…")
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                default:
-                    Text("Downloaded games · not connected")
-                        .font(.callout)
-                        .foregroundStyle(.orange)
-                }
+    /// Where the games are coming from, and what is waiting. The buttons that
+    /// used to live here are tabs now, because the focus engine could not be
+    /// trusted to reach them.
+    private var status: some View {
+        HStack(spacing: 16) {
+            switch store.connection {
+            case .connected(let host):
+                Label("Games from \(host.name)", systemImage: "wifi")
+                    .foregroundStyle(.secondary)
+            case .connecting(let name):
+                Label("Connecting to \(name)…", systemImage: "wifi")
+                    .foregroundStyle(.secondary)
+            default:
+                Label("Downloaded games · not connected", systemImage: "wifi.slash")
+                    .foregroundStyle(.orange)
             }
-
-            Spacer()
 
             if store.libraryIsLoading {
                 ProgressView()
@@ -137,31 +106,23 @@ struct TVLibraryView: View {
             if store.pendingUploads > 0 {
                 Label("\(store.pendingUploads) save\(store.pendingUploads == 1 ? "" : "s") to send",
                       systemImage: "arrow.up.circle")
-                    .font(.callout)
                     .foregroundStyle(.secondary)
             }
 
-            if store.connection.isConnected {
-                Button {
-                    Task { await store.syncNow() }
-                } label: {
-                    Label("Sync", systemImage: "arrow.triangle.2.circlepath")
-                }
+            if let summary = store.syncSummary {
+                Text(summary)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
             }
 
-            Button {
-                showConnect = true
-            } label: {
-                Label("Sources", systemImage: "rectangle.2.swap")
-            }
-
-            Button {
-                showSettings = true
-            } label: {
-                Label("Settings", systemImage: "gearshape")
-            }
+            Spacer()
         }
+        .font(.callout)
+        .padding(.horizontal, 60)
+        .padding(.top, 20)
     }
+
+    // MARK: - Sidebar
 
     /// The sidebar the phone's library has, in the shape tvOS allows: a
     /// column of focusable rows rather than a selectable List (tvOS has no
@@ -225,6 +186,8 @@ struct TVLibraryView: View {
         .buttonStyle(.plain)
     }
 
+    // MARK: - Detail
+
     private var detail: some View {
         VStack(alignment: .leading, spacing: 0) {
             Text(detailTitle)
@@ -246,17 +209,17 @@ struct TVLibraryView: View {
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 280, maximum: 360), spacing: 36)], spacing: 44) {
                 ForEach(visibleGames) { game in
                     Button {
-                        play(game)
+                        onPlay(game)
                     } label: {
                         tile(game)
                     }
                     .buttonStyle(.card)
                     .contextMenu {
-                        if game.isDownloaded {
+                        if game.isDownloaded, game.sourceDeviceID != nil {
                             Button("Remove Download", role: .destructive) {
                                 store.removeDownload(game)
                             }
-                        } else {
+                        } else if !game.isDownloaded {
                             Button("Download") {
                                 Task { await store.download(game) }
                             }
@@ -286,9 +249,6 @@ struct TVLibraryView: View {
     }
 
     private var emptyMessage: String {
-        if let summary = store.syncSummary {
-            return summary
-        }
         switch selection {
         case .favorites: return "Nothing is marked as a favorite yet. Long-press a game to add one."
         case .recent:    return "Nothing has been played on this Apple TV yet."
@@ -407,46 +367,5 @@ struct TVLibraryView: View {
         case .recent:           return "Continue"
         case .system(let name): return name
         }
-    }
-
-    // MARK: - Launching
-
-    private func play(_ game: TVStore.LocalGame) {
-        guard store.hasCore(for: game) else {
-            store.note("No core for \(game.systemName) is on this Apple TV yet.")
-            return
-        }
-
-        if game.isDownloaded {
-            store.prepareForPlay(game)
-            playing = game
-        } else {
-            Task {
-                await store.download(game)
-                if let updated = store.state.games[game.id], updated.isDownloaded {
-                    store.prepareForPlay(updated)
-                    playing = updated
-                }
-            }
-        }
-    }
-
-    /// Whether the home screen should be the library. A game that came from a
-    /// source means the library is worth showing even when that source is
-    /// away; a TV that only has the bundled demo starts on Sources instead.
-    private var showsLibrary: Bool {
-        if store.connection.isConnected { return true }
-        return store.games.contains { $0.sourceDeviceID != nil }
-    }
-
-    /// The test scripts ask for the first shared game without tapping. The
-    /// library may already be loaded when this view appears, so both the
-    /// on-appear and the on-change paths call this. In normal use the flag is
-    /// not set.
-    private func autoPlayIfAsked() {
-        guard UserDefaults.standard.bool(forKey: "cassowary.autoPlayFirstGame"),
-              playing == nil,
-              let first = store.games.first else { return }
-        play(first)
     }
 }

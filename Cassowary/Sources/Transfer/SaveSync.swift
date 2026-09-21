@@ -112,10 +112,10 @@ struct SaveSyncResult {
     var uploaded = 0
     var downloaded = 0
     var conflicts = 0
-    var error: String?
+    var error: Error?
 
     var summary: String {
-        if let error { return error }
+        if let error { return error.localizedDescription }
         if uploaded == 0, downloaded == 0, conflicts == 0 { return "Already in sync" }
         var parts: [String] = []
         if uploaded > 0 { parts.append("sent \(uploaded)") }
@@ -179,7 +179,7 @@ enum SaveSyncEngine {
                 }
             }
         } catch {
-            result.error = error.localizedDescription
+            result.error = error
         }
 
         return result

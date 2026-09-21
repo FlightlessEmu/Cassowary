@@ -52,7 +52,7 @@ struct CassowaryTVApp: App {
 
     var body: some Scene {
         WindowGroup {
-            TVLibraryView()
+            TVHomeView()
         }
     }
 }

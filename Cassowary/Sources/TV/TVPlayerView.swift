@@ -104,6 +104,9 @@ struct TVPlayerView: View {
                 }
             }
         }
+        .padding(.horizontal, 24)
+        .padding(.vertical, 12)
+        .background(.ultraThinMaterial, in: .capsule)
         .padding(.top, 28)
     }
 
@@ -170,21 +173,47 @@ struct TVPlayerView: View {
             session.start { }
 
             // Used by the run script to prove input reaches the emulator with
-            // no controller attached: hold the named button for a few seconds
+            // no controller attached: hold the named buttons for a few seconds
             // once the game is running. It starts late and stops, so a test
-            // can tell a moving picture from a frozen one. Only set from the
-            // command line.
-            if let button = UserDefaults.standard.string(forKey: "cassowary.testHoldButton") {
+            // can tell a moving picture from a frozen one. A comma-separated
+            // list is allowed because the two test ROMs answer different
+            // buttons (the demo steers with the d-pad, the input test flips
+            // with A). Only set from the command line.
+            if let buttons = UserDefaults.standard.string(forKey: "cassowary.testHoldButton") {
+                let names = buttons.split(separator: ",").map(String.init)
                 Task {
                     try? await Task.sleep(for: .seconds(6))
-                    session.pressButton(named: button)
+                    for name in names { session.pressButton(named: name) }
                     try? await Task.sleep(for: .seconds(3))
-                    session.releaseButton(named: button)
+                    for name in names { session.releaseButton(named: name) }
+                }
+            }
+
+            // Used by the run script to close the game after a while, so the
+            // return-to-library path can be checked without a remote. Only
+            // set from the command line.
+            if let seconds = Self.testCloseDelay {
+                Task {
+                    try? await Task.sleep(for: .seconds(seconds))
+                    close()
                 }
             }
         } catch {
             errorMessage = error.localizedDescription
         }
+    }
+
+    /// `cassowary.testCloseAfter` as a number, from either a launch argument
+    /// (a string) or a stored value.
+    private static var testCloseDelay: Double? {
+        let defaults = UserDefaults.standard
+        if let number = defaults.object(forKey: "cassowary.testCloseAfter") as? Int {
+            return Double(number)
+        }
+        if let text = defaults.string(forKey: "cassowary.testCloseAfter"), let value = Double(text) {
+            return value
+        }
+        return nil
     }
 
     private func stopGame() {

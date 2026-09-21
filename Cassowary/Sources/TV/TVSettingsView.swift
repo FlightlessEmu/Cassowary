@@ -30,8 +30,6 @@ struct TVSettingsView: View {
 
     @ObservedObject private var store = TVStore.shared
 
-    @Environment(\.dismiss) private var dismiss
-
     private let budgets: [(String, Int64)] = [
         ("1 GB", 1 * 1024 * 1024 * 1024),
         ("2 GB", 2 * 1024 * 1024 * 1024),
@@ -64,7 +62,6 @@ struct TVSettingsView: View {
 
                     Button("Disconnect and Forget", role: .destructive) {
                         store.forgetHost()
-                        dismiss()
                     }
                 }
 
