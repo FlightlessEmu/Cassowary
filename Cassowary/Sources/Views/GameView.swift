@@ -463,6 +463,26 @@ struct GameView: View {
             }
         }
 
+        // Press the key a button is bound to, exercising the keyboard
+        // binding path without the Simulator's hardware keyboard.
+        if let button = UserDefaults.standard.string(forKey: "cassowary.testKeyboardButton") {
+            Task {
+                try? await Task.sleep(for: .seconds(3))
+                session.pressBoundKey(forButtonID: button)
+            }
+        }
+
+        // Hold a gamepad control, exercising the controller binding path
+        // without a hardware controller. Usage 0 is not a real control, so it
+        // doubles as "not set".
+        let gamepadUsage = UserDefaults.standard.integer(forKey: "cassowary.testGamepadUsage")
+        if gamepadUsage > 0 {
+            Task {
+                try? await Task.sleep(for: .seconds(3))
+                session.holdGamepadControl(usage: UInt32(gamepadUsage))
+            }
+        }
+
         if let spec = UserDefaults.standard.string(forKey: "cassowary.testKeyboardRemap") {
             let parts = spec.split(separator: ":")
             if parts.count == 2, let keyCode = Int(parts[1]) {
