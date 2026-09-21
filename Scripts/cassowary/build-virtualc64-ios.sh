@@ -36,18 +36,22 @@ mkdir -p "$BUILD"
 CMAKE_ARGS=(
   -DCMAKE_BUILD_TYPE=Release
   -DCMAKE_OSX_ARCHITECTURES=arm64
-  -DCMAKE_OSX_DEPLOYMENT_TARGET="$TARGET"
   # CMake 4 dropped compatibility with pre-3.5 minimums; VCCore's vendored
   # subprojects still declare old ones.
   -DCMAKE_POLICY_VERSION_MINIMUM=3.5
 )
 
 if [[ "$MODE" == catalyst ]]; then
+  # The target triple already carries the deployment version (ios17.0-macabi).
+  # Passing CMAKE_OSX_DEPLOYMENT_TARGET as well would add a redundant
+  # -mmacosx-version-min, and VCCore builds with -Werror, so clang's
+  # overriding-option warning fails the build.
   CMAKE_ARGS+=(-DCMAKE_SYSTEM_NAME=Darwin)
   CMAKE_ARGS+=(-DCMAKE_OSX_SYSROOT=macosx)
   CMAKE_ARGS+=(-DCMAKE_C_COMPILER_TARGET=arm64-apple-ios17.0-macabi)
   CMAKE_ARGS+=(-DCMAKE_CXX_COMPILER_TARGET=arm64-apple-ios17.0-macabi)
 else
+  CMAKE_ARGS+=(-DCMAKE_OSX_DEPLOYMENT_TARGET="$TARGET")
   CMAKE_ARGS+=(-DCMAKE_SYSTEM_NAME=iOS)
   CMAKE_ARGS+=(-DCMAKE_OSX_SYSROOT="$SYSROOT")
 fi
