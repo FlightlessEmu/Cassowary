@@ -113,7 +113,10 @@ with both:
    the textured shader variants.
 6. Shadow masks, toon and highlight modes, and the W-buffering variants.
 
-Until step 3 lands, 3D scenes have no 3D layer and show the 2D layers alone.
+Until step 3 lands, the 3D layer comes from the software rasteriser (see
+above), and with it the Metal picture is pixel-for-pixel identical to the
+software one — the offline harness renders the same ROM and frame with both
+and compares them.
 
 ## Patches to upstream
 

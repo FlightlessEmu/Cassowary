@@ -74,6 +74,15 @@ inline int4 MelonDSLayerWord(uint word)
     return int4(word & 0xFF, (word >> 8) & 0xFF, (word >> 16) & 0xFF, (word >> 24) & 0xFF);
 }
 
+/// A pixel of the 3D layer, back in the DS's own ranges: 6 bits per colour and
+/// 5 of alpha. The 3D renderer widens each channel to eight bits by repeating
+/// its top bits, so rounding recovers the value it drew; truncating would drop
+/// the bottom step of every colour that is not exactly representable.
+inline int4 MelonDS3DPixel(texture2d<float, access::read> threeD, uint2 pos3d)
+{
+    return int4(round(threeD.read(pos3d) * float4(63.0, 63.0, 63.0, 31.0)));
+}
+
 fragment float4 melonds_compositor_fragment(
     MelonDSCompositorOut in [[stage_in]],
     texture2d<uint, access::read> layers [[texture(0)]],
@@ -110,7 +119,7 @@ fragment float4 melonds_compositor_fragment(
             float ypos = fmod(in.texel.y, 192.0);
             uint2 pos3d = uint2(uint2(xpos, ypos) * uniforms.scale3D);
             pos3d = min(pos3d, uint2(threeD.get_width() - 1, threeD.get_height() - 1));
-            int4 _3dpix = int4(threeD.read(pos3d) * float4(63, 63, 63, 31));
+            int4 _3dpix = MelonDS3DPixel(threeD, pos3d);
 
             if (_3dpix.a > 0)
             {
@@ -131,7 +140,7 @@ fragment float4 melonds_compositor_fragment(
             float ypos = fmod(in.texel.y, 192.0);
             uint2 pos3d = uint2(uint2(xpos, ypos) * uniforms.scale3D);
             pos3d = min(pos3d, uint2(threeD.get_width() - 1, threeD.get_height() - 1));
-            int4 _3dpix = int4(threeD.read(pos3d) * float4(63, 63, 63, 31));
+            int4 _3dpix = MelonDS3DPixel(threeD, pos3d);
 
             if (_3dpix.a > 0)
             {
@@ -152,7 +161,7 @@ fragment float4 melonds_compositor_fragment(
             float ypos = fmod(in.texel.y, 192.0);
             uint2 pos3d = uint2(uint2(xpos, ypos) * uniforms.scale3D);
             pos3d = min(pos3d, uint2(threeD.get_width() - 1, threeD.get_height() - 1));
-            int4 _3dpix = int4(threeD.read(pos3d) * float4(63, 63, 63, 31));
+            int4 _3dpix = MelonDS3DPixel(threeD, pos3d);
 
             if (_3dpix.a > 0)
             {
