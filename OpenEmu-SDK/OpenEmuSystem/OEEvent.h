@@ -36,6 +36,14 @@ NS_ASSUME_NONNULL_BEGIN
 /// `UIGestureRecognizer`-driven touch, which the app reduces to the same two
 /// facts the responder needs: where it happened and whether it went down or up.
 - (instancetype)initWithMouseEvent:(OEPlatformMouseEvent *)event withLocationInGameView:(OEIntPoint)location NS_SWIFT_NAME(init(mouseEvent:locationInGameView:));
+
+/// Builds a mouse event out of thin air, for touch screens that have no
+/// `NSEvent` to wrap. The type says which part of the touch this is:
+/// `OEPlatformMouseEventTypeLeftMouseDown` to press,
+/// `OEPlatformMouseEventTypeMouseMoved` to drag a held touch, and
+/// `OEPlatformMouseEventTypeLeftMouseUp` to lift it.
+- (instancetype)initWithType:(OEPlatformMouseEventType)type withLocationInGameView:(OEIntPoint)location NS_SWIFT_NAME(init(type:locationInGameView:));
+
 - (instancetype)init NS_UNAVAILABLE;
 
 @property (nonatomic, readonly) OEIntPoint locationInGameView;

@@ -54,6 +54,13 @@
     [self.client didTouchScreenPoint:aPoint];
 }
 
+- (void)mouseMovedAtPoint:(OEIntPoint)aPoint
+{
+    // A drag while the stylus is down. The DS reads the position as it moves,
+    // which is how drawing and sliding work.
+    [self.client didTouchScreenPoint:aPoint];
+}
+
 - (void)mouseUpAtPoint
 {
     [self.client didReleaseTouch];

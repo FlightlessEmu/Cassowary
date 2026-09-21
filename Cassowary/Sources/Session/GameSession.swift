@@ -93,6 +93,20 @@ final class GameSession: NSObject {
     /// Reported by the helper once the core knows its output size.
     var screenSize: OEIntSize = .init()
     var aspectSize: OEIntSize = .init()
+
+    /// The core's picture size.
+    ///
+    /// The helper only reports a size when it *changes*, and a core with a
+    /// fixed picture — melonDS's two screens, say — never changes, so the
+    /// reported value can stay empty. Fall back to asking the core.
+    var videoBufferSize: OEIntSize {
+        screenSize.width > 0 && screenSize.height > 0 ? screenSize : (helper.gameCore?.bufferSize ?? screenSize)
+    }
+
+    /// The shape the core wants its picture shown at.
+    var videoAspectSize: OEIntSize {
+        aspectSize.width > 0 && aspectSize.height > 0 ? aspectSize : (helper.gameCore?.aspectSize ?? aspectSize)
+    }
     var discCount: UInt = 0
     var displayModes: [[String: Any]] = []
 
@@ -104,8 +118,9 @@ final class GameSession: NSObject {
     /// The core reports the aspect size it wants, which is not always the
     /// buffer size — a Game Boy outputs 160×144 pixels but displays at 10:9.
     var displayAspectRatio: CGFloat {
-        guard aspectSize.width > 0, aspectSize.height > 0 else { return 1 }
-        return CGFloat(aspectSize.width) / CGFloat(aspectSize.height)
+        let aspect = videoAspectSize
+        guard aspect.width > 0, aspect.height > 0 else { return 1 }
+        return CGFloat(aspect.width) / CGFloat(aspect.height)
     }
 
     /// Tell the renderer how big the display area is.
@@ -334,6 +349,31 @@ final class GameSession: NSObject {
     /// core reads it as released, so no press/release pairing is needed.
     func moveAnalog(_ button: OESystemKey, value: CGFloat) {
         helper.systemResponder?.changeAnalogEmulatorKey(button, value: value)
+    }
+
+    // MARK: - Touch screen
+
+    /// The picture's size after the core's aspect correction, which is the
+    /// shape the game is drawn in.
+    var displaySize: CGSize {
+        let corrected = videoBufferSize.corrected(forAspectSize: videoAspectSize)
+        return CGSize(width: CGFloat(corrected.width), height: CGFloat(corrected.height))
+    }
+
+    /// Press the emulated touch screen. The point is in the core's buffer
+    /// pixels; the core decides which screen it lands on.
+    func touchDown(at point: OEIntPoint) {
+        helper.handleMouseEvent(OEEvent(type: .leftMouseDown, locationInGameView: point))
+    }
+
+    /// Drag a touch that is already down.
+    func touchMoved(to point: OEIntPoint) {
+        helper.handleMouseEvent(OEEvent(type: .mouseMoved, locationInGameView: point))
+    }
+
+    /// Lift the touch.
+    func touchUp() {
+        helper.handleMouseEvent(OEEvent(type: .leftMouseUp, locationInGameView: OEIntPoint(x: 0, y: 0)))
     }
 
     func setPaused(_ paused: Bool) {

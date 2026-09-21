@@ -45,7 +45,8 @@ Apple; see `src/ARMJIT_Memory.cpp` and `src/ARMJIT.cpp`.
 
 - DS games, one frame at a time, with both screens stacked into one picture
   (256×384).
-- Buttons, the touch screen, and the lid (the `Lid` binding closes it).
+- Buttons, the touch screen — a finger on iPhone and iPad, a mouse or trackpad
+  click-drag on the Mac — and the lid (the `Lid` binding closes it).
 - Sound, resampled to 48 kHz.
 - Battery saves (`.sav` next to the ROM's save), and save states.
 - The Rumble Pak, played through the same haptics path as the N64 core.

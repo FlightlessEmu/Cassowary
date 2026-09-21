@@ -48,6 +48,17 @@ static NSString *const OEEventTypeKey = @"OEEventType";
     return self;
 }
 
+- (instancetype)initWithType:(OEPlatformMouseEventType)type withLocationInGameView:(OEIntPoint)aLocation;
+{
+    if((self = [super init]))
+    {
+        _type = type;
+        _locationInGameView = aLocation;
+    }
+
+    return self;
+}
+
 + (BOOL)supportsSecureCoding
 {
     return YES;

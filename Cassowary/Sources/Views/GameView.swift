@@ -63,9 +63,27 @@ struct GameView: View {
             Color.black.ignoresSafeArea()
 
             if let session, let layer = session.videoLayer, let layout {
-                GameLayerView(layer: layer) { bounds in
-                    session.updateDisplayBounds(bounds)
-                }
+                GameLayerView(
+                    layer: layer,
+                    bufferSize: {
+                        let size = session.videoBufferSize
+                        return CGSize(width: CGFloat(size.width), height: CGFloat(size.height))
+                    },
+                    aspectRatio: { session.displayAspectRatio },
+                    onTouch: { touch in
+                        switch touch {
+                        case .down(let point):
+                            session.touchDown(at: GameView.bufferPoint(point))
+                        case .moved(let point):
+                            session.touchMoved(to: GameView.bufferPoint(point))
+                        case .up:
+                            session.touchUp()
+                        }
+                    },
+                    onResize: { bounds in
+                        session.updateDisplayBounds(bounds)
+                    }
+                )
                 .ignoresSafeArea()
 
                 OnScreenControls(layout: layout, session: session)
@@ -453,6 +471,11 @@ struct GameView: View {
         }
     }
 
+    /// A touch point, rounded into the core's buffer pixels.
+    private static func bufferPoint(_ point: CGPoint) -> OEIntPoint {
+        OEIntPoint(x: Int32(point.x.rounded(.down)), y: Int32(point.y.rounded(.down)))
+    }
+
     /// Automated test hooks, set on the command line by Scripts/cassowary/test-cassowary.sh.
     private func runTestHooks(_ session: GameSession) {
 #if DEBUG
@@ -504,6 +527,21 @@ struct GameView: View {
                 session.pressButton(named: button)
                 try? await Task.sleep(for: .milliseconds(150))
                 session.releaseButton(named: button)
+            }
+        }
+
+        // Tap the emulated touch screen at a point in buffer pixels, written
+        // as "x,y". Used to check the touch path without a finger, and to
+        // knock on Nintendogs' door in the end-to-end test.
+        if let spec = UserDefaults.standard.string(forKey: "cassowary.testTouch") {
+            let parts = spec.split(separator: ",").compactMap { Int32($0.trimmingCharacters(in: .whitespaces)) }
+            if parts.count == 2 {
+                Task {
+                    try? await Task.sleep(for: .seconds(3))
+                    session.touchDown(at: OEIntPoint(x: parts[0], y: parts[1]))
+                    try? await Task.sleep(for: .milliseconds(150))
+                    session.touchUp()
+                }
             }
         }
 
