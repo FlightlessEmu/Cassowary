@@ -33,8 +33,8 @@ It descends from:
 
 ## Ground Rules
 
-1. **Never commit directly to `main`.** All work goes through feature branches → PRs → `main`.
-2. **Branch from `main`, open PRs against `main`.** There is no staging branch.
+1. **No pull requests for now.** Work lands on `main` directly, once the build passes. The PR flow comes back when the app is in better shape.
+2. **Branch from `main` when you branch.** Feature branches and worktrees are fine for experiments; merge them into `main` when the work is ready. There is no staging branch.
 3. **Build before committing.** Run the app build (below) on any Swift/ObjC change before staging a commit.
 4. **Don't rewrite files wholesale.** This is a large project with many third-party cores. Make surgical changes. Rewriting an Xcode project or a core source file without understanding it will break the build.
 5. **Respect the flattened architecture.** Core directories under `cores/` are regular directories — do not attempt to re-initialize them as git submodules.
@@ -152,42 +152,25 @@ becomes a row, and every staged core appears in that system's core picker.
 
 ---
 
-## Branch and PR Rules
+## Branch Rules
+
+Pull requests are paused for now — merge branches into `main` locally instead.
+When PRs come back, this section should get the PR rules back too.
 
 **Branches:**
 
 | Rule | Why |
 |------|-----|
 | Always branch from `main` | Prevents tangled history |
-| One branch = one concern | Keeps PRs focused and reviewable |
-| Never reuse a merged branch | New commits on a merged branch have no PR — invisible |
+| One branch = one concern | Keeps changes focused and reviewable |
+| Never reuse a merged branch | New commits on a merged branch can go missing |
 | Branch name must match content | If scope changes, start a new branch |
-| Delete local branch after merge | `git branch -d` immediately after syncing main |
+| Delete local branch after merge | `git branch -d` once its work is on main |
 
-**PRs:**
+**Commit messages:** `fix: description` / `feat: description` / `chore: description`
 
-- **PR title format:** `fix: description` / `feat: description` / `chore: description`
-- **Use the PR template** — `.github/PULL_REQUEST_TEMPLATE.md` auto-populates. Fill every section.
-- Each PR addresses one issue or one logical change — no bundled unrelated fixes
-- Reference the issue with `Fixes #N` in the commit body (auto-closes on merge) or `Related to #N` (soft link)
-
-**Every PR description must include a "How to test locally" section** with exact copy-paste commands:
-
-```
-## How to test locally
-
-# 1. Check out this PR
-gh pr checkout <N>
-
-# 2. Build
-./Scripts/cassowary/build-cassowary.sh
-
-# 3. Run
-./Scripts/cassowary/run-cassowary.sh
-```
-
-Add any PR-specific setup below — which ROM or system to test, and the
-specific behaviors to verify.
+Reference an issue in the commit body with `Fixes #N` (auto-closes on merge)
+or `Related to #N` (soft link).
 
 ---
 
@@ -302,16 +285,16 @@ xcodegen generate --spec Cassowary/project.yml --project Cassowary
 
 # --- Start of every new piece of work ---
 git checkout main
-git fetch origin && git merge origin/main
 
-# Create a feature branch
+# Optional: work on a feature branch
 git checkout -b fix/your-description
 
 # Stage and commit
 git add -p
 git commit -m "fix: description"
 
-# Push and open a PR — always in the same step, never one without the other
-git push -u origin fix/your-description
-gh pr create --base main --title "fix: your-description" --body "..."
+# Land it: move main to the branch, then delete the branch
+git checkout main
+git merge --ff-only fix/your-description
+git branch -d fix/your-description
 ```

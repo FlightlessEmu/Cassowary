@@ -726,6 +726,35 @@ public final class FilterChain {
         }
     }
     
+    /// The texture `renderFinalPass` would draw, without actually drawing it.
+    ///
+    /// A caller that wants to enlarge the final picture itself — MetalFX, for
+    /// example — needs the raw texture at its own size instead of the
+    /// nearest-neighbour stretch the final pass produces. Returns nil while a
+    /// filter's last pass draws straight into the destination, because then
+    /// there is no intermediate texture to hand out.
+    public var finalSourceTexture: MTLTexture? {
+        if !hasShader || passCount == 0 {
+            return historyTextures[0].view
+        }
+        return pass[lastPassIndex].renderTarget.view
+    }
+    
+    /// Draw a picture that is already the right size into the output bounds,
+    /// one texel per pixel. Used to put the result of an external upscaler on
+    /// screen.
+    public func renderFinalTexture(_ texture: MTLTexture,
+                                   withCommandEncoder rce: MTLRenderCommandEncoder,
+                                   flipVertically: Bool) {
+        rce.setViewport(outputFrame.viewport)
+        if flipVertically {
+            rce.setVertexBytes(&vertexFlipped, length: vertexSizeBytes, index: BufferIndex.positions.rawValue)
+        } else {
+            rce.setVertexBytes(&vertex, length: vertexSizeBytes, index: BufferIndex.positions.rawValue)
+        }
+        renderTexture(texture, renderCommandEncoder: rce)
+    }
+    
     private func resizeRenderTargets() {
         guard renderTargetsNeedResize else { return }
         
