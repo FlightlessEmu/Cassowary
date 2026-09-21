@@ -45,7 +45,7 @@ fi
 SDK=$(xcrun --sdk "$SDK_NAME" --show-sdk-path)
 case "$MODE" in
   catalyst) SDK_BUILD="$PWD/build/catalyst" ;;
-  *)        SDK_BUILD="$PWD/OpenEmu-SDK/build/Debug-iphone${MODE}" ;;
+  *)        SDK_BUILD="$PWD/OpenEmu-SDK/build/Debug-${SDK_NAME}" ;;
 esac
 OUT="build/cassowary-plugins-${MODE}/${PLUGIN}.oesystemplugin"
 
@@ -69,7 +69,7 @@ if [[ ! -d "$SDK_BUILD/OpenEmuSystem.framework" ]]; then
   print -u2 -- "building the SDK for iOS first..."
   xcodebuild -project OpenEmu-SDK/OpenEmu-SDK.xcodeproj \
     -target OpenEmuBase -target OpenEmuSystem \
-    -configuration Debug -sdk iphone${PLATFORM} \
+    -configuration Debug -sdk "$SDK_NAME" \
     ARCHS=arm64 ONLY_ACTIVE_ARCH=NO build >/dev/null
 fi
 
@@ -190,9 +190,9 @@ for resource in "$SOURCE_DIR"/*.plist; do
 done
 
 # Asset catalogs have to be compiled, not copied: the app reads them through
-# NSBundle's asset API, which looks for Assets.car.
-ACTOOL_PLATFORM="iphone${MODE}"
-[[ "$MODE" == catalyst ]] && ACTOOL_PLATFORM="macosx"
+# NSBundle's asset API, which looks for Assets.car. actool names platforms the
+# way the SDK does (iphoneos, iphonesimulator, macosx).
+ACTOOL_PLATFORM="$SDK_NAME"
 if [[ -d "$SOURCE_DIR/Images.xcassets" ]]; then
   xcrun actool "$SOURCE_DIR/Images.xcassets" \
     --compile "$OUT" \

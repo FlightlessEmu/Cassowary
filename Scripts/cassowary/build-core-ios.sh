@@ -51,7 +51,7 @@ done
 SDK=$(xcrun --sdk "$SDK_NAME" --show-sdk-path)
 case "$PLATFORM" in
   catalyst) SDK_BUILD="$PWD/build/catalyst" ;;
-  *)        SDK_BUILD="$PWD/OpenEmu-SDK/build/Debug-iphone${PLATFORM}" ;;
+  *)        SDK_BUILD="$PWD/OpenEmu-SDK/build/Debug-${SDK_NAME}" ;;
 esac
 
 # Mac Catalyst builds against the macOS SDK plus the iOS support frameworks;
@@ -289,6 +289,7 @@ fi
 
 PLUGIN_DIR="build/cassowary-plugins/${PRODUCT}.${WRAPPER}"
 case "$PLATFORM" in
+  device)   PLUGIN_DIR="build/cassowary-plugins-device/${PRODUCT}.${WRAPPER}" ;;
   catalyst) PLUGIN_DIR="build/cassowary-plugins-catalyst/${PRODUCT}.${WRAPPER}" ;;
 esac
 rm -rf "$PLUGIN_DIR"

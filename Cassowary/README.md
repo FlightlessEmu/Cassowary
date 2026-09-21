@@ -61,6 +61,48 @@ One-command dev loop and end-to-end test:
 ./Scripts/cassowary/test-cassowary.sh
 ```
 
+## Running on a real iPhone
+
+```bash
+./Scripts/cassowary/build-cassowary.sh --device   # build and sign for the phone
+./Scripts/cassowary/run-cassowary.sh --device     # install and launch
+```
+
+One-time setup:
+
+1. Connect the iPhone and tap **Trust** on it.
+2. Turn on **Settings → Privacy & Security → Developer Mode** (iOS 16 and
+   later).
+3. Add your Apple ID in **Xcode → Settings → Accounts**. A free account works;
+   apps it signs stop working after 7 days, and building again renews them.
+
+The scripts use the only connected phone and the only Apple Development
+certificate on the Mac. With more than one of either, pass `--udid` and
+`--team` (or set `DEVELOPMENT_TEAM`). Add `--no-sign` to check that a device
+build compiles without needing an account; the result will not install.
+
+The same commands work over Wi-Fi after a one-time pairing: in Xcode's
+**Window → Devices and Simulators**, select the phone and tick **Connect via
+network**. The cable is only needed for that first pairing.
+
+To put a game on the phone:
+
+```bash
+./Scripts/cassowary/run-cassowary.sh --device --game ~/Games/Legend.gb
+```
+
+Games can also be dragged into the app's folder in Finder once the app is
+installed.
+
+The first `--device` build compiles every core for the phone, so it takes
+longer than a Simulator build. Later builds only compile what changed.
+
+If signing fails, it is usually the Apple ID session or the Xcode license:
+run `sudo xcodebuild -license accept` once, and check that **Xcode → Settings
+→ Accounts** shows your Apple ID without an error. Xcode also has to prepare
+the phone for development the first time — open **Window → Devices and
+Simulators**, keep the phone unlocked, and wait for that to finish.
+
 ## Running (Simulator by hand)
 
 ```bash
