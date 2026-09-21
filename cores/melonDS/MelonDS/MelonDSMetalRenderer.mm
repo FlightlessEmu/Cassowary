@@ -22,6 +22,8 @@
 #include "GPU.h"
 #include "GPU3D_Soft.h"
 
+#include <algorithm>
+#include <cmath>
 #include <cstdlib>
 #include <cstring>
 #include <simd/simd.h>
@@ -374,6 +376,159 @@ namespace
 /// allows the same amount of span indices as its own renderer does.
 constexpr u32 kMaxSpanIndices = 64 * 2048;
 
+/// The span flags the shaders test, matching melonDS's.
+constexpr u32 kXSpanSetup_Linear = 1U << 0;
+constexpr u32 kXSpanSetup_FillInside = 1U << 1;
+constexpr u32 kXSpanSetup_FillLeft = 1U << 2;
+constexpr u32 kXSpanSetup_FillRight = 1U << 3;
+
+/// The shift the span setup interpolates with. melonDS uses nine bits here
+/// and eight in the rasteriser, because the setup is the more precise of the
+/// two.
+constexpr int kYFactorShift = 9;
+
+s32 FindMSB(u32 value) noexcept
+{
+    return 31 - __builtin_clz(value);
+}
+
+/// Interpolation along a span. These are melonDS's (`InterpSpans` in
+/// GPU3D_Compute_shaders.h) with the 32-bit division tricks written as plain
+/// 64-bit arithmetic, which is what those tricks are a faster way of doing.
+s32 InterpolateAttrPersp(s32 y0, s32 y1, s32 ifactor) noexcept
+{
+    if (y0 == y1)
+        return y0;
+
+    if (y0 < y1)
+        return y0 + (s32) (((s64) (y1 - y0) * ifactor) >> kYFactorShift);
+
+    return y1 + (s32) (((s64) (y0 - y1) * ((1 << kYFactorShift) - ifactor)) >> kYFactorShift);
+}
+
+s32 InterpolateAttrLinear(s32 y0, s32 y1, s32 i, s32 irecip, s32 idiff) noexcept
+{
+    if (y0 == y1)
+        return y0;
+
+    irecip = std::abs(irecip);
+
+    u64 mul;
+    if (y0 < y1)
+        mul = (u64) (y1 - y0) * (u64) std::abs(i) * (u64) irecip;
+    else
+        mul = (u64) (y0 - y1) * (u64) std::abs(idiff - i) * (u64) irecip;
+
+    mul += 3ULL << 24;
+
+    if (y0 < y1)
+        return y0 + (s32) (mul >> 30);
+
+    return y1 + (s32) (mul >> 30);
+}
+
+u32 InterpolateZZBuffer(s32 z0, s32 z1, s32 i, s32 irecip, s32 idiff) noexcept
+{
+    if (z0 == z1)
+        return (u32) z0;
+
+    u32 base, disp, factor;
+    if (z0 < z1)
+    {
+        base = (u32) z0;
+        disp = (u32) (z1 - z0);
+        factor = (u32) std::abs(i);
+    }
+    else
+    {
+        base = (u32) z1;
+        disp = (u32) (z0 - z1);
+        factor = (u32) std::abs(idiff - i);
+    }
+
+    s32 shiftl = 0;
+    const s32 shiftr = 22;
+    if (disp > 0x3FF)
+    {
+        shiftl = FindMSB(disp) - 9;
+        disp >>= shiftl;
+    }
+
+    const u64 mul = (u64) (disp * factor) * (u64) (std::abs(irecip) >> 8);
+
+    return base + (u32) ((mul >> shiftr) << shiftl);
+}
+
+s32 CalcYFactorY(const SpanSetupY& span, s32 i) noexcept
+{
+    const u32 numLo = (u32) std::abs(i) * (u32) span.W0n;
+    const u32 numHi = numLo >> (32 - kYFactorShift);
+    const u32 num = numLo << kYFactorShift;
+
+    const u32 den = (u32) std::abs(i) * (u32) span.W0d
+                  + (u32) std::abs(span.I1 - span.I0 - i) * (u32) span.W1d;
+
+    if (den == 0)
+        return 0;
+
+    return (s32) ((((u64) numHi << 32) | num) / den);
+}
+
+s32 CalculateDx(s32 y, const SpanSetupY& span) noexcept
+{
+    return span.DxInitial + (y - span.Y0) * span.Increment;
+}
+
+s32 CalculateX(s32 dx, const SpanSetupY& span) noexcept
+{
+    s32 x = span.X0;
+    if (span.X1 < span.X0)
+        x -= dx >> 18;
+    else
+        x += dx >> 18;
+
+    return std::clamp(x, span.XMin, span.XMax);
+}
+
+void EdgeParams_XMajor(bool side, s32 dx, const SpanSetupY& span, s32& edgelen, s32& edgecov) noexcept
+{
+    const bool negative = span.X1 < span.X0;
+    s32 len;
+    if (side != negative)
+        len = (dx >> 18) - ((dx - span.Increment) >> 18);
+    else
+        len = ((dx + span.Increment) >> 18) - (dx >> 18);
+    edgelen = len;
+
+    const s32 xlen = span.XMax + 1 - span.XMin;
+    s32 startx = dx >> 18;
+    if (negative) startx = xlen - startx;
+    if (side) startx = startx - len + 1;
+
+    const s32 startcov = (s32) (((s64) ((startx << 10) + 0x1FF) * (span.Y1 - span.Y0)) / xlen);
+    edgecov = (s32) ((1U << 31) | ((u32) (startcov & 0x3FF) << 12) | ((u32) span.XCovIncr & 0x3FF));
+}
+
+void EdgeParams_YMajor(bool side, s32 dx, const SpanSetupY& span, s32& edgelen, s32& edgecov) noexcept
+{
+    const bool negative = span.X1 < span.X0;
+    edgelen = 1;
+
+    if (span.Increment == 0)
+    {
+        edgecov = 31;
+    }
+    else
+    {
+        s32 cov = ((dx >> 9) + (span.Increment >> 10)) >> 4;
+        if ((cov >> 5) != (dx >> 18)) cov = 31;
+        cov &= 0x1F;
+        if (side == negative) cov = 0x1F - cov;
+
+        edgecov = cov;
+    }
+}
+
 } // namespace
 
 Rasterizer3D::Rasterizer3D(id<MTLDevice> device) noexcept
@@ -388,6 +543,8 @@ Rasterizer3D::Rasterizer3D(id<MTLDevice> device) noexcept
 
     _ySpanSetups = [_device newBufferWithLength:sizeof(SpanSetupY) * MaxYSpanSetups
                                        options:MTLResourceStorageModeShared];
+    _xSpanSetups = [_device newBufferWithLength:sizeof(SpanSetupX) * kMaxSpanIndices
+                                       options:MTLResourceStorageModeShared];
     _yspanIndices = [_device newBufferWithLength:sizeof(SetupIndices) * kMaxSpanIndices
                                          options:MTLResourceStorageModeShared];
     _renderPolygons = [_device newBufferWithLength:sizeof(RenderPolygon) * MaxPolygons
@@ -395,13 +552,15 @@ Rasterizer3D::Rasterizer3D(id<MTLDevice> device) noexcept
     _metaUniform = [_device newBufferWithLength:sizeof(MetaUniform)
                                         options:MTLResourceStorageModeShared];
 
-    if (_ySpanSetups == nil || _yspanIndices == nil || _renderPolygons == nil || _metaUniform == nil)
+    if (_ySpanSetups == nil || _xSpanSetups == nil || _yspanIndices == nil
+        || _renderPolygons == nil || _metaUniform == nil)
     {
         NSLog(@"[melonDS] rasteriser: could not create its buffers");
         return;
     }
 
     _spans.resize(MaxYSpanSetups);
+    _xSpans.resize(kMaxSpanIndices);
     _spanIndices.resize(kMaxSpanIndices);
     _polygons.resize(MaxPolygons);
     _toonTable.resize(4 * 34);
@@ -624,10 +783,167 @@ void Rasterizer3D::SetupYSpan(RenderPolygon* rp, SpanSetupY* span, Polygon* poly
     }
 }
 
+void Rasterizer3D::SetupXSpan(SpanSetupX* xspan, SpanSetupY* spanL, SpanSetupY* spanR, u32 polyIdx, int y, u32 dispCnt) noexcept
+{
+    xspan->Flags = 0;
+
+    const s32 dxl = CalculateDx(y, *spanL);
+    const s32 dxr = CalculateDx(y, *spanR);
+
+    s32 xl = CalculateX(dxl, *spanL);
+    s32 xr = CalculateX(dxr, *spanR);
+
+    const RenderPolygon& polygon = _polygons[polyIdx];
+
+    s32 edgeLenL, edgeLenR;
+
+    if (xl > xr)
+    {
+        std::swap(*spanL, *spanR);
+        std::swap(xl, xr);
+
+        EdgeParams_YMajor(false, dxr, *spanL, edgeLenL, xspan->EdgeCovL);
+        EdgeParams_YMajor(true, dxl, *spanR, edgeLenR, xspan->EdgeCovR);
+    }
+    else
+    {
+        // edges are the right way
+        if (spanL->Increment > 0x40000)
+            EdgeParams_XMajor(false, dxl, *spanL, edgeLenL, xspan->EdgeCovL);
+        else
+            EdgeParams_YMajor(false, dxl, *spanL, edgeLenL, xspan->EdgeCovL);
+
+        if (spanR->Increment > 0x40000)
+            EdgeParams_XMajor(true, dxr, *spanR, edgeLenR, xspan->EdgeCovR);
+        else
+            EdgeParams_YMajor(true, dxr, *spanR, edgeLenR, xspan->EdgeCovR);
+    }
+
+    xspan->CovLInitial = (xspan->EdgeCovL >> 12) & 0x3FF;
+    if (xspan->CovLInitial == 0x3FF)
+        xspan->CovLInitial = 0;
+    xspan->CovRInitial = (xspan->EdgeCovR >> 12) & 0x3FF;
+    if (xspan->CovRInitial == 0x3FF)
+        xspan->CovRInitial = 0;
+
+    xspan->X0 = xl;
+    xspan->X1 = xr + 1;
+
+    const u32 polyalpha = (polygon.Attr >> 16) & 0x1FU;
+    const bool isWireframe = polyalpha == 0U;
+
+    if (!isWireframe || (y == polygon.YTop || y == polygon.YBot - 1))
+        xspan->Flags |= kXSpanSetup_FillInside;
+
+    xspan->InsideStart = xspan->X0 + edgeLenL;
+    if (xspan->InsideStart > xspan->X1)
+        xspan->InsideStart = xspan->X1;
+    xspan->InsideEnd = xspan->X1 - edgeLenR;
+    if (xspan->InsideEnd > xspan->X1)
+        xspan->InsideEnd = xspan->X1;
+
+    const bool fillAllEdges = polyalpha < 31 || (dispCnt & (3U << 4)) != 0U;
+
+    if (fillAllEdges || spanL->X1 < spanL->X0 || spanL->Increment <= 0x40000)
+        xspan->Flags |= kXSpanSetup_FillLeft;
+    if (fillAllEdges || (spanR->X1 >= spanR->X0 && spanR->Increment > 0x40000) || spanR->Increment == 0)
+        xspan->Flags |= kXSpanSetup_FillRight;
+
+    if (spanL->I0 == spanL->I1)
+    {
+        xspan->TexcoordU0 = spanL->TexcoordU0;
+        xspan->TexcoordV0 = spanL->TexcoordV0;
+        xspan->ColorR0 = spanL->ColorR0;
+        xspan->ColorG0 = spanL->ColorG0;
+        xspan->ColorB0 = spanL->ColorB0;
+        xspan->Z0 = spanL->Z0;
+        xspan->W0 = spanL->W0;
+    }
+    else
+    {
+        const s32 i = (spanL->Increment > 0x40000 ? xl : y) - spanL->I0;
+        const s32 ifactor = CalcYFactorY(*spanL, i);
+        const s32 idiff = spanL->I1 - spanL->I0;
+
+        xspan->Z0 = (s32) InterpolateZZBuffer(spanL->Z0, spanL->Z1, i, spanL->IRecip, idiff);
+
+        if (!spanL->Linear)
+        {
+            xspan->TexcoordU0 = InterpolateAttrPersp(spanL->TexcoordU0, spanL->TexcoordU1, ifactor);
+            xspan->TexcoordV0 = InterpolateAttrPersp(spanL->TexcoordV0, spanL->TexcoordV1, ifactor);
+
+            xspan->ColorR0 = InterpolateAttrPersp(spanL->ColorR0, spanL->ColorR1, ifactor);
+            xspan->ColorG0 = InterpolateAttrPersp(spanL->ColorG0, spanL->ColorG1, ifactor);
+            xspan->ColorB0 = InterpolateAttrPersp(spanL->ColorB0, spanL->ColorB1, ifactor);
+
+            xspan->W0 = InterpolateAttrPersp(spanL->W0, spanL->W1, ifactor);
+        }
+        else
+        {
+            xspan->TexcoordU0 = InterpolateAttrLinear(spanL->TexcoordU0, spanL->TexcoordU1, i, spanL->IRecip, idiff);
+            xspan->TexcoordV0 = InterpolateAttrLinear(spanL->TexcoordV0, spanL->TexcoordV1, i, spanL->IRecip, idiff);
+
+            xspan->ColorR0 = InterpolateAttrLinear(spanL->ColorR0, spanL->ColorR1, i, spanL->IRecip, idiff);
+            xspan->ColorG0 = InterpolateAttrLinear(spanL->ColorG0, spanL->ColorG1, i, spanL->IRecip, idiff);
+            xspan->ColorB0 = InterpolateAttrLinear(spanL->ColorB0, spanL->ColorB1, i, spanL->IRecip, idiff);
+
+            xspan->W0 = spanL->W0; // linear mode is only taken if W0 == W1
+        }
+    }
+
+    if (spanR->I0 == spanR->I1)
+    {
+        xspan->TexcoordU1 = spanR->TexcoordU0;
+        xspan->TexcoordV1 = spanR->TexcoordV0;
+        xspan->ColorR1 = spanR->ColorR0;
+        xspan->ColorG1 = spanR->ColorG0;
+        xspan->ColorB1 = spanR->ColorB0;
+        xspan->Z1 = spanR->Z0;
+        xspan->W1 = spanR->W0;
+    }
+    else
+    {
+        const s32 i = (spanR->Increment > 0x40000 ? xr : y) - spanR->I0;
+        const s32 ifactor = CalcYFactorY(*spanR, i);
+        const s32 idiff = spanR->I1 - spanR->I0;
+
+        xspan->Z1 = (s32) InterpolateZZBuffer(spanR->Z0, spanR->Z1, i, spanR->IRecip, idiff);
+
+        if (!spanR->Linear)
+        {
+            xspan->TexcoordU1 = InterpolateAttrPersp(spanR->TexcoordU0, spanR->TexcoordU1, ifactor);
+            xspan->TexcoordV1 = InterpolateAttrPersp(spanR->TexcoordV0, spanR->TexcoordV1, ifactor);
+
+            xspan->ColorR1 = InterpolateAttrPersp(spanR->ColorR0, spanR->ColorR1, ifactor);
+            xspan->ColorG1 = InterpolateAttrPersp(spanR->ColorG0, spanR->ColorG1, ifactor);
+            xspan->ColorB1 = InterpolateAttrPersp(spanR->ColorB0, spanR->ColorB1, ifactor);
+
+            xspan->W1 = InterpolateAttrPersp(spanR->W0, spanR->W1, ifactor);
+        }
+        else
+        {
+            xspan->TexcoordU1 = InterpolateAttrLinear(spanR->TexcoordU0, spanR->TexcoordU1, i, spanR->IRecip, idiff);
+            xspan->TexcoordV1 = InterpolateAttrLinear(spanR->TexcoordV0, spanR->TexcoordV1, i, spanR->IRecip, idiff);
+
+            xspan->ColorR1 = InterpolateAttrLinear(spanR->ColorR0, spanR->ColorR1, i, spanR->IRecip, idiff);
+            xspan->ColorG1 = InterpolateAttrLinear(spanR->ColorG0, spanR->ColorG1, i, spanR->IRecip, idiff);
+            xspan->ColorB1 = InterpolateAttrLinear(spanR->ColorB0, spanR->ColorB1, i, spanR->IRecip, idiff);
+
+            xspan->W1 = spanR->W0;
+        }
+    }
+
+    if (xspan->W0 == xspan->W1 && ((xspan->W0 | xspan->W1) & 0x7F) == 0)
+        xspan->Flags |= kXSpanSetup_Linear;
+
+    xspan->XRecip = (s32) (((u64) 1 << 30) / (u32) (xspan->X1 - xspan->X0));
+}
+
 void Rasterizer3D::SetupFrame(GPU& gpu) noexcept
 {
     const int screenWidth = 256;
     const int screenHeight = 192;
+    const u32 dispCnt = gpu.GPU3D.RenderDispCnt;
 
     u32 numSpans = 0;
     u32 numSpanIndices = 0;
@@ -709,6 +1025,7 @@ void Rasterizer3D::SetupFrame(GPU& gpu) noexcept
             _spanIndices[numSpanIndices].SpanIdxL = curSpanL;
             _spanIndices[numSpanIndices].SpanIdxR = curSpanR;
             _spanIndices[numSpanIndices].Y = ytop;
+            SetupXSpan(&_xSpans[numSpanIndices], &_spans[curSpanL], &_spans[curSpanR], i, ytop, dispCnt);
             numSpanIndices++;
         }
         else
@@ -769,6 +1086,7 @@ void Rasterizer3D::SetupFrame(GPU& gpu) noexcept
                 _spanIndices[numSpanIndices].SpanIdxL = curSpanL;
                 _spanIndices[numSpanIndices].SpanIdxR = curSpanR;
                 _spanIndices[numSpanIndices].Y = y;
+                SetupXSpan(&_xSpans[numSpanIndices], &_spans[curSpanL], &_spans[curSpanR], i, y, dispCnt);
                 numSpanIndices++;
             }
         }
@@ -782,6 +1100,7 @@ void Rasterizer3D::SetupFrame(GPU& gpu) noexcept
         return;
 
     memcpy(_ySpanSetups.contents, _spans.data(), sizeof(SpanSetupY) * numSpans);
+    memcpy(_xSpanSetups.contents, _xSpans.data(), sizeof(SpanSetupX) * numSpanIndices);
     memcpy(_yspanIndices.contents, _spanIndices.data(), sizeof(SetupIndices) * numSpanIndices);
     memcpy(_renderPolygons.contents, _polygons.data(), sizeof(RenderPolygon) * _numPolygons);
 
