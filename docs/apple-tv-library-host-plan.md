@@ -2,11 +2,22 @@
 
 _2026-09-21_
 
-Status: **Phase 0 in progress.** The tvOS target builds, and the bundled demo
-game runs in the Apple TV Simulator with working input and video. The engine
-port is proven; the library host (Phase 1) is next. Audio and a real Apple TV
-still need a hands-on check. Update this document as decisions change — it is
-meant to be corrected, not preserved.
+Status: **Phases 0–4 are built; Phase 5 is partial.** Everything below is in
+the `feat/tvos-phase0` worktree and needs a joint test pass on the Simulator
+and a real Apple TV. Audio, a physical controller on tvOS, and a real Apple TV
+are still unverified. Update this document as decisions change — it is meant
+to be corrected, not preserved.
+
+### What is built
+
+| Phase | State |
+|---|---|
+| 0 — Engine on Apple TV | Built. Demo game runs in the Apple TV Simulator. |
+| 1 — The link | Built. Bonjour discovery, one-tap Allow pairing, HTTP server on the phone, client on the TV, range downloads, hash checks. |
+| 2 — TV library and play | Built. Library grid with cover art and Ready/Download badges, download progress, play from cache, 2 GB budget with eviction, re-download after a purge. |
+| 3 — Saves, queue, conflicts | Built. Save states, battery saves, and play history sync both ways; unsent saves retry on every sync; conflicts ask with dates and sizes and can keep both. |
+| 4 — Games between devices | Built. "Send a Game" from the sharing screen to another device that is sharing; the receiver verifies the hash before storing it. |
+| 5 — Comfort | Partial. Favorites prefetch and the cache budget are in. Not built: phone as a controller, BIOS transfer, multi-disc grouping, "Play on Apple TV" from the phone. |
 
 ---
 

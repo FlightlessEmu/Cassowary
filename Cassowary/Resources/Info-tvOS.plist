@@ -28,5 +28,12 @@
 	<array>
 		<string>_cassowary._tcp</string>
 	</array>
+	<!-- The phone's server is plain HTTP on the local network. Without this,
+	     App Transport Security refuses the connection to a LAN address. -->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
 </dict>
 </plist>

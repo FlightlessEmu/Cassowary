@@ -186,6 +186,15 @@ targets:
       - path: Sources/Controls/InputBindings.swift
       - path: Sources/Controls/KeyboardKey.swift
       - path: Sources/Controls/RumbleHaptics.swift
+      # The transfer layer. The server and the host-side index are the
+      # phone's half of it, so they are not listed here.
+      - path: Sources/Transfer/TransferProtocol.swift
+      - path: Sources/Transfer/DeviceIdentity.swift
+      - path: Sources/Transfer/GameIdentity.swift
+      - path: Sources/Transfer/SaveStore.swift
+      - path: Sources/Transfer/SaveSync.swift
+      - path: Sources/Transfer/MediaClient.swift
+      - path: Sources/Transfer/PeerBrowser.swift
       - path: Resources
         buildPhase: resources
         excludes:

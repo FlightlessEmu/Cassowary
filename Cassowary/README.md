@@ -122,6 +122,38 @@ missing core shows up as "No core on this Apple TV" rather than a crash.
 On a real Apple TV the build signs like a phone build does (`--tvos`), and the
 app is installed from Xcode's **Devices** window or with `devicectl`.
 
+## Sharing the library with the Apple TV
+
+The Apple TV borrows games from a phone, iPad, or Mac. On the host, turn on
+**Settings → Share with Apple TV** and allow the TV in once. On the TV, pick
+the phone from the list. The TV copies a game into its cache before playing
+it, and sends saves back when it is done.
+
+What syncs, all of it through the same queue and retry rules:
+
+- save states (the `.oesavestate` beside the ROM),
+- battery saves, from each core's `Battery Saves` folder,
+- play history: last played, play count, and favorites.
+
+When the same game was played on two devices before they synced, the save is
+not overwritten: the TV or the phone asks which copy to keep, shows both
+dates and sizes, and can keep both (the copy that is not chosen is saved as a
+backup).
+
+The phone serves the library, so it has to stay open while the TV is playing;
+iOS stops serving when the app is put away. Nothing leaves the local network,
+and nothing is shared until the switch is turned on.
+
+The two-device check, with both Simulators:
+
+```bash
+./Scripts/cassowary/test-sharing.sh
+```
+
+It starts a phone with sharing on, checks the server with curl, then starts
+the Apple TV, makes it connect, download, and play, and compares two
+screenshots to prove the game is running.
+
 ## Running on a real iPhone
 
 ```bash

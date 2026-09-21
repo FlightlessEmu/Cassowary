@@ -33,7 +33,12 @@ import OpenEmuKit
 /// `GameSession` starts when the game does.
 struct TVPlayerView: View {
 
-    let game: TVDemoGame
+    let title: String
+    let url: URL
+    /// Called once the game has stopped, before the view goes away, so the
+    /// caller can file the save state and tell the phone about the session.
+    var onFinished: (() -> Void)?
+
     let onClose: () -> Void
 
     @State private var session: GameSession?
@@ -52,7 +57,7 @@ struct TVPlayerView: View {
                 .ignoresSafeArea()
 
                 if isPaused {
-                    pausedOverlay(session: session)
+                    pausedOverlay
                 }
             }
 
@@ -64,14 +69,14 @@ struct TVPlayerView: View {
         .overlay(alignment: .bottom) { noticeBanner }
         .task { startGame() }
         .onDisappear { stopGame() }
-        .onExitCommand { onClose() }
+        .onExitCommand { close() }
     }
 
     // MARK: - Controls
 
     private var controls: some View {
         HStack(spacing: 20) {
-            Button("Close") { onClose() }
+            Button("Close") { close() }
 
             if let session {
                 Button(isPaused ? "Resume" : "Pause") {
@@ -115,7 +120,7 @@ struct TVPlayerView: View {
         }
     }
 
-    private func pausedOverlay(session: GameSession) -> some View {
+    private var pausedOverlay: some View {
         ZStack {
             Color.black.opacity(0.55).ignoresSafeArea()
 
@@ -144,7 +149,7 @@ struct TVPlayerView: View {
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: 900)
 
-            Button("Close", action: onClose)
+            Button("Close", action: close)
         }
         .padding(60)
     }
@@ -155,12 +160,9 @@ struct TVPlayerView: View {
         guard session == nil else { return }
 
         do {
-            let session = try GameSession(romURL: game.url)
+            let session = try GameSession(romURL: url)
 
-            // The layout describes the system's controls. The session needs it
-            // before the game starts, so the bindings and anything that presses
-            // a button by name have something to resolve against.
-            if let plugin = TVDemoLibrary.systemPlugin(forExtension: game.url.pathExtension) {
+            if let plugin = TVDemoLibrary.systemPlugin(forExtension: url.pathExtension) {
                 session.layout = ControllerLayout(systemPlugin: plugin)
             }
 
@@ -168,12 +170,16 @@ struct TVPlayerView: View {
             session.start { }
 
             // Used by the run script to prove input reaches the emulator with
-            // no controller attached: hold the named button once the game is
-            // running. Only set from the command line.
+            // no controller attached: hold the named button for a few seconds
+            // once the game is running. It starts late and stops, so a test
+            // can tell a moving picture from a frozen one. Only set from the
+            // command line.
             if let button = UserDefaults.standard.string(forKey: "cassowary.testHoldButton") {
                 Task {
-                    try? await Task.sleep(for: .seconds(3))
+                    try? await Task.sleep(for: .seconds(6))
                     session.pressButton(named: button)
+                    try? await Task.sleep(for: .seconds(3))
+                    session.releaseButton(named: button)
                 }
             }
         } catch {
@@ -184,6 +190,11 @@ struct TVPlayerView: View {
     private func stopGame() {
         session?.stop()
         session = nil
+    }
+
+    private func close() {
+        onFinished?()
+        onClose()
     }
 
     private func report(_ result: Result<Void, Error>, success: String) {
