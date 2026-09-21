@@ -29,6 +29,7 @@ SDK_NAME=iphonesimulator
 TARGET=arm64-apple-ios17.0-simulator
 KEEP_GOING=0
 QUIET=0
+INTERPRETER=0
 
 for arg in "$@"; do
   case "$arg" in
@@ -44,15 +45,19 @@ for arg in "$@"; do
       ;;
     --keep-going) KEEP_GOING=1 ;;
     --quiet) QUIET=1 ;;
+    # N64 only: build the pure interpreter instead of the ARM64 dynarec.
+    # iOS does not allow JIT, so a device build has to use this.
+    --interpreter) INTERPRETER=1 ;;
     *) print -u2 -- "unknown option: $arg"; exit 1 ;;
   esac
 done
 
 SDK=$(xcrun --sdk "$SDK_NAME" --show-sdk-path)
-case "$PLATFORM" in
-  catalyst) SDK_BUILD="$PWD/build/catalyst" ;;
-  *)        SDK_BUILD="$PWD/OpenEmu-SDK/build/Debug-iphone${PLATFORM}" ;;
-esac
+# Keep this in step with build-cassowary.sh, which builds the SDK frameworks
+# into build/cassowary-<mode> before asking for cores to be built. Looking
+# anywhere else makes this script rebuild them, and for Catalyst that used to
+# mean plain macOS frameworks.
+SDK_BUILD="$PWD/build/cassowary-${PLATFORM}"
 
 # Mac Catalyst builds against the macOS SDK plus the iOS support frameworks;
 # without this, UIKit and friends are not on the search path.
@@ -65,10 +70,16 @@ SHELL_FILE="build/cassowary-core-info-${CORE}.sh"
 
 if [[ ! -d "$SDK_BUILD/OpenEmuBase.framework" ]]; then
   print -u2 -- "building the SDK frameworks for iOS first..."
+  case "$PLATFORM" in
+    catalyst) DESTINATION="platform=macOS,variant=Mac Catalyst" ; SDK_OPT=() ;;
+    device)   DESTINATION="generic/platform=iOS"                 ; SDK_OPT=(-sdk iphoneos) ;;
+    *)        DESTINATION="generic/platform=iOS Simulator"       ; SDK_OPT=(-sdk iphonesimulator) ;;
+  esac
   xcodebuild -project OpenEmu-SDK/OpenEmu-SDK.xcodeproj \
     -target OpenEmuBase -target OpenEmuSystem \
-    -configuration Debug -sdk "$SDK_NAME" \
-    ARCHS=arm64 ONLY_ACTIVE_ARCH=NO build >/dev/null
+    -configuration Debug "${SDK_OPT[@]}" -destination "$DESTINATION" \
+    ARCHS=arm64 ONLY_ACTIVE_ARCH=NO \
+    CONFIGURATION_BUILD_DIR="$SDK_BUILD" build >/dev/null
 fi
 
 mkdir -p build
@@ -141,6 +152,23 @@ case "$CORE" in
     # Apple marks a few calls unavailable that this core uses:
     # pthread_jit_write_protect_np in the JIT (iOS and Catalyst) and system()
     # in the RSP's config launcher. These switches replace them with no-ops.
+    if [[ "$INTERPRETER" == 1 ]]; then
+      # Pure interpreter: drop the dynarec defines and skip its sources,
+      # which only build with NEW_DYNAREC set. This is the iOS-device path,
+      # since iOS does not permit JIT.
+      EXTRA_CFLAGS=(${EXTRA_CFLAGS:#-DDYNAREC})
+      EXTRA_CFLAGS=(${EXTRA_CFLAGS:#-DNEW_DYNAREC=*})
+      kept_sources=()
+      kept_flags=()
+      for i in {1..${#SOURCES[@]}}; do
+        [[ "${SOURCES[$i]}" == */new_dynarec/* ]] && continue
+        kept_sources+=("${SOURCES[$i]}")
+        kept_flags+=("${SOURCE_FLAGS[$i]}")
+      done
+      SOURCES=("${kept_sources[@]}")
+      SOURCE_FLAGS=("${kept_flags[@]}")
+      print -- "building $CORE with the interpreter (no JIT)"
+    fi
     EXTRA_CFLAGS+=(-DMUPEN_NO_JIT_WRITE_PROTECT -DMUPEN_NO_SYSTEM)
     if [[ "$PLATFORM" == catalyst ]]; then
       # Compatibility/vidext.m still calls glGetIntegerv on Catalyst.

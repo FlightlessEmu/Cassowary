@@ -107,6 +107,11 @@ targets:
       properties:
         com.apple.security.app-sandbox: true
         com.apple.security.files.user-selected.read-write: true
+        # The Mupen64Plus N64 core runs a JIT (MAP_JIT) for its CPU emulation.
+        com.apple.security.cs.allow-jit: true
+        # Cores and their helper dylibs are ad-hoc signed in local builds, and
+        # library validation would refuse to load them.
+        com.apple.security.cs.disable-library-validation: true
     dependencies:
       # The frameworks are built for iOS by Scripts/cassowary/build-cassowary.sh
       # before this project is generated, then linked from the shared build

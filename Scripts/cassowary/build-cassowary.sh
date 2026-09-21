@@ -161,6 +161,10 @@ if [[ $APP_ONLY -eq 0 ]]; then
   # Stage what was built — nothing else. A broken controller in any staged
   # plugin crashes the library at startup, so the husk check below stays:
   # a staged plugin without an Info.plist is pruned, loudly.
+  # The destination directories are not in git; without them, cp -R creates
+  # the first one as a flattened copy of the first bundle (which then fails
+  # code signing).
+  mkdir -p Cassowary/PlugIns/Cores Cassowary/PlugIns/Systems
   rm -rf Cassowary/PlugIns/Cores/*.oecoreplugin
   rm -rf Cassowary/PlugIns/Systems/*.oesystemplugin
   if [[ ${#WANT_PRODUCTS[@]} -gt 0 ]]; then
