@@ -20,7 +20,10 @@
 #import "MelonDSMetalShaders.h"
 
 #include "GPU.h"
+#include "GPU3D_Soft.h"
 
+#include <cstdlib>
+#include <cstring>
 #include <simd/simd.h>
 
 using namespace melonDS;
@@ -64,6 +67,12 @@ Renderer::Renderer(id<MTLDevice> device, u32 width, u32 height) noexcept
       _ready(false),
       _frontIndex(0)
 {
+    // Until the Metal rasteriser draws polygons, the 3D layer is drawn by
+    // melonDS's software rasteriser. Setting MELONDS_3D=metal leaves that
+    // layer empty instead, which is what the port is tested against.
+    const char *mode = getenv("MELONDS_3D");
+    _softwareThreeD = (mode == nullptr) || (strcmp(mode, "metal") != 0);
+
     if (_device == nil)
     {
         NSLog(@"[melonDS] metal: no device");
@@ -168,14 +177,79 @@ void Renderer::ClearThreeDLayer() noexcept
 
 void Renderer::Reset(GPU& gpu)
 {
+    if (_software != nullptr)
+        _software->Reset(gpu);
+}
+
+void Renderer::VCount144(GPU& gpu)
+{
+    // Only the threaded software rasteriser uses this; it is kept in step so
+    // that turning that on later needs no change here.
+    if (_software != nullptr)
+        _software->VCount144(gpu);
 }
 
 void Renderer::RenderFrame(GPU& gpu)
 {
+    if (!_ready)
+        return;
 
-    // The 3D rasteriser's turn comes next; until then the 3D layer stays
-    // transparent and the compositor draws the 2D picture, which is what a
-    // game with no 3D shows anyway.
+    if (_softwareThreeD)
+        RenderSoftwareThreeD(gpu);
+
+    // The Metal rasteriser's turn comes next.
+}
+
+void Renderer::RestartFrame(GPU& gpu)
+{
+    if (_software != nullptr)
+        _software->RestartFrame(gpu);
+}
+
+void Renderer::RenderSoftwareThreeD(GPU& gpu) noexcept
+{
+    if (_software == nullptr)
+    {
+        _software = std::make_unique<SoftRenderer>();
+        _software->Reset(gpu);
+    }
+
+    _software->RenderFrame(gpu);
+
+    // The software rasteriser keeps the 3D layer in the DS's own pixel layout:
+    // 6 bits per colour and 5 of alpha, one word per pixel. The compositor
+    // samples the texture as 8-bit values and multiplies by 63 and 31, so each
+    // channel is widened here the way the DS widens it: the top bits of the
+    // value are repeated in the low bits.
+    if (_threeDPixels.size() != kScreenWidth * kScreenHeight)
+        _threeDPixels.resize(kScreenWidth * kScreenHeight);
+
+    for (NSUInteger y = 0; y < kScreenHeight; y++)
+    {
+        const u32 *src = _software->GetLine((int) y);
+        u32 *dst = _threeDPixels.data() + y * kScreenWidth;
+
+        for (NSUInteger x = 0; x < kScreenWidth; x++)
+        {
+            const u32 pixel = src[x];
+            const u32 r = pixel & 0x3F;
+            const u32 g = (pixel >> 8) & 0x3F;
+            const u32 b = (pixel >> 16) & 0x3F;
+            const u32 a = (pixel >> 24) & 0x1F;
+
+            const u32 r8 = (r << 2) | (r >> 4);
+            const u32 g8 = (g << 2) | (g >> 4);
+            const u32 b8 = (b << 2) | (b >> 4);
+            const u32 a8 = (a << 3) | (a >> 2);
+
+            dst[x] = b8 | (g8 << 8) | (r8 << 16) | (a8 << 24);
+        }
+    }
+
+    [_threeDTexture replaceRegion:MTLRegionMake2D(0, 0, kScreenWidth, kScreenHeight)
+                      mipmapLevel:0
+                        withBytes:_threeDPixels.data()
+                      bytesPerRow:kScreenWidth * sizeof(u32)];
 }
 
 void Renderer::Blit(const GPU& gpu)
@@ -266,44 +340,16 @@ void Renderer::WaitForCompletion() noexcept
 
 void Renderer::PrepareCaptureFrame()
 {
-    if (!_ready)
-        return;
-
-    if (_capturePixels.size() != kScreenWidth * kScreenHeight)
-    {
-        _capturePixels.resize(kScreenWidth * kScreenHeight);
-        _captureLine.resize(kScreenWidth * kScreenHeight);
-        _blankLine.assign(kScreenWidth, 0);
-    }
-
-    // The 3D layer is stored BGRA and the capture path wants 6-bit colours
-    // with 5 bits of alpha in the top byte, in the same word layout the 2D
-    // layers use (see DoCapture in GPU2D_Soft.cpp).
-    [_threeDTexture getBytes:_capturePixels.data()
-                 bytesPerRow:kScreenWidth * sizeof(u32)
-                  fromRegion:MTLRegionMake2D(0, 0, kScreenWidth, kScreenHeight)
-                 mipmapLevel:0];
-
-    for (size_t i = 0; i < _capturePixels.size(); i++)
-    {
-        const u32 pixel = _capturePixels[i];
-        const u32 r = (pixel >> 16) & 0xFF;
-        const u32 g = (pixel >> 8) & 0xFF;
-        const u32 b = pixel & 0xFF;
-        const u32 a = (pixel >> 24) & 0xFF;
-
-        _captureLine[i] = (r >> 2) | ((g >> 2) << 8) | ((b >> 2) << 16) | ((a >> 3) << 24);
-    }
-
-    _captureReady = true;
+    // With the software rasteriser the 3D layer is already on the CPU, so
+    // there is nothing to copy out of a texture here.
 }
 
 u32* Renderer::GetLine(int line)
 {
-    if (!_captureReady || line < 0 || line >= (int) kScreenHeight)
+    if (_software == nullptr || line < 0 || line >= (int) kScreenHeight)
         return kBlankLine;
 
-    return _captureLine.data() + (size_t) line * kScreenWidth;
+    return _software->GetLine(line);
 }
 
 } // namespace MelonDSMetal
