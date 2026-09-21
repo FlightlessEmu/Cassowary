@@ -58,11 +58,26 @@ struct SystemInfo: Hashable {
     }
 }
 
+/// What happened when files were handed to `GameLibrary.add(contentsOf:)`.
+///
+/// Adding games is normally silent — they simply appear in the grid — so this
+/// exists to explain a drop that was not taken in full.
+struct ImportSummary: Sendable {
+    /// File names copied into the library.
+    var added: [String] = []
+    /// File names already in the library; nothing was copied.
+    var alreadyInLibrary: [String] = []
+    /// File names no installed system has an extension for, and folders.
+    var unsupported: [String] = []
+    /// File names that could not be read or copied.
+    var failed: [String] = []
+}
+
 /// Finds games on disk and remembers which ones the user has added.
 ///
 /// The macOS app keeps a Core Data library with artwork, play counts and so on.
 /// This is a deliberately small stand-in: it scans the app's Documents folder,
-/// which is where files land when the user drags them in through the Files app.
+/// which is where files land when the user drags them in.
 @MainActor
 final class GameLibrary: ObservableObject {
 
@@ -123,5 +138,78 @@ final class GameLibrary: ObservableObject {
     func delete(_ game: Game) {
         try? FileManager.default.removeItem(at: game.url)
         refresh()
+    }
+
+    /// Copy files the user dropped onto the library into Documents, then
+    /// rescan.
+    ///
+    /// The copies happen away from the main actor: a disc image can be
+    /// hundreds of megabytes, and the library should not lock up while one
+    /// is copied.
+    func add(contentsOf urls: [URL]) async -> ImportSummary {
+        let supported = Set(Self.systemsByExtension().keys)
+        let documents = Self.documentsDirectory
+
+        let summary = await Task.detached(priority: .userInitiated) {
+            Self.copy(urls, into: documents, supportedExtensions: supported)
+        }.value
+
+        refresh()
+        return summary
+    }
+
+    /// The file work behind `add(contentsOf:)`, off the main actor.
+    ///
+    /// Dropped files sit outside the app's sandbox on the Mac, so access is
+    /// held for the copy and released straight after. A name already in
+    /// Documents is skipped rather than overwritten: it may be a different
+    /// game with the same name, and save states live beside the ROM.
+    private nonisolated static func copy(
+        _ urls: [URL],
+        into documents: URL,
+        supportedExtensions: Set<String>
+    ) -> ImportSummary {
+        let fm = FileManager.default
+        var summary = ImportSummary()
+
+        for url in urls {
+            let name = url.lastPathComponent
+
+            // Start access before touching the file: outside the sandbox even
+            // asking whether it exists fails without it.
+            let scoped = url.startAccessingSecurityScopedResource()
+            defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+
+            var isDirectory: ObjCBool = false
+            guard fm.fileExists(atPath: url.path, isDirectory: &isDirectory) else {
+                summary.failed.append(name)
+                continue
+            }
+            guard !isDirectory.boolValue else {
+                // Folders are not games; only files are copied.
+                summary.unsupported.append(name)
+                continue
+            }
+            guard supportedExtensions.contains(url.pathExtension.lowercased()) else {
+                summary.unsupported.append(name)
+                continue
+            }
+
+            let destination = documents.appendingPathComponent(name)
+            guard !fm.fileExists(atPath: destination.path) else {
+                summary.alreadyInLibrary.append(name)
+                continue
+            }
+
+            do {
+                try fm.copyItem(at: url, to: destination)
+                summary.added.append(name)
+            } catch {
+                NSLog("[Cassowary] could not add \(name): \(error.localizedDescription)")
+                summary.failed.append(name)
+            }
+        }
+
+        return summary
     }
 }
