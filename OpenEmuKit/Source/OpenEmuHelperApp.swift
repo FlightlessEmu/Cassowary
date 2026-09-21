@@ -539,6 +539,15 @@ extension OSLog {
         }
     }
     
+    /// Remove the active shader, going back to unfiltered output.
+    public func clearShader(_ completionHandler: @escaping () -> Void) {
+        gameCore.perform {
+            self._filterChain.clearShader()
+            self._currentShader = nil
+            completionHandler()
+        }
+    }
+
     func setShaderURL(_ url: URL, parameters: [String: Double]?) throws {
         if _currentShader != url {
             try _filterChain.setShader(fromURL: url, options: .makeOptions())

@@ -32,6 +32,7 @@ import SwiftUI
 struct SettingsView: View {
 
     @StateObject private var catalog = CoreCatalog()
+    @StateObject private var shaderCatalog = ShaderCatalog()
     @StateObject private var tester = PreviewPressHandler()
     @AppStorage("cassowary.padStyle") private var styleRaw: String = DPadStyle.buttons.rawValue
     @AppStorage("cassowary.buttonTheme") private var themeRaw: String = ButtonTheme.glass.rawValue
@@ -52,6 +53,13 @@ struct SettingsView: View {
         Binding(
             get: { ButtonTheme(rawValue: themeRaw) ?? .glass },
             set: { themeRaw = $0.rawValue }
+        )
+    }
+
+    private var globalShaderBinding: Binding<String?> {
+        Binding(
+            get: { shaderCatalog.globalShaderName },
+            set: { shaderCatalog.globalShaderName = $0 }
         )
     }
 
@@ -128,9 +136,23 @@ struct SettingsView: View {
                 }
 
                 Section {
+                    Picker("Video Filter", selection: globalShaderBinding) {
+                        Text("None").tag(nil as String?)
+                        ForEach(shaderCatalog.names, id: \.self) { name in
+                            Text(name).tag(name as String?)
+                        }
+                    }
+                    Text("Applies to every game unless a system sets its own below. A filter compiles the first time it is used, which takes a moment.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } header: {
+                    Text("Video")
+                }
+
+                Section {
                     ForEach(catalog.systems) { system in
                         NavigationLink {
-                            SystemCoresView(catalog: catalog, systemID: system.id)
+                            SystemCoresView(catalog: catalog, shaderCatalog: shaderCatalog, systemID: system.id)
                         } label: {
                             HStack(spacing: 12) {
                                 SystemIconView(system: system, size: 32)
@@ -189,6 +211,7 @@ struct SettingsView: View {
 private struct SystemCoresView: View {
 
     @ObservedObject var catalog: CoreCatalog
+    @ObservedObject var shaderCatalog: ShaderCatalog
     let systemID: String
 
     var body: some View {
@@ -205,6 +228,20 @@ private struct SystemCoresView: View {
                         .disabled(system.cores.isEmpty)
                     } footer: {
                         Text("Automatic uses the first installed core. This matches the macOS preference.")
+                    }
+
+                    Section {
+                        Picker("Video Filter", selection: shaderChoiceBinding(for: system)) {
+                            Text("Use Default").tag(ShaderCatalog.SystemChoice.automatic)
+                            Text("None").tag(ShaderCatalog.SystemChoice.none)
+                            ForEach(shaderCatalog.names, id: \.self) { name in
+                                Text(name).tag(ShaderCatalog.SystemChoice.shader(name))
+                            }
+                        }
+                    } header: {
+                        Text("Video")
+                    } footer: {
+                        Text(shaderSummary(for: system))
                     }
 
                     if !system.cores.isEmpty {
@@ -242,6 +279,24 @@ private struct SystemCoresView: View {
             get: { catalog.defaultCoreID(forSystemIdentifier: system.id) },
             set: { catalog.setDefaultCore($0, forSystemIdentifier: system.id) }
         )
+    }
+
+    private func shaderChoiceBinding(for system: SystemEntry) -> Binding<ShaderCatalog.SystemChoice> {
+        Binding(
+            get: { shaderCatalog.choice(forSystem: system.id) },
+            set: { shaderCatalog.setChoice($0, forSystem: system.id) }
+        )
+    }
+
+    /// One line explaining what this system will actually use.
+    private func shaderSummary(for system: SystemEntry) -> String {
+        let name = shaderCatalog.resolvedShaderName(forSystem: system.id)
+        switch shaderCatalog.choice(forSystem: system.id) {
+        case .automatic:
+            return name.map { "Following the app-wide setting: \($0)." } ?? "Following the app-wide setting: none."
+        case .none, .shader:
+            return name.map { "\($0) is used for this system." } ?? "No filter for this system."
+        }
     }
 }
 
@@ -301,6 +356,19 @@ struct AboutView: View {
                         .foregroundStyle(.secondary)
                 }
                 .padding(.vertical, 2)
+            }
+
+            Section {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("OpenEmu shader presets")
+                        .font(.headline)
+                    Text("The video filters — CRT Geom, CRT Royale Kurozumi, MAME HLSL, NTSC, VHS, and the rest — are the shader presets from the OpenEmu project, by their original authors (cgwg, Themaister, hunterk, TroggleMonkey, and others). They keep their authors' licenses: MIT, BSD-3-Clause, or GPL.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.vertical, 2)
+            } header: {
+                Text("Video Filters")
             }
 
             Section {

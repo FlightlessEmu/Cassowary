@@ -45,6 +45,8 @@ struct GameView: View {
     @State private var errorMessage: String?
     @State private var isPaused = false
     @State private var notice: String?
+    @StateObject private var shaderCatalog = ShaderCatalog()
+    @State private var shaderName: String?
 
     var body: some View {
         ZStack {
@@ -134,6 +136,26 @@ struct GameView: View {
                         session.resetEmulation()
                     }
                     Divider()
+                    Menu {
+                        Button {
+                            applyFilter(named: nil)
+                        } label: {
+                            filterMenuLabel("None", selected: shaderName == nil)
+                        }
+
+                        Divider()
+
+                        ForEach(shaderCatalog.names, id: \.self) { name in
+                            Button {
+                                applyFilter(named: name)
+                            } label: {
+                                filterMenuLabel(name, selected: shaderName == name)
+                            }
+                        }
+                    } label: {
+                        Label("Video Filter", systemImage: "camera.filters")
+                    }
+                    Divider()
                     Button("Close Game", role: .destructive) {
                         onClose()
                     }
@@ -176,6 +198,52 @@ struct GameView: View {
             return "\(system) · \(session.coreDisplayName)"
         }
         return session.coreDisplayName
+    }
+
+    // MARK: - Video filter
+
+    /// A filter row that shows a checkmark when it is the current filter.
+    @ViewBuilder
+    private func filterMenuLabel(_ title: String, selected: Bool) -> some View {
+        if selected {
+            Label(title, systemImage: "checkmark")
+        } else {
+            Text(title)
+        }
+    }
+
+    /// Apply the filter already chosen for this system, if any.
+    ///
+    /// The game starts unfiltered and the shader is compiled once it is
+    /// running, so a slow first compile never delays the launch.
+    private func applySavedFilter(on session: GameSession) {
+        shaderName = shaderCatalog.resolvedShaderName(forSystem: game.system?.identifier)
+        if let shader = shaderCatalog.shader(named: shaderName) {
+            session.setShader(shader)
+        }
+    }
+
+    /// Switch the filter on the running game and remember the pick for this
+    /// system, so the next launch uses it.
+    private func applyFilter(named name: String?) {
+        guard let session else { return }
+        shaderName = name
+
+        if let systemID = game.system?.identifier {
+            shaderCatalog.setChoice(name.map { .shader($0) } ?? .none, forSystem: systemID)
+        } else {
+            shaderCatalog.globalShaderName = name
+        }
+
+        show(notice: name.map { "Applying \($0)…" } ?? "Filter off")
+        session.setShader(shaderCatalog.shader(named: name)) { result in
+            switch result {
+            case .success:
+                show(notice: name.map { "\($0) on" } ?? "Filter off")
+            case .failure(let error):
+                show(notice: error.localizedDescription)
+            }
+        }
     }
 
     private func glassButton(_ symbol: String, action: @escaping () -> Void) -> some View {
@@ -286,7 +354,9 @@ struct GameView: View {
             }
 
             self.session = session
-            session.start {}
+            session.start {
+                self.applySavedFilter(on: session)
+            }
 
             runTestHooks(session)
         } catch {
@@ -321,6 +391,32 @@ struct GameView: View {
                 session.saveState { result in
                     if case .failure(let error) = result {
                         NSLog("[Cassowary] test save failed: %@", error.localizedDescription)
+                    }
+                }
+            }
+        }
+
+        // Apply a filter, then take it off again, to prove the pipeline both
+        // ways without a tap. Used by Scripts/cassowary/test-cassowary.sh.
+        if let shader = UserDefaults.standard.string(forKey: "cassowary.testShader") {
+            Task {
+                try? await Task.sleep(for: .seconds(3))
+                session.setShader(shaderCatalog.shader(named: shader)) { result in
+                    switch result {
+                    case .success:
+                        NSLog("[Cassowary] test shader applied: %@", shader)
+                    case .failure(let error):
+                        NSLog("[Cassowary] test shader failed: %@", error.localizedDescription)
+                    }
+                }
+
+                try? await Task.sleep(for: .seconds(2))
+                session.setShader(nil) { result in
+                    switch result {
+                    case .success:
+                        NSLog("[Cassowary] test shader cleared")
+                    case .failure(let error):
+                        NSLog("[Cassowary] test shader clear failed: %@", error.localizedDescription)
                     }
                 }
             }

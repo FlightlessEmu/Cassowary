@@ -223,6 +223,30 @@ final class GameSession: NSObject {
         helper.setPauseEmulation(paused)
     }
 
+    // MARK: - Video filter
+
+    /// Switch the running game's filter.
+    ///
+    /// Compiling a shader takes a moment, so the work happens on the core's
+    /// own thread and `completionHandler` reports when it is done. `nil` goes
+    /// back to plain, unfiltered output.
+    func setShader(_ shader: OEShaderModel?, completionHandler: ((Result<Void, Error>) -> Void)? = nil) {
+        guard let shader else {
+            helper.clearShader {
+                completionHandler?(.success(()))
+            }
+            return
+        }
+
+        helper.setShaderURL(shader.url, parameters: nil) { error in
+            if let error {
+                completionHandler?(.failure(error))
+            } else {
+                completionHandler?(.success(()))
+            }
+        }
+    }
+
     // MARK: - Save states
 
     /// Where save states for a game live.
