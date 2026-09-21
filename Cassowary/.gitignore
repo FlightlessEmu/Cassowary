@@ -1,6 +1,9 @@
 # Build products
 Frameworks/*.framework
 Frameworks-tvOS/*.framework
+# Which mode's frameworks are staged in Frameworks/ (written by build-cassowary.sh)
+Frameworks/.staged-mode
+Frameworks-tvOS/.staged-mode
 PlugIns/Cores/*.oecoreplugin
 PlugIns/Systems/*.oesystemplugin
 PlugIns-tvOS/Cores/*.oecoreplugin

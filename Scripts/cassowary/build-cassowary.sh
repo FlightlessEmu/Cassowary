@@ -121,6 +121,64 @@ case "$MODE" in
     ;;
 esac
 
+# Where a mode's core bundles are kept. Every mode has its own directory, so a
+# build never picks up another platform's binaries.
+core_output_dir() {
+  case "$MODE" in
+    simulator) print -- "build/cassowary-plugins" ;;
+    device)    print -- "build/cassowary-plugins-device" ;;
+    catalyst)  print -- "build/cassowary-plugins-catalyst" ;;
+    tvos)      print -- "build/cassowary-plugins-tvos" ;;
+    tvos-sim)  print -- "build/cassowary-plugins-tvos-sim" ;;
+  esac
+}
+
+# The staged folders are what Xcode links against, and they can only hold one
+# mode's binaries at a time. A full build stages the mode it just built; an
+# app-only build copies that mode's binaries back if the last full build was
+# for a different mode (the phone for a device right after the Simulator, or
+# the Apple TV right after its Simulator). Without this, an app-only build
+# links the wrong frameworks and fails in confusing ways.
+restage_for_mode() {
+  local stamp="$FRAMEWORKS_DIR/.staged-mode"
+
+  if [[ -f "$stamp" ]] && [[ "$(<"$stamp")" == "$MODE" ]]; then
+    return 0
+  fi
+
+  if [[ ! -d "$BUILD/OpenEmuKit.framework" ]]; then
+    print -u2 -- "error: no $MODE frameworks have been built yet."
+    print -u2 -- "       Run a full build for this mode once (drop --app-only)."
+    exit 1
+  fi
+
+  banner "Restaging the $MODE frameworks and plugins"
+
+  mkdir -p "$FRAMEWORKS_DIR"
+  rm -rf "$FRAMEWORKS_DIR"/*.framework
+  for framework in OpenEmuBase OpenEmuSystem OpenEmuKit OpenEmuShaders; do
+    cp -R "$BUILD/$framework.framework" "$FRAMEWORKS_DIR/"
+  done
+
+  mkdir -p "$PLUGINS_DIR/Cores" "$PLUGINS_DIR/Systems"
+  rm -rf "$PLUGINS_DIR"/Cores/*.oecoreplugin
+  rm -rf "$PLUGINS_DIR"/Systems/*.oesystemplugin
+
+  local src
+  for src in "$(core_output_dir)"/*.oecoreplugin; do
+    if [[ -d "$src" ]]; then
+      cp -R "$src" "$PLUGINS_DIR/Cores/"
+    fi
+  done
+  for src in "build/cassowary-plugins-$MODE"/*.oesystemplugin; do
+    if [[ -d "$src" ]]; then
+      cp -R "$src" "$PLUGINS_DIR/Systems/"
+    fi
+  done
+
+  print -- "$MODE" > "$stamp"
+}
+
 # tvOS device builds sign the same way a phone build does; the destination
 # names the Apple TV instead of a phone.
 DEVICE_LIKE=0
@@ -184,6 +242,12 @@ if [[ $DEVICE_LIKE -eq 1 && $SIGN -eq 1 ]]; then
 
   # The macOS sandbox entitlements are not valid on iOS. An empty value drops
   # the file XcodeGen generated from project.yml.
+  #
+  # The one entitlement worth having here is the user-assigned device name
+  # (so a phone advertises itself as "Milk" rather than "iPhone"), but Apple
+  # only grants it on request, and a personal team cannot use it at all.
+  # Until the team can have it, the name shown to the Apple TV comes from the
+  # field in the sharing settings.
   SIGN_FLAGS=(
     CODE_SIGNING_ALLOWED=YES
     CODE_SIGNING_REQUIRED=YES
@@ -276,6 +340,7 @@ if [[ $APP_ONLY -eq 0 ]]; then
     tvos|tvos-sim)
       CORES=(
         Gambatte:Gambatte
+        mGBA:mGBA
       )
       ;;
     *)
@@ -292,12 +357,13 @@ if [[ $APP_ONLY -eq 0 ]]; then
   esac
 
   case "$MODE" in
-    simulator) CORE_MODE_FLAG="" ; CORE_OUT="build/cassowary-plugins" ;;
-    device)    CORE_MODE_FLAG="--device" ; CORE_OUT="build/cassowary-plugins-device" ;;
-    catalyst)  CORE_MODE_FLAG="--catalyst" ; CORE_OUT="build/cassowary-plugins-catalyst" ;;
-    tvos)      CORE_MODE_FLAG="--tvos" ; CORE_OUT="build/cassowary-plugins-tvos" ;;
-    tvos-sim)  CORE_MODE_FLAG="--tvos-sim" ; CORE_OUT="build/cassowary-plugins-tvos-sim" ;;
+    simulator) CORE_MODE_FLAG="" ;;
+    device)    CORE_MODE_FLAG="--device" ;;
+    catalyst)  CORE_MODE_FLAG="--catalyst" ;;
+    tvos)      CORE_MODE_FLAG="--tvos" ;;
+    tvos-sim)  CORE_MODE_FLAG="--tvos-sim" ;;
   esac
+  CORE_OUT="$(core_output_dir)"
 
   # Cores take tens of minutes in total, so only build what is missing from
   # that mode's output directory. A core that fails warns loudly and is
@@ -378,6 +444,16 @@ if [[ $APP_ONLY -eq 0 ]]; then
       rm -rf "$staged"
     fi
   done
+
+  # Remember which mode this staging belongs to, so a later --app-only build
+  # can tell whether it has to copy anything back.
+  print -- "$MODE" > "$FRAMEWORKS_DIR/.staged-mode"
+fi
+
+# An app-only build skips the frameworks and plugins, so the staged copies
+# have to belong to this mode before Xcode links them.
+if [[ $APP_ONLY -eq 1 ]]; then
+  restage_for_mode
 fi
 
 # 5. The app.
