@@ -128,6 +128,18 @@ struct SettingsView: View {
                 }
 
                 Section {
+                    NavigationLink {
+                        KeyboardBindingsView(catalog: catalog)
+                    } label: {
+                        Label("Keyboard Bindings", systemImage: "keyboard")
+                    }
+                } header: {
+                    Text("Keyboard")
+                } footer: {
+                    Text("Play with a hardware keyboard. Bindings are per system, and start from the defaults each system's plugin ships.")
+                }
+
+                Section {
                     ForEach(catalog.systems) { system in
                         NavigationLink {
                             SystemCoresView(catalog: catalog, systemID: system.id)

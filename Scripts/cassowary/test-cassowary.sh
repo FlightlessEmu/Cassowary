@@ -9,9 +9,11 @@
 #   2. builds and installs the app
 #   3. copies the ROM into the app's Documents folder
 #   4. launches the app with the first game auto-booting
-#   5. screenshots, then repeats with A held
-#   6. checks that the two screenshots differ, which proves input reached the
-#      emulator and the video pipeline is live
+#   5. screenshots, then repeats with A held and with the key the plugin binds
+#      to A held
+#   6. checks that the screenshots differ, which proves input reached the
+#      emulator — through the touch path and the keyboard path — and that the
+#      video pipeline is live
 #
 # Usage:
 #   Scripts/cassowary/test-cassowary.sh [--device-id <udid>] [--skip-build]
@@ -109,12 +111,21 @@ capture idle
 print -- "capturing screen with A held..."
 capture held "-cassowary.testHoldButton OEGBButtonA"
 
+# The key the Game Boy plugin binds to A, pressed through the keyboard path.
+# A hardware keyboard cannot be attached to the Simulator from a script, so
+# the app presses the bound key itself; the mapping, the session and the core
+# are the real ones.
+print -- "capturing screen with the key bound to A held..."
+capture keyboard "-cassowary.testKeyboardButton OEGBButtonA"
+
 IDLE=$(average_brightness "$SHOTS/idle.png")
 HELD=$(average_brightness "$SHOTS/held.png")
+KEYBOARD=$(average_brightness "$SHOTS/keyboard.png")
 
 print -- ""
-print -- "idle brightness: $IDLE"
-print -- "held brightness: $HELD"
+print -- "idle brightness:     $IDLE"
+print -- "held brightness:     $HELD"
+print -- "keyboard brightness: $KEYBOARD"
 
 if [[ "$IDLE" == "$HELD" ]]; then
   print -u2 -- "FAIL: the screen did not change when A was pressed"
@@ -122,6 +133,12 @@ if [[ "$IDLE" == "$HELD" ]]; then
   exit 1
 fi
 
+if [[ "$IDLE" == "$KEYBOARD" ]]; then
+  print -u2 -- "FAIL: the screen did not change when the key bound to A was pressed"
+  print -u2 -- "      keyboard input is not reaching the emulator"
+  exit 1
+fi
+
 print -- ""
-print -- "PASS: the screen changed when A was pressed"
+print -- "PASS: the screen changed when A and its keyboard key were pressed"
 print -- "      screenshots in $SHOTS"

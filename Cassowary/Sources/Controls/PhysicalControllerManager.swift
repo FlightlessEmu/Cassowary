@@ -328,8 +328,9 @@ private struct DPadControls {
 /// Run `work` on the main actor.
 ///
 /// GameController calls its handlers on the main thread, but nothing in the
-/// API promises it, so be explicit and cheap about it.
-private func onMain(_ work: @escaping @MainActor () -> Void) {
+/// API promises it, so be explicit and cheap about it. Shared by the physical
+/// gamepad and keyboard managers.
+func onMain(_ work: @escaping @MainActor () -> Void) {
     if Thread.isMainThread {
         MainActor.assumeIsolated { work() }
     } else {

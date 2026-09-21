@@ -42,6 +42,7 @@ struct GameView: View {
     @State private var session: GameSession?
     @State private var layout: ControllerLayout?
     @State private var padControllers: PhysicalControllerManager?
+    @State private var keyboardInput: KeyboardControlManager?
     @State private var errorMessage: String?
     @State private var isPaused = false
     @State private var notice: String?
@@ -70,6 +71,15 @@ struct GameView: View {
         }
         .statusBarHidden()
         .persistentSystemOverlays(.hidden)
+        .background {
+            // The UIKit half of the keyboard: GameController does the main
+            // work, but it can be absent, so the responder chain covers it.
+            if let keyboardInput {
+                KeyboardKeyCaptureView { keyCode, isDown in
+                    keyboardInput.handle(keyCode: keyCode, isDown: isDown)
+                }
+            }
+        }
         .overlay(alignment: .top) {
             VStack(spacing: 8) {
                 topBar
@@ -84,6 +94,8 @@ struct GameView: View {
         .onDisappear {
             padControllers?.stop()
             padControllers = nil
+            keyboardInput?.stop()
+            keyboardInput = nil
             session?.stop()
             session = nil
         }
@@ -270,6 +282,7 @@ struct GameView: View {
 
         do {
             let session = try GameSession(romURL: game.url, core: core)
+            var keyboard: KeyboardControlManager?
 
             if let plugin = game.system.flatMap({ system in
                 OESystemPlugin.allPlugins.first { $0.systemIdentifier == system.identifier }
@@ -283,24 +296,50 @@ struct GameView: View {
                 let controllers = PhysicalControllerManager(session: session, layout: layout)
                 controllers.start()
                 padControllers = controllers
+
+                // A hardware keyboard drives them too, through the bindings
+                // Settings edits for this system.
+                let bindings = KeyboardBindings(systemPlugin: plugin, layout: layout)
+                let manager = KeyboardControlManager(session: session, bindings: bindings)
+                manager.start()
+                keyboardInput = manager
+                keyboard = manager
+
+#if DEBUG
+                // Writes a remap through the settings editor's own call, so
+                // the automated test can prove it survives a relaunch.
+                if let spec = UserDefaults.standard.string(forKey: "cassowary.testKeyboardRemap") {
+                    KeyboardBindings.testRemap(spec, systemPlugin: plugin, layout: layout)
+                }
+#endif
             }
 
             self.session = session
             session.start {}
 
-            runTestHooks(session)
+            runTestHooks(session, keyboard: keyboard)
         } catch {
             errorMessage = error.localizedDescription
         }
     }
 
     /// Automated test hooks, set on the command line by Scripts/cassowary/test-cassowary.sh.
-    private func runTestHooks(_ session: GameSession) {
+    private func runTestHooks(_ session: GameSession, keyboard: KeyboardControlManager?) {
 #if DEBUG
         if let button = UserDefaults.standard.string(forKey: "cassowary.testHoldButton") {
             Task {
                 try? await Task.sleep(for: .seconds(3))
                 session.pressButton(named: button)
+            }
+        }
+
+        // Press the key bound to a button, exercising the keyboard mapping
+        // without a hardware keyboard. The Simulator does not hand its
+        // keyboard to GameController.
+        if let button = UserDefaults.standard.string(forKey: "cassowary.testKeyboardButton") {
+            Task {
+                try? await Task.sleep(for: .seconds(3))
+                keyboard?.pressBoundKey(forButtonID: button)
             }
         }
 
