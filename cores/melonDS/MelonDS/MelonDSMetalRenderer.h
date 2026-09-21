@@ -37,6 +37,152 @@ class SoftRenderer;
 namespace MelonDSMetal
 {
 
+using melonDS::s32;
+using melonDS::u16;
+using melonDS::u32;
+
+// The data the Metal rasteriser and its compute shaders pass between each
+// other. The field order matters: the shaders declare the same structures and
+// read the same buffers, so these have to stay in step with them. They are
+// copies of melonDS's own (`GPU3D_Compute.h`) so the two can be read side by
+// side, and so a bug can be chased in either.
+
+/// One vertical span of a polygon: everything that is constant down a line of
+/// it, plus the slope used to walk to the next line.
+struct SpanSetupY
+{
+    // Attributes
+    s32 Z0, Z1, W0, W1;
+    s32 ColorR0, ColorG0, ColorB0;
+    s32 ColorR1, ColorG1, ColorB1;
+    s32 TexcoordU0, TexcoordV0;
+    s32 TexcoordU1, TexcoordV1;
+
+    // Interpolator
+    s32 I0, I1;
+    s32 Linear;
+    s32 IRecip;
+    s32 W0n, W0d, W1d;
+
+    // Slope
+    s32 Increment;
+
+    s32 X0, X1, Y0, Y1;
+    s32 XMin, XMax;
+    s32 DxInitial;
+
+    s32 XCovIncr;
+    u32 IsDummy;
+};
+
+/// One horizontal span: a run of pixels on one line, with the attributes at
+/// each end and the coverage values the edge marking needs.
+struct SpanSetupX
+{
+    s32 X0, X1;
+
+    s32 EdgeLenL, EdgeLenR, EdgeCovL, EdgeCovR;
+
+    s32 XRecip;
+
+    u32 Flags;
+
+    s32 Z0, Z1, W0, W1;
+    s32 ColorR0, ColorG0, ColorB0;
+    s32 ColorR1, ColorG1, ColorB1;
+    s32 TexcoordU0, TexcoordV0;
+    s32 TexcoordU1, TexcoordV1;
+
+    s32 CovLInitial, CovRInitial;
+};
+
+/// Which polygon and which of its spans a line belongs to.
+struct SetupIndices
+{
+    u16 PolyIdx, SpanIdxL, SpanIdxR, Y;
+};
+
+/// A polygon, as the rasteriser needs it: where it sits on screen, which
+/// shader variant draws it and the polygon's own attributes.
+struct RenderPolygon
+{
+    u32 FirstXSpan;
+    s32 YTop, YBot;
+
+    s32 XMin, XMax;
+    s32 XMinY, XMaxY;
+
+    u32 Variant;
+    u32 Attr;
+
+    float TextureLayer;
+};
+
+/// Values that are the same for every polygon in a frame.
+struct MetaUniform
+{
+    u32 NumPolygons;
+    u32 NumVariants;
+
+    u32 AlphaRef;
+    u32 DispCnt;
+
+    u32 ToonTable[4*34];
+
+    u32 ClearColor, ClearDepth, ClearAttr;
+
+    u32 FogOffset, FogShift, FogColor;
+};
+
+/// Draws the DS's 3D layer with Metal compute shaders.
+///
+/// This is the port of melonDS's compute renderer (`GPU3D_Compute.cpp`). It
+/// fills the same buffers with the same values, runs the same passes in the
+/// same order, and its shaders are the same maths — so a frame it draws can be
+/// compared, pixel for pixel, against the software rasteriser.
+///
+/// The port is being written pass by pass. While `MELONDS_3D` is not `metal`,
+/// the software rasteriser draws the 3D layer and this class does nothing.
+class Rasterizer3D
+{
+public:
+    Rasterizer3D(id<MTLDevice> device) noexcept;
+    ~Rasterizer3D() noexcept;
+
+    /// True when the shaders and buffers were built.
+    [[nodiscard]] bool IsReady() const noexcept { return _ready; }
+
+    /// Draws the frame's polygons into the 3D texture the compositor reads.
+    void Render(melonDS::GPU& gpu, id<MTLTexture> output) noexcept;
+
+private:
+    /// The largest number of vertical spans a frame can set up, matching
+    /// melonDS's own limit.
+    static constexpr int MaxYSpanSetups = 6144 * 2;
+    static constexpr int MaxPolygons = 2048;
+
+    __strong id<MTLDevice> _device;
+    __strong id<MTLLibrary> _library;
+
+    /// Where the passes read and write: the spans of every polygon, the
+    /// polygons themselves, and the buffers the binning and rasterising passes
+    /// use.
+    __strong id<MTLBuffer> _ySpanSetups;
+    __strong id<MTLBuffer> _xSpanSetups;
+    __strong id<MTLBuffer> _renderPolygons;
+    __strong id<MTLBuffer> _metaUniform;
+    __strong id<MTLBuffer> _yspanIndices;
+    __strong id<MTLBuffer> _binResult;
+    __strong id<MTLBuffer> _workDesc;
+
+    /// The tile buffers the rasteriser accumulates into before the final pass
+    /// finishes the picture.
+    __strong id<MTLBuffer> _tileMemory[3];
+    __strong id<MTLBuffer> _finalTileMemory;
+
+    bool _ready;
+};
+
 /// Draws the DS's 3D and composites its 2D layers with Metal.
 ///
 /// This is the app's replacement for melonDS's OpenGL and compute renderers:
