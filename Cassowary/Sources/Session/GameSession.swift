@@ -191,12 +191,10 @@ final class GameSession: NSObject {
         // unhandled-event monitor, which is off until a game asks for it.
         helper.setHandleEvents(true)
 
-#if targetEnvironment(macCatalyst)
-        // IOKit hands OEDeviceManager the Mac's controllers.
-#else
-        // iOS has no IOKit: the bridge builds devices from GameController.
+        // iOS has no IOKit, and Catalyst's sandbox blocks it. The bridge turns
+        // GameController's controllers into the devices the binding stack
+        // knows on both.
         OEiOSGameControllerManager.shared.start()
-#endif
 
         // The macOS app drives this from its RetroAchievements preferences. The
         // iOS app has no such screen yet, so hardcore mode is off: without it
@@ -216,9 +214,7 @@ final class GameSession: NSObject {
     func stop() {
         guard isRunning else { return }
         helper.setHandleEvents(false)
-#if !targetEnvironment(macCatalyst)
         OEiOSGameControllerManager.shared.stop()
-#endif
         rumble.stop()
         detachBindings()
         helper.stopEmulation {}

@@ -26,9 +26,10 @@
 
 #import "OEiOSGameControllerManager.h"
 
-// The synthetic devices belong to the iOS port: everywhere else IOKit hands
-// OEDeviceManager real devices to match.
-#if TARGET_OS_IOS && !TARGET_OS_MACCATALYST
+// The synthetic devices are built where IOKit cannot supply them: iOS has
+// none, and Mac Catalyst's sandbox blocks the HID user client. macOS proper
+// gets real devices from IOKit instead.
+#if TARGET_OS_IOS
 
 #import <GameController/GameController.h>
 #import <math.h>
@@ -250,7 +251,7 @@ static const OEGameControllerElementSpec OEGameControllerControlElements[OEGameC
         @kIOHIDTransportKey              : @kIOHIDTransportBluetoothValue,
     };
 
-    IOHIDDeviceRef deviceRef = IOHIDDeviceCreate(properties);
+    IOHIDDeviceRef deviceRef = OEHIDDeviceCreate(properties);
     OEGameControllerDevice *device = [[OEGameControllerDevice alloc] init];
     device.name = name;
     device.elements = [NSMutableArray arrayWithCapacity:OEGameControllerControlCount];
@@ -266,8 +267,8 @@ static const OEGameControllerElementSpec OEGameControllerControlElements[OEGameC
             @"logicalMax" : @(spec.logicalMax),
         };
 
-        IOHIDElementRef element = IOHIDElementCreate(elementProperties);
-        IOHIDDeviceAddElement(deviceRef, element);
+        IOHIDElementRef element = OEHIDElementCreate(elementProperties);
+        OEHIDDeviceAddElement(deviceRef, element);
         [device.elements addObject:[NSValue valueWithPointer:element]];
         CFRelease(element);
     }
@@ -422,6 +423,8 @@ NS_ASSUME_NONNULL_END
 
 #else
 
+// macOS: `OEDeviceManager` enumerates the real devices through IOKit, so the
+// bridge does nothing there.
 @implementation OEiOSGameControllerManager
 
 + (OEiOSGameControllerManager *)sharedManager

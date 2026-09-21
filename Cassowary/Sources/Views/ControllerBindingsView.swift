@@ -246,11 +246,10 @@ struct ControllerBindingsView: View {
 
     /// Pick the controller the rows describe, and start listening to it.
     private func refreshDevice() {
-        #if !targetEnvironment(macCatalyst)
-        // iOS has no IOKit: the bridge is what turns GameController's
-        // controllers into the devices the bindings stack knows.
+        // iOS has no IOKit, and Catalyst's sandbox blocks it: the bridge is
+        // what turns GameController's controllers into the devices the
+        // bindings stack knows.
         OEiOSGameControllerManager.shared.start()
-        #endif
 
         let handler = OEDeviceManager.shared.controllerDeviceHandlers.first
         if handler !== device {

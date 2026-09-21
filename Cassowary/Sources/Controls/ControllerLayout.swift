@@ -95,8 +95,9 @@ struct ControllerLayout {
     /// buttons, then start/select. Used to draw the on-screen pad.
     let groups: [[ControllerButton]]
 
-    /// The system button each physical control drives. This is the single
-    /// source of truth the on-screen controls and a real gamepad both use.
+    /// The system button each physical control drives, read from the plugin's
+    /// controller map. The on-screen d-pad and thumbstick styles are derived
+    /// from it, so the pad is laid out the way the plugin describes.
     let gamepadControls: [GamepadControl: ControllerButton]
 
     /// The direction buttons the d-pad styles drive.

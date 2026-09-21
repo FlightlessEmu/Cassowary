@@ -30,20 +30,22 @@ NS_ASSUME_NONNULL_BEGIN
 
 /*!
  * @class OEiOSGameControllerManager
- * @abstract Bridges GameController to OpenEmu's HID device model on iOS.
+ * @abstract Bridges GameController to OpenEmu's HID device model on iOS and
+ *   Mac Catalyst.
  *
- * @discussion iOS has no IOKit, so nothing enumerates controllers for
- *   `OEDeviceManager`. GameController reports the same elements a HID
- *   descriptor would, though, so this class builds one synthetic MFi
- *   extended gamepad per connected controller — the profile the system
- *   plugins' `Controller-Mappings.plist` files describe — and hands it to
+ * @discussion iOS has no IOKit, and Mac Catalyst's sandbox blocks the HID user
+ *   client, so nothing enumerates controllers for `OEDeviceManager` on
+ *   either. GameController reports the same elements a HID descriptor would,
+ *   though, so this class builds one synthetic MFi extended gamepad per
+ *   connected controller — the profile the system plugins'
+ *   `Controller-Mappings.plist` files describe — and hands it to
  *   `OEHIDDeviceParser`. Input changes become the HID values that parser's
  *   device handler dispatches, which is exactly what a real device does.
  *
  *   The binding stack cannot tell the difference: `OESystemBindings` creates
  *   device bindings for the controller, the responder resolves its events to
  *   emulator keys, and the settings screen can remap it. Nothing happens on
- *   macOS or Mac Catalyst, where IOKit provides the devices.
+ *   macOS, where IOKit provides the devices.
  */
 @interface OEiOSGameControllerManager : NSObject
 

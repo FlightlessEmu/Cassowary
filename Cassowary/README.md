@@ -22,7 +22,8 @@ credits and per-core licenses.
 - On-screen controls generated from each system plugin's own control list
 - Physical controllers through Apple's GameController framework — a paired
   gamepad drives the same buttons as the on-screen pad, using the mapping the
-  system plugin already ships
+  system plugin already ships, and is remappable in Settings → Controller
+  Bindings
 - Keyboard input, remappable per system in Settings → Keyboard Bindings
 - Three directional styles (Buttons, D-Pad, Thumbstick with analog support)
   and three button themes, with a pressable test pad in Settings → Controls
