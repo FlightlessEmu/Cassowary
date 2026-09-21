@@ -3,10 +3,37 @@
 _2026-09-21_
 
 Status: **Phases 0–4 are built; Phase 5 is partial.** Everything below is in
-the `feat/tvos-phase0` worktree and needs a joint test pass on the Simulator
-and a real Apple TV. Audio, a physical controller on tvOS, and a real Apple TV
-are still unverified. Update this document as decisions change — it is meant
-to be corrected, not preserved.
+the `feat/tvos-phase0` worktree. Tested on a real Apple TV (AppleTV11,1) and a
+real iPhone: the demo game plays, the TV finds the phone over Bonjour, pairs,
+pulls its library, and saves and play history move both ways. Still unverified:
+audio on tvOS, a physical controller on the TV, the conflict prompt, and large
+transfers. Update this document as decisions change — it is meant to be
+corrected, not preserved.
+
+### Notes from the real devices
+
+- A game picked while the phone is away is remembered: the TV says it will
+  start when a source is back, and it does, on the next connection.
+- The Apple TV asks for local network permission the first time. If it is
+  denied, every request to the phone fails, and the app can only say it cannot
+  reach it.
+- iOS stops serving the moment the app leaves the front, so the TV shows a
+  plain message ("Keep Cassowary open on it with sharing switched on") and
+  retries by itself every few seconds instead of needing a tap.
+- iOS 16 and later hide the phone's own name from apps. What the TV shows
+  comes from the name field in the sharing settings; reading the real name
+  needs an Apple entitlement that a personal team cannot have.
+- tvOS refuses `Library/Application Support`, so app state lives in
+  `Caches/Sharing`, and the engine's support folder is pointed at it too.
+- tvOS apps run in light appearance unless the Info.plist asks for dark.
+- `devicectl` cannot fetch app crash reports from a tvOS device — only system
+  analytics show up in `systemCrashLogs`. Attaching a console
+  (`devicectl device process launch --console`) is the way to catch a crash.
+  Killing that attach sends the app a SIGTERM, so it must not be interrupted
+  while the app is being watched.
+- Cores on the TV today: Gambatte (Game Boy) and mGBA (Game Boy Advance).
+  Everything else in the library shows "No TV core" until its core is built
+  with `build-core-ios.sh <Core> --tvos`.
 
 ### What is built
 
