@@ -153,18 +153,6 @@ struct SettingsView: View {
                 }
 
                 Section {
-                    NavigationLink {
-                        KeyboardBindingsView(catalog: catalog)
-                    } label: {
-                        Label("Keyboard Bindings", systemImage: "keyboard")
-                    }
-                } header: {
-                    Text("Keyboard")
-                } footer: {
-                    Text("Play with a hardware keyboard. Bindings are per system, and start from the defaults each system's plugin ships.")
-                }
-
-                Section {
                     Picker("Video Filter", selection: globalShaderBinding) {
                         Text("None").tag(nil as String?)
                         ForEach(shaderCatalog.names, id: \.self) { name in
@@ -260,6 +248,20 @@ private struct SystemCoresView: View {
             if let system = catalog.system(forIdentifier: systemID) {
                 List {
                     Section {
+                        HStack(spacing: 14) {
+                            SystemIconView(system: system, size: 52)
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(system.name)
+                                    .font(.title3.weight(.semibold))
+                                Text(coreCountSummary(for: system))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .padding(.vertical, 4)
+                    }
+
+                    Section {
                         Picker("Default Core", selection: defaultBinding(for: system)) {
                             Text("Automatic").tag(nil as String?)
                             ForEach(system.cores) { core in
@@ -283,6 +285,23 @@ private struct SystemCoresView: View {
                         Text("Video")
                     } footer: {
                         Text(shaderSummary(for: system))
+                    }
+
+                    Section {
+                        NavigationLink {
+                            KeyboardBindingsView(systemID: system.id, systemName: system.name)
+                        } label: {
+                            Label("Keyboard Bindings", systemImage: "keyboard")
+                        }
+                        NavigationLink {
+                            ControllerBindingsView(systemID: system.id, systemName: system.name)
+                        } label: {
+                            Label("Controller Bindings", systemImage: "gamecontroller")
+                        }
+                    } header: {
+                        Text("Controls")
+                    } footer: {
+                        Text("Both start from the defaults each system's plugin ships. Changes are saved as you make them.")
                     }
 
                     if !system.cores.isEmpty {
@@ -320,6 +339,12 @@ private struct SystemCoresView: View {
             get: { catalog.defaultCoreID(forSystemIdentifier: system.id) },
             set: { catalog.setDefaultCore($0, forSystemIdentifier: system.id) }
         )
+    }
+
+    private func coreCountSummary(for system: SystemEntry) -> String {
+        if system.cores.isEmpty { return "No core installed" }
+        if system.cores.count == 1 { return "1 core installed" }
+        return "\(system.cores.count) cores installed"
     }
 
     private func shaderChoiceBinding(for system: SystemEntry) -> Binding<ShaderCatalog.SystemChoice> {

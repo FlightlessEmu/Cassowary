@@ -27,86 +27,14 @@ import GameController
 import OpenEmuSystem
 import OpenEmuKit
 
-/// Picks a system to remap the keyboard for.
+/// Remaps the keys one system's buttons answer to.
 ///
 /// The bindings are the engine's: `OEBindingsController` holds one
 /// `OESystemBindings` per system, filled from the plugin's
-/// `Keyboard-Mappings.plist` and persisted in `Default.oebindings`. Listing
-/// the systems here keeps the editor one tap from the system it belongs to.
+/// `Keyboard-Mappings.plist` and persisted in `Default.oebindings`. Each row
+/// shows its key as a keycap, and the keycap fills in while that key is held,
+/// so a binding can be tried without starting a game.
 struct KeyboardBindingsView: View {
-
-    @ObservedObject var catalog: CoreCatalog
-
-    /// "8 keys · Defaults" and friends, built once per visit.
-    @State private var summaries: [String: String] = [:]
-
-    var body: some View {
-        List {
-            Section {
-                ForEach(catalog.systems) { system in
-                    NavigationLink {
-                        SystemKeyboardBindingsView(systemID: system.id, systemName: system.name)
-                    } label: {
-                        HStack(spacing: 12) {
-                            SystemIconView(system: system, size: 32)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(system.name)
-                                Text(summaries[system.id] ?? " ")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                        .padding(.vertical, 2)
-                    }
-                }
-            } footer: {
-                Text("These keys work while a game is running. Each system starts with the defaults from its own plugin.")
-            }
-        }
-        .navigationTitle("Keyboard")
-        .navigationBarTitleDisplayMode(.inline)
-        .onAppear {
-            catalog.refresh()
-            refreshSummaries()
-        }
-    }
-
-    private func refreshSummaries() {
-        var summaries: [String: String] = [:]
-
-        for system in catalog.systems {
-            guard let plugin = OESystemPlugin.allPlugins.first(where: { $0.systemIdentifier == system.id }),
-                  let controller = plugin.controller,
-                  let bindings = InputBindings.systemBindings(for: plugin)
-            else {
-                summaries[system.id] = "Not installed"
-                continue
-            }
-
-            let player = bindings.keyboardPlayerBindings(forPlayer: 1)
-            let bound = player?.bindingEvents.count ?? 0
-            let keys = bound == 1 ? "1 key" : "\(bound) keys"
-            summaries[system.id] = isCustomized(player, controller: controller) ? "\(keys) · Customized" : "\(keys) · Defaults"
-        }
-
-        self.summaries = summaries
-    }
-
-    /// Whether any bound key differs from the plugin's default.
-    private func isCustomized(_ player: OEKeyboardPlayerBindings?, controller: OESystemController) -> Bool {
-        guard let player else { return false }
-
-        let defaults = controller.defaultKeyboardControls ?? [:]
-        for (description, event) in player.bindingEvents {
-            guard let usage = defaults[description.name]?.uint32Value else { return true }
-            if Int(usage) != Int(event.keycode) { return true }
-        }
-        return false
-    }
-}
-
-/// The buttons of one system, each with the key that drives it.
-struct SystemKeyboardBindingsView: View {
 
     let systemID: String
     let systemName: String
@@ -120,6 +48,9 @@ struct SystemKeyboardBindingsView: View {
     /// Bumped after every edit; the bindings are plain Objective-C objects, so
     /// this is what tells SwiftUI the row text has changed.
     @State private var revision = 0
+
+    /// The live keyboard, for the pressed-key highlight.
+    @StateObject private var input = KeyboardInputMonitor()
 
     var body: some View {
         Group {
@@ -137,7 +68,7 @@ struct SystemKeyboardBindingsView: View {
                         Button("Restore Defaults") { reset() }
                             .disabled(!isCustomized)
                     } footer: {
-                        Text("Press a button to record a new key for it. Swipe left on a button to clear its key. \"—\" means the button has no key.")
+                        Text("Tap a button and press a key to record it. Swipe left on a button to clear its key. \"—\" means the button has no key.")
                     }
                 }
                 .id(revision)
@@ -151,9 +82,20 @@ struct SystemKeyboardBindingsView: View {
         }
         .navigationTitle(systemName)
         .navigationBarTitleDisplayMode(.inline)
-        .task { load() }
+        .background {
+            // The UIKit half of the keyboard: GameController can miss keys on
+            // its own, and the capture sheet reads through the same monitor.
+            KeyboardKeyCaptureView { keyCode, isDown in
+                input.handle(keyCode: keyCode, isDown: isDown)
+            }
+        }
+        .task {
+            load()
+            input.start()
+        }
+        .onDisappear { input.stop() }
         .sheet(item: $recording) { button in
-            KeyCaptureSheet(button: button) { keyCode in
+            KeyCaptureSheet(button: button, input: input) { keyCode in
                 assign(keyCode, to: button)
             } onCancel: {
                 recording = nil
@@ -170,8 +112,7 @@ struct SystemKeyboardBindingsView: View {
             HStack {
                 Text(button.label)
                 Spacer()
-                Text(keyName(for: button) ?? "—")
-                    .foregroundStyle(.secondary)
+                keyBadge(for: button)
             }
             .contentShape(Rectangle())
         }
@@ -181,6 +122,20 @@ struct SystemKeyboardBindingsView: View {
                 .tint(.gray)
                 .disabled(keyCode(for: button) == nil)
         }
+    }
+
+    /// The bound key as a keycap. It fills in while the key is down, which is
+    /// the settings-side equivalent of a button lighting up in a game.
+    private func keyBadge(for button: ControllerButton) -> some View {
+        let pressed = isDown(button)
+
+        return Text(keyName(for: button) ?? "—")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(pressed ? Color.white : Color.secondary)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(pressed ? Color.accentColor : Color(uiColor: .secondarySystemFill), in: Capsule())
+            .animation(.easeOut(duration: 0.09), value: pressed)
     }
 
     // MARK: - Reading the bindings
@@ -200,6 +155,12 @@ struct SystemKeyboardBindingsView: View {
 
     private func keyName(for button: ControllerButton) -> String? {
         keyCode(for: button).map(KeyboardKey.name(for:))
+    }
+
+    /// Whether the button's key is held right now.
+    private func isDown(_ button: ControllerButton) -> Bool {
+        guard let keyCode = keyCode(for: button) else { return false }
+        return input.pressedKeys.contains(keyCode)
     }
 
     private var isCustomized: Bool {
@@ -282,10 +243,12 @@ struct SystemKeyboardBindingsView: View {
 private struct KeyCaptureSheet: View {
 
     let button: ControllerButton
+    @ObservedObject var input: KeyboardInputMonitor
     let onKey: (Int) -> Void
     let onCancel: () -> Void
 
-    @State private var capture = KeyboardCapture()
+    /// A key is recorded once, even though both keyboard sources report it.
+    @State private var captured = false
 
     var body: some View {
         VStack(spacing: 16) {
@@ -321,77 +284,30 @@ private struct KeyCaptureSheet: View {
                 .padding(.bottom, 20)
         }
         .background {
-            // Both keyboard sources feed the one handler: the first real key
-            // press binds, whichever source delivers it.
-            KeyboardKeyCaptureView(
-                onKey: { keyCode, isDown in
-                    guard isDown else { return }
-                    captureKey(keyCode)
-                }
-            )
+            KeyboardKeyCaptureView { keyCode, isDown in
+                guard isDown else { return }
+                capture(keyCode)
+            }
             .allowsHitTesting(false)
         }
         .onAppear {
-            capture.start { captureKey($0) }
+            input.onKey = { keyCode, isDown in
+                guard isDown else { return }
+                capture(keyCode)
+            }
         }
-        .onDisappear { capture.stop() }
+        .onDisappear { input.onKey = nil }
         .presentationDetents([.medium])
     }
 
-    private func captureKey(_ keyCode: Int) {
+    private func capture(_ keyCode: Int) {
+        guard !captured else { return }
+
         if keyCode == GCKeyCode.escape.rawValue {
             onCancel()
         } else {
+            captured = true
             onKey(keyCode)
         }
-    }
-}
-
-/// Watches the hardware keyboard for the next key press.
-///
-/// This is the settings-side counterpart of `KeyboardControlManager`: an
-/// actual key is used, so a remap can never be a key the keyboard cannot
-/// report.
-@MainActor
-final class KeyboardCapture {
-
-    private var input: GCKeyboardInput?
-    private var observers: [NSObjectProtocol] = []
-    private var handler: ((Int) -> Void)?
-
-    func start(_ handler: @escaping (Int) -> Void) {
-        self.handler = handler
-
-        let center = NotificationCenter.default
-        observers.append(center.addObserver(forName: .GCKeyboardDidConnect, object: nil, queue: .main) { [weak self] _ in
-            onMain { self?.attach() }
-        })
-        observers.append(center.addObserver(forName: .GCKeyboardDidDisconnect, object: nil, queue: .main) { [weak self] _ in
-            onMain { self?.detach() }
-        })
-
-        attach()
-    }
-
-    func stop() {
-        observers.forEach { NotificationCenter.default.removeObserver($0) }
-        observers.removeAll()
-        detach()
-        handler = nil
-    }
-
-    private func attach() {
-        guard input == nil, let keyboard = GCKeyboard.coalesced?.keyboardInput else { return }
-
-        input = keyboard
-        keyboard.keyChangedHandler = { [weak self] _, _, keyCode, pressed in
-            guard pressed else { return }
-            onMain { self?.handler?(keyCode.rawValue) }
-        }
-    }
-
-    private func detach() {
-        input?.keyChangedHandler = nil
-        input = nil
     }
 }
