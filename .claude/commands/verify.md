@@ -13,7 +13,7 @@ This is the default check after any code change. Do not ask the user to test thi
 
 ## What it does
 
-`build-cassowary.sh` builds, in order: the SDK frameworks, OpenEmuShaders, OpenEmuKit, the system plugins, any missing core plugins, and the app itself. Cores already present in `build/cassowary-plugins/` are skipped, so it is usually fast after the first run.
+`build-cassowary.sh` builds, in order: the SDK frameworks, OpenEmuShaders, OpenEmuKit, the system plugins, any missing core plugins, and the app itself. Cores already present in that mode's output directory (`build/cassowary-plugins/` for the Simulator, `build/cassowary-plugins-device/` for a phone) are skipped, so it is usually fast after the first run.
 
 `test-cassowary.sh` runs the app end to end and checks it launched and stayed up.
 

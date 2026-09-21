@@ -42,6 +42,7 @@ struct GameView: View {
     @State private var session: GameSession?
     @State private var layout: ControllerLayout?
     @State private var padControllers: PhysicalControllerManager?
+    @State private var keyboardInput: KeyboardControlManager?
     @State private var errorMessage: String?
     @State private var isPaused = false
     @State private var notice: String?
@@ -72,6 +73,15 @@ struct GameView: View {
         }
         .statusBarHidden()
         .persistentSystemOverlays(.hidden)
+        .background {
+            // The UIKit half of the keyboard: GameController does the main
+            // work, but it can be absent, so the responder chain covers it.
+            if let keyboardInput {
+                KeyboardKeyCaptureView { keyCode, isDown in
+                    keyboardInput.handle(keyCode: keyCode, isDown: isDown)
+                }
+            }
+        }
         .overlay(alignment: .top) {
             VStack(spacing: 8) {
                 topBar
@@ -86,6 +96,8 @@ struct GameView: View {
         .onDisappear {
             padControllers?.stop()
             padControllers = nil
+            keyboardInput?.stop()
+            keyboardInput = nil
             session?.stop()
             session = nil
         }
@@ -347,10 +359,19 @@ struct GameView: View {
                 session.layout = layout
 
                 // Physical gamepads drive the same buttons, through the same
-                // session, as the on-screen pad.
+                // session, as the on-screen pad. On iOS the engine's bridge
+                // does this instead, through the bindings (see GameSession).
+#if targetEnvironment(macCatalyst)
                 let controllers = PhysicalControllerManager(session: session, layout: layout)
                 controllers.start()
                 padControllers = controllers
+#endif
+
+                // A hardware keyboard drives them too, resolved through the
+                // engine bindings the settings screen edits.
+                let manager = KeyboardControlManager(session: session)
+                manager.start()
+                keyboardInput = manager
             }
 
             self.session = session
@@ -371,6 +392,37 @@ struct GameView: View {
             Task {
                 try? await Task.sleep(for: .seconds(3))
                 session.pressButton(named: button)
+            }
+        }
+
+        // Press the key bound to a button, exercising the keyboard mapping
+        // without a hardware keyboard. The Simulator does not hand its
+        // keyboard to GameController.
+        if let button = UserDefaults.standard.string(forKey: "cassowary.testKeyboardButton") {
+            Task {
+                try? await Task.sleep(for: .seconds(3))
+                session.pressBoundKey(forButtonID: button)
+            }
+        }
+
+        // Hold a gamepad control, exercising the controller binding path
+        // without a hardware controller. Usage 0 is not a real control, so it
+        // doubles as "not set".
+        let gamepadUsage = UserDefaults.standard.integer(forKey: "cassowary.testGamepadUsage")
+        if gamepadUsage > 0 {
+            Task {
+                try? await Task.sleep(for: .seconds(3))
+                session.holdGamepadControl(usage: UInt32(gamepadUsage))
+            }
+        }
+
+        // Rewrite a binding through the settings editor's own call, so the
+        // test can prove a remap reaches a running game and survives a
+        // relaunch.
+        if let spec = UserDefaults.standard.string(forKey: "cassowary.testKeyboardRemap") {
+            let parts = spec.split(separator: ":")
+            if parts.count == 2, let keyCode = Int(parts[1]) {
+                session.remapForTesting(buttonID: String(parts[0]), keyCode: keyCode)
             }
         }
 

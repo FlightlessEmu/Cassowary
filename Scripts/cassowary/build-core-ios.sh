@@ -342,6 +342,7 @@ fi
 
 PLUGIN_DIR="build/cassowary-plugins/${PRODUCT}.${WRAPPER}"
 case "$PLATFORM" in
+  device)   PLUGIN_DIR="build/cassowary-plugins-device/${PRODUCT}.${WRAPPER}" ;;
   catalyst) PLUGIN_DIR="build/cassowary-plugins-catalyst/${PRODUCT}.${WRAPPER}" ;;
 esac
 rm -rf "$PLUGIN_DIR"

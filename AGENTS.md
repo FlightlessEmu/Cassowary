@@ -86,8 +86,14 @@ else means stop and fix it.
 ### One-command setup notes
 
 Cores take tens of minutes in total, so `build-cassowary.sh` only builds what
-is missing from `build/cassowary-plugins/`. The first run is slow; later runs
-are quick.
+is missing from that mode's output directory: `build/cassowary-plugins/` for
+the Simulator, `build/cassowary-plugins-device/` for a phone, and
+`build/cassowary-plugins-catalyst/` for the Mac. The first run is slow; later
+runs are quick.
+
+A `--device` build is signed and installed through `devicectl`, so it needs an
+Apple ID in Xcode and a paired phone with Developer Mode on. See
+[`Cassowary/README.md`](Cassowary/README.md).
 
 There are no credential files to create. The macOS app that needed them has
 been removed.

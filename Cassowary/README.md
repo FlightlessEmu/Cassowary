@@ -28,6 +28,8 @@ credits and per-core licenses.
 - Save states (plumbing in place; minimal UI)
 - Video filters: OpenEmu's shader presets (CRT Geom, CRT Royale Kurozumi, NTSC,
   VHS, …), switchable while playing and settable per system in Settings
+- Cover art: box art downloaded from libretro-thumbnails, and from
+  ScreenScraper too once an app key is set up (Settings → Cover Art)
 
 ## How it is put together
 
@@ -61,6 +63,55 @@ One-command dev loop and end-to-end test:
 ./Scripts/cassowary/test-cassowary.sh
 ```
 
+## Running on a real iPhone
+
+```bash
+./Scripts/cassowary/build-cassowary.sh --device   # build and sign for the phone
+./Scripts/cassowary/run-cassowary.sh --device     # install and launch
+```
+
+One-time setup:
+
+1. Connect the iPhone and tap **Trust** on it.
+2. Turn on **Settings → Privacy & Security → Developer Mode** (iOS 16 and
+   later).
+3. Add your Apple ID in **Xcode → Settings → Accounts**. A free account works;
+   apps it signs stop working after 7 days, and building again renews them.
+
+The scripts use the only connected phone and the only Apple Development
+certificate on the Mac. With more than one of either, pass `--udid` and
+`--team` (or set `DEVELOPMENT_TEAM`). Add `--no-sign` to check that a device
+build compiles without needing an account; the result will not install.
+
+The same commands work over Wi-Fi after a one-time pairing: in Xcode's
+**Window → Devices and Simulators**, select the phone and tick **Connect via
+network**. The cable is only needed for that first pairing.
+
+To put a game on the phone:
+
+```bash
+./Scripts/cassowary/run-cassowary.sh --device --game ~/Games/Legend.gb
+```
+
+Games can also be dragged into the app's folder in Finder once the app is
+installed.
+
+The first `--device` build compiles every core for the phone, so it takes
+longer than a Simulator build. Later builds only compile what changed.
+
+If signing fails, it is usually the Apple ID session or the Xcode license:
+run `sudo xcodebuild -license accept` once, and check that **Xcode → Settings
+→ Accounts** shows your Apple ID without an error. Xcode also has to prepare
+the phone for development the first time — open **Window → Devices and
+Simulators**, keep the phone unlocked, and wait for that to finish.
+
+After an Xcode update, two components are often missing:
+
+```bash
+xcodebuild -downloadComponent MetalToolchain   # "missing Metal Toolchain"
+sudo xcodebuild -runFirstLaunch                # first-launch packages
+```
+
 ## Running (Simulator by hand)
 
 ```bash
@@ -79,6 +130,32 @@ cp mygame.gb "$CONTAINER/Documents/"
 Then tap Refresh in the app. Pass `-cassowary.autoPlayFirstGame YES` on the
 launch line to boot the first game automatically, which is what the test
 scripts use.
+
+## Cover art
+
+Cassowary downloads box art for your games and keeps it in the app's
+Application Support folder. Each game is looked up on
+[libretro-thumbnails](https://thumbnails.libretro.com) first — it is free and
+needs no account — and then on ScreenScraper, when an app key is set up. A game
+that is not found is left alone for a week before it is tried again.
+
+The switch, a "Download Missing Artwork" button, and the account fields are in
+**Settings → Cover Art**. Per game, long-press the tile for *Download Cover
+Art* / *Remove Cover Art*.
+
+ScreenScraper is the optional second source. It has better coverage for discs,
+and it needs an app key, which screenscraper.fr issues to software developers
+(Developer area → My API credentials). To bake one into a build:
+
+```bash
+cp Cassowary/ScreenScraperDevCredentials.example.plist \
+   Cassowary/Resources/ScreenScraperDevCredentials.plist
+# fill in devid and devpassword, then rebuild
+```
+
+That file is not committed. App keys can also be entered in
+Settings → Cover Art → ScreenScraper → App Key, which is the way to try one on
+a device without a rebuild.
 
 ## Moving from the OpenEmu iOS prototype
 

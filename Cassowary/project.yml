@@ -98,10 +98,26 @@ targets:
           mkdir -p "$DEST/Cores" "$DEST/Systems"
           rsync -a --delete "${SRCROOT}/PlugIns/Cores/" "$DEST/Cores/"
           rsync -a --delete "${SRCROOT}/PlugIns/Systems/" "$DEST/Systems/"
+          # Xcode signs the app and the embedded frameworks but not these
+          # bundles: they arrive here by rsync, outside any embed phase. A
+          # real iPhone refuses to load an unsigned plugin, so sign them with
+          # the identity Xcode is about to use for the app. A dylib inside a
+          # plugin is signed first, because a signature seals its contents.
+          if [ "${CODE_SIGNING_ALLOWED:-NO}" = "YES" ] && [ -n "${EXPANDED_CODE_SIGN_IDENTITY:-}" ] && [ "${EXPANDED_CODE_SIGN_IDENTITY}" != "-" ]; then
+            for bundle in "$DEST/Cores/"*.oecoreplugin "$DEST/Systems/"*.oesystemplugin; do
+              [ -e "$bundle" ] || continue
+              find "$bundle" -type f -name "*.dylib" -exec codesign --force --sign "${EXPANDED_CODE_SIGN_IDENTITY}" {} \;
+              codesign --force --sign "${EXPANDED_CODE_SIGN_IDENTITY}" "$bundle"
+            done
+          fi
     # XcodeGen writes this file from the properties below, so the contents live
     # here rather than in the file itself. Mac Catalyst apps are sandboxed,
     # which gives the app its own Documents folder under ~/Library/Containers;
     # without it the app would scan the user's real ~/Documents.
+    #
+    # A real-device build passes CODE_SIGN_ENTITLEMENTS= on the xcodebuild
+    # command line: the keys below are macOS-only and iOS signing rejects them.
+    # See the --device signing step in Scripts/cassowary/build-cassowary.sh.
     entitlements:
       path: Resources/Cassowary.entitlements
       properties:
@@ -115,16 +131,18 @@ targets:
     dependencies:
       # The frameworks are built for iOS by Scripts/cassowary/build-cassowary.sh
       # before this project is generated, then linked from the shared build
-      # directory.
+      # directory. codeSign is on so a signed device build re-signs them with
+      # the app's identity on copy; unsigned Simulator and Catalyst builds
+      # skip signing entirely.
       - framework: Frameworks/OpenEmuBase.framework
         embed: true
-        codeSign: false
+        codeSign: true
       - framework: Frameworks/OpenEmuSystem.framework
         embed: true
-        codeSign: false
+        codeSign: true
       - framework: Frameworks/OpenEmuShaders.framework
         embed: true
-        codeSign: false
+        codeSign: true
       - framework: Frameworks/OpenEmuKit.framework
         embed: true
-        codeSign: false
+        codeSign: true

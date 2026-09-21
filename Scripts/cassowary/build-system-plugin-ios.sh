@@ -195,9 +195,9 @@ for resource in "$SOURCE_DIR"/*.plist; do
 done
 
 # Asset catalogs have to be compiled, not copied: the app reads them through
-# NSBundle's asset API, which looks for Assets.car.
-ACTOOL_PLATFORM="iphone${MODE}"
-[[ "$MODE" == catalyst ]] && ACTOOL_PLATFORM="macosx"
+# NSBundle's asset API, which looks for Assets.car. actool names platforms the
+# way the SDK does (iphoneos, iphonesimulator, macosx).
+ACTOOL_PLATFORM="$SDK_NAME"
 if [[ -d "$SOURCE_DIR/Images.xcassets" ]]; then
   xcrun actool "$SOURCE_DIR/Images.xcassets" \
     --compile "$OUT" \

@@ -136,6 +136,18 @@ struct SettingsView: View {
                 }
 
                 Section {
+                    NavigationLink {
+                        KeyboardBindingsView(catalog: catalog)
+                    } label: {
+                        Label("Keyboard Bindings", systemImage: "keyboard")
+                    }
+                } header: {
+                    Text("Keyboard")
+                } footer: {
+                    Text("Play with a hardware keyboard. Bindings are per system, and start from the defaults each system's plugin ships.")
+                }
+
+                Section {
                     Picker("Video Filter", selection: globalShaderBinding) {
                         Text("None").tag(nil as String?)
                         ForEach(shaderCatalog.names, id: \.self) { name in
@@ -147,6 +159,18 @@ struct SettingsView: View {
                         .foregroundStyle(.secondary)
                 } header: {
                     Text("Video")
+                }
+
+                Section {
+                    NavigationLink {
+                        CoverArtSettingsView()
+                    } label: {
+                        Label("Cover Art", systemImage: "photo.on.rectangle.angled")
+                    }
+                } header: {
+                    Text("Library")
+                } footer: {
+                    Text("Cassowary can download cover art for your games from libretro-thumbnails and ScreenScraper.")
                 }
 
                 Section {
@@ -369,6 +393,19 @@ struct AboutView: View {
                 .padding(.vertical, 2)
             } header: {
                 Text("Video Filters")
+            }
+
+            Section {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Cover art")
+                        .font(.headline)
+                    Text("Box art images are downloaded from libretro-thumbnails (thumbnails.libretro.com), and from ScreenScraper when an app key is set up. The images are the games' publishers' work; those services only collect and serve them, under their own terms.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.vertical, 2)
+            } header: {
+                Text("Artwork")
             }
 
             Section {
