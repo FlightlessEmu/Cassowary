@@ -23,6 +23,7 @@
  */
 
 #import "mGBAGameCore.h"
+#import <TargetConditionals.h>
 
 
 #include <mgba-util/common.h>
@@ -42,7 +43,6 @@
 #import <OpenEmuBase/OERingBuffer.h>
 #import <OpenEmuBase/OEMemoryRegionDescriptor.h>
 #import "OEGBASystemResponderClient.h"
-#import <OpenGL/gl.h>
 
 #define RC_CLIENT_SUPPORTS_HASH 1
 #include <rc_client.h>
@@ -54,8 +54,10 @@
 
 // Session payload keys and notification name are defined in OERetroAchievementsTransport.h.
 
+#if TARGET_OS_OSX
 #ifdef DEBUG
     #error "Cores should not be compiled in DEBUG! Follow the guide https://github.com/OpenEmu/OpenEmu/wiki/Compiling-From-Source-Guide"
+#endif
 #endif
 
 const char* const binaryName = "mGBA";
@@ -277,14 +279,14 @@ static struct mLogger logger = { .log = _log };
 	return hint;
 }
 
-- (GLenum)pixelFormat
+- (uint32_t)pixelFormat
 {
-    return GL_RGBA;
+    return OEPixelFormat_RGBA;
 }
 
-- (GLenum)pixelType
+- (uint32_t)pixelType
 {
-    return GL_UNSIGNED_INT_8_8_8_8_REV;
+    return OEPixelType_UNSIGNED_INT_8_8_8_8_REV;
 }
 
 - (NSTimeInterval)frameInterval

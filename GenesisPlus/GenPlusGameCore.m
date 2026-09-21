@@ -32,7 +32,6 @@
 #import "OESG1000SystemResponderClient.h"
 #import "OEGenesisSystemResponderClient.h"
 #import "OESegaCDSystemResponderClient.h"
-#import <OpenGL/gl.h>
 
 #include "shared.h"
 
@@ -666,14 +665,14 @@ static __weak GenPlusGameCore *_current;
     }
 }
 
-- (GLenum)pixelFormat
+- (uint32_t)pixelFormat
 {
-    return GL_BGRA;
+    return OEPixelFormat_BGRA;
 }
 
-- (GLenum)pixelType
+- (uint32_t)pixelType
 {
-    return GL_UNSIGNED_INT_8_8_8_8_REV;
+    return OEPixelType_UNSIGNED_INT_8_8_8_8_REV;
 }
 
 # pragma mark - Audio

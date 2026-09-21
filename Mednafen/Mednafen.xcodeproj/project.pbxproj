@@ -188,6 +188,8 @@
 		8CB3E08717F1DE5E0090372A /* v30mz.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 8CB3DCA617F1DE5E0090372A /* v30mz.cpp */; };
 		8CB3E0AB17F1FAD00090372A /* stubs.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 94454E3B17852E61006C057B /* stubs.cpp */; };
 		8CB3E0AE17F20E6D0090372A /* netplay.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 8CB3D7C417F1DE5B0090372A /* netplay.cpp */; };
+		87A30A401E57A41300114B03 /* Net.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 87A30A3A1E57A41300114B03 /* Net.cpp */; };
+		87A30A411E57A41300114B03 /* Net_POSIX.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 87A30A3C1E57A41300114B03 /* Net_POSIX.cpp */; };
 		8CB3E0B117F20EF10090372A /* scsicd.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 8CB3D53C17F1DE5A0090372A /* scsicd.cpp */; };
 		8CB3E0B317F20F010090372A /* CDAccess.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 8CB3D52417F1DE5A0090372A /* CDAccess.cpp */; };
 		8CB3E0B417F20F0C0090372A /* CDAccess_CCD.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 8CB3D52617F1DE5A0090372A /* CDAccess_CCD.cpp */; };
@@ -4510,6 +4512,8 @@
 				8CB3E06117F1DE5E0090372A /* vb.cpp in Sources */,
 				872FC2C822A9751C00AF67DE /* crc.cpp in Sources */,
 				8CB3E0AE17F20E6D0090372A /* netplay.cpp in Sources */,
+				87A30A401E57A41300114B03 /* Net.cpp in Sources */,
+				87A30A411E57A41300114B03 /* Net_POSIX.cpp in Sources */,
 				8CB3DCCA17F1DE5E0090372A /* debug.cpp in Sources */,
 				8CB3DE9717F1DE5E0090372A /* dualshock.cpp in Sources */,
 				8CB3E0DA17F2127D0090372A /* mpc_decoder.c in Sources */,

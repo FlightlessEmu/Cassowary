@@ -28,7 +28,6 @@
 #import "SNESGameCore.h"
 #import <OpenEmuBase/OERingBuffer.h>
 #import <OpenEmuBase/OEMemoryRegionDescriptor.h>
-#import <OpenGL/gl.h>
 
 #include "snes9x.h"
 #include "memmap.h"
@@ -773,14 +772,14 @@ static __weak SNESGameCore *_current;
     return OEIntSizeMake(MAX_SNES_WIDTH, MAX_SNES_HEIGHT);
 }
 
-- (GLenum)pixelFormat
+- (uint32_t)pixelFormat
 {
-    return GL_RGB;
+    return OEPixelFormat_RGB;
 }
 
-- (GLenum)pixelType
+- (uint32_t)pixelType
 {
-    return GL_UNSIGNED_SHORT_5_6_5;
+    return OEPixelType_UNSIGNED_SHORT_5_6_5;
 }
 
 #pragma mark - Audio

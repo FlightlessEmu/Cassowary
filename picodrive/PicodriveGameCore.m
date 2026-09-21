@@ -25,9 +25,9 @@
  */
 
 #import "PicodriveGameCore.h"
+#import <TargetConditionals.h>
 #import <OpenEmuBase/OERingBuffer.h>
 #import "OESega32XSystemResponderClient.h"
-#import <OpenGL/gl.h>
 
 #include <sys/mman.h>
 #include "pico/pico_int.h"
@@ -200,14 +200,14 @@ static __weak PicodriveGameCore *_current;
     return OEIntSizeMake(292, 224);
 }
 
-- (GLenum)pixelFormat
+- (uint32_t)pixelFormat
 {
-    return GL_RGB;
+    return OEPixelFormat_RGB;
 }
 
-- (GLenum)pixelType
+- (uint32_t)pixelType
 {
-    return GL_UNSIGNED_SHORT_5_6_5;
+    return OEPixelType_UNSIGNED_SHORT_5_6_5;
 }
 
 // MARK: - Audio
@@ -389,6 +389,23 @@ void plat_munmap(void *ptr, size_t size)
     if (ptr != NULL)
         munmap(ptr, size);
 }
+
+#if !TARGET_OS_OSX
+// No platform/plat.c is in the build on iOS. The dynarec falls back to its
+// static cache when plat_mem_get_for_drc returns NULL (see pico/pico.h).
+void *plat_mem_get_for_drc(size_t size)
+{
+    (void)size;
+    return NULL;
+}
+
+int plat_mem_set_exec(void *ptr, size_t size)
+{
+    (void)ptr;
+    (void)size;
+    return 0;
+}
+#endif
 
 // Not using carthw.cfg so this is probably never called.
 void *plat_mremap(void *ptr, size_t oldsize, size_t newsize)

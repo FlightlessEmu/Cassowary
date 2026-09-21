@@ -28,7 +28,6 @@
 #import <OpenEmuBase/OERingBuffer.h>
 #import <OpenEmuBase/OEMemoryRegionDescriptor.h>
 #import "OENESSystemResponderClient.h"
-#import <OpenGL/gl.h>
 
 #include "src/fceu.h"
 #include "src/driver.h"
@@ -377,14 +376,14 @@ static __weak FCEUGameCore *_current;
     return OEIntSizeMake(256, 240);
 }
 
-- (GLenum)pixelFormat
+- (uint32_t)pixelFormat
 {
-    return GL_BGRA;
+    return OEPixelFormat_BGRA;
 }
 
-- (GLenum)pixelType
+- (uint32_t)pixelType
 {
-    return GL_UNSIGNED_INT_8_8_8_8_REV;
+    return OEPixelType_UNSIGNED_INT_8_8_8_8_REV;
 }
 
 # pragma mark - Audio

@@ -22,7 +22,12 @@
  */
 #import <Foundation/Foundation.h>
 
+#if TARGET_OS_IPHONE
+// OpenGL is macOS-only. CMCocoaBuffer only needs the GLfloat type.
+typedef float GLfloat;
+#else
 #import <OpenGL/OpenGL.h>
+#endif
 
 @interface CMCocoaBuffer : NSObject
 {

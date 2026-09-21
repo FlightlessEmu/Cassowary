@@ -20,6 +20,7 @@
 */
 
 #include <mednafen/mednafen.h>
+#include <TargetConditionals.h>
 #include "CDAFReader.h"
 #include "CDAFReader_SF.h"
 
@@ -162,3 +163,36 @@ CDAFReader* CDAFR_SF_Open(Stream* fp)
 }
 
 }
+
+#if !TARGET_OS_OSX
+/* No libsndfile on iOS (the macOS build links a prebuilt macOS-only archive).
+   Fail closed so CDAFR_Open() falls through to the MPC/Vorbis readers. */
+extern "C"
+{
+
+SNDFILE *sf_open_virtual(SF_VIRTUAL_IO *sfvirtual, int mode, SF_INFO *sfinfo, void *user_data)
+{
+ (void)sfvirtual; (void)mode; (void)sfinfo; (void)user_data;
+ return NULL;
+}
+
+sf_count_t sf_read_short(SNDFILE *sndfile, short *ptr, sf_count_t items)
+{
+ (void)sndfile; (void)ptr; (void)items;
+ return 0;
+}
+
+sf_count_t sf_seek(SNDFILE *sndfile, sf_count_t frames, int whence)
+{
+ (void)sndfile; (void)frames; (void)whence;
+ return -1;
+}
+
+int sf_close(SNDFILE *sndfile)
+{
+ (void)sndfile;
+ return 0;
+}
+
+}
+#endif

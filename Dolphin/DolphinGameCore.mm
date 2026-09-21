@@ -45,7 +45,6 @@
 #include "UICommon/UICommon.h"
 #include <stdatomic.h>
 
-#import <AppKit/AppKit.h>
 #import <Metal/Metal.h>
 #import <QuartzCore/CAMetalLayer.h>
 
@@ -233,10 +232,10 @@ DolphinGameCore *_current = 0;
 }
 
 // MTL3DGameRenderer.update() reads these to resolve OEMTLPixelFormat even in Metal2 mode.
-// GL_BGRA (0x80E1) + GL_UNSIGNED_INT_8_8_8_8_REV (0x8367) → OEMTLPixelFormat.BGRA8Unorm,
+// OEPixelFormat_BGRA (0x80E1) + OEPixelType_UNSIGNED_INT_8_8_8_8_REV (0x8367) → OEMTLPixelFormat.BGRA8Unorm,
 // matching the MTLPixelFormatBGRA8Unorm texture we create above.
-- (GLenum)pixelFormat  { return 0x80E1; } // GL_BGRA
-- (GLenum)pixelType    { return 0x8367; } // GL_UNSIGNED_INT_8_8_8_8_REV
+- (uint32_t)pixelFormat  { return 0x80E1; } // OEPixelFormat_BGRA
+- (uint32_t)pixelType    { return 0x8367; } // OEPixelType_UNSIGNED_INT_8_8_8_8_REV
 
 - (const void *)videoBuffer
 {

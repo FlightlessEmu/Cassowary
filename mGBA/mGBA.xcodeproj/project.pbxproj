@@ -113,6 +113,7 @@
 		87D380E21D92540500FC657D /* patch.c in Sources */ = {isa = PBXBuildFile; fileRef = 8701D6D71D19D4AF00E8A7D8 /* patch.c */; };
 		87D380E31D92545900FC657D /* patch-ips.c in Sources */ = {isa = PBXBuildFile; fileRef = 8701D6D31D19D4AE00E8A7D8 /* patch-ips.c */; };
 		87D380E41D92545900FC657D /* patch-ups.c in Sources */ = {isa = PBXBuildFile; fileRef = 8701D6D51D19D4AE00E8A7D8 /* patch-ups.c */; };
+		87D380E51D92545900FC657D /* patch-fast.c in Sources */ = {isa = PBXBuildFile; fileRef = 87D3809C1D924ACA00FC657D /* patch-fast.c */; };
 		87D380E61D925C9900FC657D /* config.c in Sources */ = {isa = PBXBuildFile; fileRef = 87D380BA1D92508500FC657D /* config.c */; };
 		8D5B49B0048680CD000E48DA /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 089C167DFE841241C02AAC07 /* InfoPlist.strings */; };
 		8D5B49B4048680CD000E48DA /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1058C7ADFEA557BF11CA2CBB /* Cocoa.framework */; };
@@ -814,6 +815,7 @@
 				87D380E21D92540500FC657D /* patch.c in Sources */,
 				87D380E31D92545900FC657D /* patch-ips.c in Sources */,
 				87D380E41D92545900FC657D /* patch-ups.c in Sources */,
+				87D380E51D92545900FC657D /* patch-fast.c in Sources */,
 				8701D7161D19E72C00E8A7D8 /* string.c in Sources */,
 				8701D7171D19E73C00E8A7D8 /* table.c in Sources */,
 				8701D71B1D19F00B00E8A7D8 /* vfs-dirent.c in Sources */,

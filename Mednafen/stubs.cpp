@@ -14,3 +14,4 @@ void Mednafen::MDFND_NetplayText(const char* text, bool NetEcho) {}
 void Mednafen::MDFND_NetplaySetHints(bool active, bool behind, uint32 local_players_mask) {}
 
 void Mednafen::MDFND_SetStateStatus(StateStatusStruct *status) noexcept {}
+void Mednafen::MDFND_SetMovieStatus(StateStatusStruct *status) noexcept {}

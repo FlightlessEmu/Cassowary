@@ -28,18 +28,20 @@
 
 @implementation OEPCECDSystemController
 
-- (NSImage *)systemIcon
+- (OEPlatformImage *)systemIcon
 {
     NSString *imageName = ([[OELocalizationHelper sharedHelper] isRegionJPN]
                            ? @"pcenginecd_library"
                            : @"tgcd_library");
 
-    NSImage *image = [NSImage imageNamed:imageName];
+    OEPlatformImage *image = [OEPlatformImage imageNamed:imageName];
     if(image == nil)
     {
         NSBundle *bundle = [NSBundle bundleForClass:[self class]];
-        image = [bundle imageForResource:imageName];
+        image = OEPlatformImageNamedInBundle(bundle, imageName);
+#if TARGET_OS_OSX
         [image setName:imageName];
+#endif
     }
     return image;
 }

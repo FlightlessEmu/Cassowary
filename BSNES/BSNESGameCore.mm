@@ -25,7 +25,6 @@
   SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#import <OpenGL/gl.h>
 #import "BSNESGameCore.h"
 #import "OESNESSystemResponderClient.h"
 #import <OpenEmuBase/OESystemConstants.h>
@@ -649,19 +648,20 @@ static void bsnes_rc_event_handler(const rc_client_event_t *event, rc_client_t *
     return OEIntSizeMake(8, 7);
 }
 
-- (GLenum)pixelFormat
+- (uint32_t)pixelFormat
 {
-    return GL_BGRA;
+    return OEPixelFormat_BGRA;
 }
 
-- (GLenum)pixelType
+- (uint32_t)pixelType
 {
-    return GL_UNSIGNED_INT_8_8_8_8_REV;
+    return OEPixelType_UNSIGNED_INT_8_8_8_8_REV;
 }
 
-- (GLenum)internalPixelFormat
+- (uint32_t)internalPixelFormat
 {
-    return GL_RGB8;
+    // Deprecated and unused since OpenEmu 2.1; GL_RGB8 needs no OpenGL here.
+    return 0;
 }
 
 - (NSTimeInterval)frameInterval

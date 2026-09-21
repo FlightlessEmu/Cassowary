@@ -281,12 +281,12 @@ static uint32_t gambatte_rc_read_memory(uint32_t address, uint8_t *buffer,
     return OEIntSizeMake(10, 9);
 }
 
-- (GLenum)pixelFormat
+- (uint32_t)pixelFormat
 {
     return OEPixelFormat_BGRA;
 }
 
-- (GLenum)pixelType
+- (uint32_t)pixelType
 {
     return OEPixelType_UNSIGNED_INT_8_8_8_8_REV;
 }

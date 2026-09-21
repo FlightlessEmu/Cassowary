@@ -57,6 +57,7 @@
     [self.client keyUp:theEvent.keycode];
 }
 
+#if TARGET_OS_OSX
 - (void)keyDown:(NSEvent *)theEvent
 {
     [self.client keyDown:theEvent.keyCode];
@@ -66,5 +67,6 @@
 {
     [self.client keyUp:theEvent.keyCode];
 }
+#endif
 
 @end

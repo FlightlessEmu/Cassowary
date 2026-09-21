@@ -24,7 +24,6 @@
 
 // Rename macOS Carbon's RGBColor to avoid clash with Flycast's RGBColor
 #define RGBColor __macOS_RGBColor
-#import <Cocoa/Cocoa.h>
 #undef RGBColor
 
 #import "FlycastGameCore.h"
@@ -47,7 +46,6 @@
 #include "oslib/oslib.h"
 #include "wsi/osx.h"
 
-#include <OpenGL/gl3.h>
 #include <mach/mach_time.h>
 #include <sys/stat.h>
 

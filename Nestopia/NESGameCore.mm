@@ -30,7 +30,6 @@
 #import <OpenEmuBase/OEMemoryRegionDescriptor.h>
 #import "OENESSystemResponderClient.h"
 #import "OEFDSSystemResponderClient.h"
-#import <OpenGL/gl.h>
 
 #include <os/log.h>
 #define RC_CLIENT_SUPPORTS_HASH 1
@@ -426,14 +425,14 @@ static __weak NESGameCore *_current;
     return OEIntSizeMake(_aspectWidth, _aspectHeight);
 }
 
-- (GLenum)pixelFormat
+- (uint32_t)pixelFormat
 {
-    return GL_BGRA;
+    return OEPixelFormat_BGRA;
 }
 
-- (GLenum)pixelType
+- (uint32_t)pixelType
 {
-    return GL_UNSIGNED_INT_8_8_8_8_REV;
+    return OEPixelType_UNSIGNED_INT_8_8_8_8_REV;
 }
 
 # pragma mark - Audio

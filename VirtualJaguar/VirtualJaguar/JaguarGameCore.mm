@@ -1,5 +1,4 @@
 #import <OpenEmuBase/OERingBuffer.h>
-#import <OpenGL/gl.h>
 #import "JaguarGameCore.h"
 #import "jaguar.h"
 #import "file.h"
@@ -138,14 +137,14 @@ static JaguarGameCore *current;
     return buffer;
 }
 
-- (GLenum)pixelFormat
+- (uint32_t)pixelFormat
 {
-    return GL_RGBA;
+    return OEPixelFormat_RGBA;
 }
 
-- (GLenum)pixelType
+- (uint32_t)pixelType
 {
-    return GL_UNSIGNED_INT_8_8_8_8;
+    return OEPixelType_UNSIGNED_INT_8_8_8_8;
 }
 
 - (double)audioSampleRate

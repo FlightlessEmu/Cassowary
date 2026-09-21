@@ -43,7 +43,12 @@
  * Write:   write MSB, write LSB (16-bit word is written to device)
  */
 
+#if defined(__APPLE__)
+/* _XOPEN_SOURCE 500 hides fseeko/ftello/snprintf on the Apple SDKs. */
+#define _XOPEN_SOURCE 600
+#else
 #define _XOPEN_SOURCE 500
+#endif
 
 #include "config.h"
 /* allow non-ansi fseek/ftell functions */

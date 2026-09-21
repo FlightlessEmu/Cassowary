@@ -34,7 +34,6 @@
 
 #import <OpenEmuBase/OERingBuffer.h>
 #import "OEColecoVisionSystemResponderClient.h"
-#import <OpenGL/gl.h>
 
 #define SAMPLERATE 48000
 #define FRAMERATE 60
@@ -141,14 +140,14 @@ static __weak JollyCVGameCore *_current;
     return hint;
 }
 
-- (GLenum)pixelFormat
+- (uint32_t)pixelFormat
 {
-    return GL_BGRA;
+    return OEPixelFormat_BGRA;
 }
 
-- (GLenum)pixelType
+- (uint32_t)pixelType
 {
-    return GL_UNSIGNED_INT_8_8_8_8_REV;
+    return OEPixelType_UNSIGNED_INT_8_8_8_8_REV;
 }
 
 - (NSTimeInterval)frameInterval

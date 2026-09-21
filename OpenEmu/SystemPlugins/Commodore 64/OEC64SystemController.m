@@ -32,14 +32,16 @@
     return OEFileSupportYes;
 }
 
-- (NSImage *)systemIcon
+- (OEPlatformImage *)systemIcon
 {
-    NSImage *image = [NSImage imageNamed:@"c64_library"];
+    OEPlatformImage *image = [OEPlatformImage imageNamed:@"c64_library"];
     if(image == nil)
     {
         NSBundle *bundle = [NSBundle bundleForClass:[self class]];
-        image = [bundle imageForResource:@"c64_library"];
+        image = OEPlatformImageNamedInBundle(bundle, @"c64_library");
+#if TARGET_OS_OSX
         [image setName:@"c64_library"];
+#endif
     }
     return image;
 }

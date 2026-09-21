@@ -28,12 +28,11 @@
 #import "FreeDOGameCore.h"
 #import <OpenEmuBase/OERingBuffer.h>
 #import "OE3DOSystemResponderClient.h"
-#import <OpenGL/gl.h>
 
 #include "freedocore.h"
 #include "frame.h"
-#include "libcue.h"
-#include "cd.h"
+#include "libcue-1.4.0/src/libcue/libcue.h"
+#include "libcue-1.4.0/src/libcue/cd.h"
 
 extern int HightResMode;
 
@@ -479,14 +478,14 @@ static void writeSaveFile(const char* path)
     return OEIntSizeMake(4, 3);
 }
 
-- (GLenum)pixelFormat
+- (uint32_t)pixelFormat
 {
-    return GL_BGRA;
+    return OEPixelFormat_BGRA;
 }
 
-- (GLenum)pixelType
+- (uint32_t)pixelType
 {
-    return GL_UNSIGNED_INT_8_8_8_8_REV;
+    return OEPixelType_UNSIGNED_INT_8_8_8_8_REV;
 }
 
 #pragma mark - Audio

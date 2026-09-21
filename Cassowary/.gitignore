@@ -1,0 +1,8 @@
+# Build products
+Frameworks/*.framework
+PlugIns/Cores/*.oecoreplugin
+PlugIns/Systems/*.oesystemplugin
+Cassowary.xcodeproj/
+
+# XcodeGen writes this from the properties in project.yml.
+Resources/Cassowary.entitlements

@@ -27,7 +27,6 @@
 #import "blueMSXGameCore.h"
 #import <OpenEmuBase/OEGameCoreController.h>
 #import <OpenEmuBase/OERingBuffer.h>
-#import <OpenGL/gl.h>
 #import "OEMSXSystemResponderClient.h"
 #import "OEColecoVisionSystemResponderClient.h"
 
@@ -623,14 +622,14 @@ static int framebufferScanline = 0;
     return _videoBuffer = (uint32_t *)hint;
 }
 
-- (GLenum)pixelFormat
+- (uint32_t)pixelFormat
 {
-    return GL_BGRA;
+    return OEPixelFormat_BGRA;
 }
 
-- (GLenum)pixelType
+- (uint32_t)pixelType
 {
-    return GL_UNSIGNED_INT_8_8_8_8_REV;
+    return OEPixelType_UNSIGNED_INT_8_8_8_8_REV;
 }
 
 #pragma mark - OE Audio
@@ -809,6 +808,16 @@ void frameBufferSetDoubleWidth(FrameBuffer *frameBuffer, int y, int val)
         _core->_isDoubleWidth = val;
         _core->_videoWidth = _core->_isDoubleWidth ? FB_MAX_WIDTH : 272;
     }
+}
+
+// The full renderer (VideoRender.c) is not compiled with NO_FRAMEBUFFER;
+// Actions.c still calls videoUpdateAll, so it is a no-op here like the
+// other shims above. The glue renders straight into _videoBuffer and does
+// not consult the properties this would refresh.
+void videoUpdateAll(Video* video, Properties* properties)
+{
+    (void)video;
+    (void)properties;
 }
 
 // MSX Ascii Laser and Gunstick

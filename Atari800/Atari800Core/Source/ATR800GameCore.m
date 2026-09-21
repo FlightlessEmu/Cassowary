@@ -28,7 +28,6 @@
 #import <OpenEmuBase/OERingBuffer.h>
 #import "OEA8SystemResponderClient.h"
 #import "OE5200SystemResponderClient.h"
-#import <OpenGL/gl.h>
 
 #include "afile.h"
 #include "akey.h"
@@ -318,14 +317,14 @@ static ATR800GameCore *_currentCore;
     return OEIntSizeMake(336, 240);
 }
 
-- (GLenum)pixelFormat
+- (uint32_t)pixelFormat
 {
-    return GL_BGRA;
+    return OEPixelFormat_BGRA;
 }
 
-- (GLenum)pixelType
+- (uint32_t)pixelType
 {
-    return GL_UNSIGNED_INT_8_8_8_8_REV;
+    return OEPixelType_UNSIGNED_INT_8_8_8_8_REV;
 }
 
 #pragma mark - Audio

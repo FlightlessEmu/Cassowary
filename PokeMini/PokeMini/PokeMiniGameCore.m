@@ -27,7 +27,6 @@
 #import "PokeMiniGameCore.h"
 
 #import <OpenEmuBase/OERingBuffer.h>
-#import <OpenGL/gl.h>
 #import "PokeMini.h"
 #import "Hardware.h"
 #import "Joystick.h"
@@ -250,14 +249,14 @@ int saveEEPROM(const char *filename)
     return videoBuffer = (hint ?: videoBuffer);
 }
 
-- (GLenum)pixelFormat
+- (uint32_t)pixelFormat
 {
-    return GL_BGRA;
+    return OEPixelFormat_BGRA;
 }
 
-- (GLenum)pixelType
+- (uint32_t)pixelType
 {
-    return GL_UNSIGNED_INT_8_8_8_8_REV;
+    return OEPixelType_UNSIGNED_INT_8_8_8_8_REV;
 }
 
 - (NSTimeInterval)frameInterval

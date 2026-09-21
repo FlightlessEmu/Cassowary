@@ -29,7 +29,6 @@
 #import <OpenEmuBase/OERingBuffer.h>
 #import <OpenEmuBase/OEMemoryRegionDescriptor.h>
 #import "OE2600SystemResponderClient.h"
-#import <OpenGL/gl.h>
 
 #define RC_CLIENT_SUPPORTS_HASH 1
 #include <rc_client.h>
@@ -297,14 +296,14 @@ static uint32_t stella_rc_read_memory(uint32_t address, uint8_t *buffer,
     return OEIntSizeMake(_videoWidth * PAR, _videoHeight);
 }
 
-- (GLenum)pixelFormat
+- (uint32_t)pixelFormat
 {
-    return GL_BGRA;
+    return OEPixelFormat_BGRA;
 }
 
-- (GLenum)pixelType
+- (uint32_t)pixelType
 {
-    return GL_UNSIGNED_INT_8_8_8_8_REV;
+    return OEPixelType_UNSIGNED_INT_8_8_8_8_REV;
 }
 
 # pragma mark - Audio

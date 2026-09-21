@@ -36,10 +36,10 @@
 #include "mednafen/ss/ss.h"
 
 #import "MednafenGameCore.h"
+#import <TargetConditionals.h>
 #import <OpenEmuBase/OERingBuffer.h>
 #import <OpenEmuBase/OEMemoryRegionDescriptor.h>
 #import <OpenEmuBase/OEGameCoreDisplayModes.h>
-#import <OpenGL/gl.h>
 #import "OELynxSystemResponderClient.h"
 #import "OENGPSystemResponderClient.h"
 #import "OEPCESystemResponderClient.h"
@@ -75,8 +75,10 @@ extern "C" uint32_t MDFNWS_GetRAMSize(void);
 extern "C" uint8_t *MDFNWS_GetSRAMPointer(void);
 extern "C" uint32_t MDFNWS_GetSRAMSize(void);
 
+#if TARGET_OS_OSX
 #ifdef DEBUG
     #error "Cores should not be compiled in DEBUG! Follow the guide https://github.com/OpenEmu/OpenEmu/wiki/Compiling-From-Source-Guide"
+#endif
 #endif
 
 #define OptionDefault(_NAME_, _PREFKEY_) @{ OEGameCoreDisplayModeNameKey : _NAME_, OEGameCoreDisplayModePrefKeyNameKey : _PREFKEY_, OEGameCoreDisplayModeStateKey : @YES, }
@@ -3821,14 +3823,14 @@ static uint32_t mednafen_rc_read_memory(uint32_t address, uint8_t *buffer,
     return surf->pixels;
 }
 
-- (GLenum)pixelFormat
+- (uint32_t)pixelFormat
 {
-    return GL_BGRA;
+    return OEPixelFormat_BGRA;
 }
 
-- (GLenum)pixelType
+- (uint32_t)pixelType
 {
-    return GL_UNSIGNED_INT_8_8_8_8_REV;
+    return OEPixelType_UNSIGNED_INT_8_8_8_8_REV;
 }
 
 # pragma mark - Audio
@@ -4329,6 +4331,12 @@ const int WSMap[]   = { 0, 2, 3, 1, 4, 6, 7, 5, 9, 10, 8, 11 };
 }
 
 // MARK: - Utility
+
+#if !TARGET_OS_OSX
+// NSSize/NSMakeSize are AppKit-only; CGSize is layout-identical.
+#define NSSize CGSize
+#define NSMakeSize CGSizeMake
+#endif
 
 - (void)scaleMouseCoordsAtPoint:(OEIntPoint)aPoint
 {

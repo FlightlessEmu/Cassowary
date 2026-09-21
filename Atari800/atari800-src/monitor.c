@@ -42,6 +42,11 @@
 #include "pokeysnd.h"
 #endif
 
+#include <TargetConditionals.h>
+#if !TARGET_OS_OSX
+/* The iOS SDK ships no readline headers; use the plain stdio fallback below. */
+#undef MONITOR_READLINE
+#endif
 #ifdef MONITOR_READLINE
 #include <readline/readline.h>
 #include <readline/history.h>
@@ -2285,12 +2290,14 @@ int MONITOR_Run(void)
 				}
 		}
 #ifdef HAVE_SYSTEM
+#if TARGET_OS_OSX
 		if (s[0] == '!') {
 			if (system(s + 1) == -1) {
 				printf("Error executing '%s'\n", s+1);
 			}
 			continue;
 		}
+#endif
 #endif
 		token_ptr = s;
 		t = get_token();

@@ -55,6 +55,13 @@ typedef NSImage OEPlatformImage;
 typedef UIImage OEPlatformImage;
 #endif
 
+/// macOS Foundation provides `NSSize`; iOS Foundation does not. Shared code
+/// that talks about buffer sizes in platform terms (including MAME's headless
+/// OSD header) uses it, so on iOS it is just another name for `CGSize`.
+#if !TARGET_OS_OSX
+typedef CGSize NSSize;
+#endif
+
 /// The event responder root class. macOS has `NSResponder`; iOS has
 /// `UIResponder`. Shared code that needs to hang a category off the responder
 /// chain — or that subclasses it — uses this name.

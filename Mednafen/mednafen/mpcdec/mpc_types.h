@@ -42,7 +42,13 @@
 #endif
 
 #include <stdlib.h>
+#include <TargetConditionals.h>
+#if TARGET_OS_OSX
+/* The macOS SDK ships <memory.h>; the iOS SDK does not (its declarations
+   all live in <string.h>). Including it unconditionally picks up an
+   unrelated vendored memory.h on iOS. */
 #include <memory.h>
+#endif
 
 #ifdef __cplusplus
 extern "C" {

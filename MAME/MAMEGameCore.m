@@ -28,7 +28,6 @@
 
 #import <OpenEmuBase/OERingBuffer.h>
 #import <OpenEmuBase/OEMemoryRegionDescriptor.h>
-#import <OpenGL/gl.h>
 #import <os/log.h>
 
 @interface MAMEAuditResult: NSObject
@@ -374,7 +373,13 @@ BOOL driverIsNotWorking(GameDriverOptions o)
 - (const void *)getVideoBufferWithHint:(void *)hint
 {
     _buffer = (uint32_t *)hint;
+    // NSSizeFromOEIntSize is macOS-only; CGSizeFromOEIntSize is the same
+    // values on both platforms (and on iOS NSSize just is CGSize).
+#if TARGET_OS_OSX
     [_osd setBuffer:hint size:NSSizeFromOEIntSize(_bufferSize)];
+#else
+    [_osd setBuffer:hint size:CGSizeFromOEIntSize(_bufferSize)];
+#endif
     return _buffer;
 }
 
@@ -392,14 +397,14 @@ BOOL driverIsNotWorking(GameDriverOptions o)
     return _aspectSize;
 }
 
-- (GLenum)pixelFormat
+- (uint32_t)pixelFormat
 {
-    return GL_BGRA;
+    return OEPixelFormat_BGRA;
 }
 
-- (GLenum)pixelType
+- (uint32_t)pixelType
 {
-    return GL_UNSIGNED_INT_8_8_8_8_REV;
+    return OEPixelType_UNSIGNED_INT_8_8_8_8_REV;
 }
 
 #pragma mark - execution

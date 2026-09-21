@@ -42,6 +42,7 @@
 
     if(isBinaryECM)
     {
+#if TARGET_OS_OSX
         dispatch_async(dispatch_get_main_queue(), ^{
             NSAlert *alert = [[NSAlert alloc] init];
 
@@ -56,6 +57,7 @@
                 [[NSWorkspace sharedWorkspace] openURL:[NSURL URLWithString:@"https://github.com/OpenEmu/OpenEmu/wiki/User-guide:-CD-based-games"]];
             }
         });
+#endif
 
         return OEFileSupportNo;
     }

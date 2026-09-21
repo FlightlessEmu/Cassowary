@@ -26,7 +26,7 @@ import Foundation
 import OpenEmuSystem
 
 class OESega32XSystemController: OESystemController {
-    override var systemIcon: NSImage? {
+    private var iconName: String {
         let imageName: String
         if OELocalizationHelper.shared.isRegionJPN {
             imageName = "32x_jp_library"
@@ -36,14 +36,25 @@ class OESega32XSystemController: OESystemController {
             imageName = "32x_na_library"
         }
 
-        var image = NSImage(named: imageName)
+        return imageName
+    }
+
+#if os(macOS)
+    override var systemIcon: NSImage? {
+        var image = NSImage(named: iconName)
         if image == nil {
             let bundle = Bundle(for: Self.self)
-            image = bundle.image(forResource: imageName)
-            image?.setName(imageName)
+            image = bundle.image(forResource: iconName)
+            image?.setName(iconName)
         }
         return image
     }
+#else
+    override var systemIcon: UIImage? {
+        let bundle = Bundle(for: Self.self)
+        return UIImage(named: iconName, in: bundle, compatibleWith: nil)
+    }
+#endif
 
     override func canHandle(_ file: OEFile) -> OEFileSupport {
         if file.fileExtension != "bin" {

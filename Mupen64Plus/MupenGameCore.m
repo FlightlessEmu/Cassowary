@@ -32,7 +32,6 @@
 #import <OpenEmuBase/OETimingUtils.h>
 #import <OpenEmuBase/OEMemoryRegionDescriptor.h>
 #import "OEN64SystemResponderClient.h"
-#import <OpenGL/gl.h>
 
 #import "api/config.h"
 #import "api/m64p_common.h"
@@ -812,17 +811,17 @@ static void MupenSetAudioSpeed(int percent)
     return NULL;
 }
 
-- (GLenum)pixelFormat
+- (uint32_t)pixelFormat
 {
-    return GL_BGRA;
+    return OEPixelFormat_BGRA;
 }
 
-- (GLenum)pixelType
+- (uint32_t)pixelType
 {
-    return GL_UNSIGNED_INT_8_8_8_8_REV;
+    return OEPixelType_UNSIGNED_INT_8_8_8_8_REV;
 }
 
-- (GLenum)internalPixelFormat
+- (uint32_t)internalPixelFormat
 {
     return GL_RGB8;
 }
