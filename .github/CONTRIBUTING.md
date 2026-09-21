@@ -32,8 +32,8 @@ Not sure where to start? Open a Discussion in the Q&A category and say what you'
 ### Steps
 
 ```bash
-# 1. Fork and clone with submodules (cores live in submodules — this will take a few minutes)
-git clone --recursive https://github.com/YOUR_USERNAME/OpenEmu-Silicon.git
+# 1. Fork and clone (cores are tracked in-repo — there are no submodules to fetch)
+git clone https://github.com/YOUR_USERNAME/OpenEmu-Silicon.git
 cd OpenEmu-Silicon
 
 # 2. Copy credential stubs (required — real credentials are never committed)
@@ -63,7 +63,7 @@ Or use the project's verify script, which also runs a codesign check:
 
 ### Common Setup Issues
 
-**Submodules not initialized:** If cores are missing from the workspace, run `git submodule update --init --recursive`. This can take 5–10 minutes the first time.
+**Missing cores:** Cores are flattened into this repo, not submodules — there is nothing to initialize. If a core directory is empty or missing, your clone is incomplete; re-clone. Do not run `git submodule update`.
 
 **Missing credential files:** If the build fails with "no such file" errors for Swift credential files, re-run the `cp` commands above. Template files are in the repo; real ones are not and are never committed.
 
@@ -90,7 +90,7 @@ If you're working in a git worktree, use `./Scripts/build-for-worktree.sh` and `
 
 - [ ] Builds cleanly on Apple Silicon with no new warnings (`./Scripts/verify.sh`)
 - [ ] Tested the affected core or system with at least one game
-- [ ] Submodules pinned correctly if cores were updated
+- [ ] Cores updated as plain tracked files (cores are not submodules)
 - [ ] AI tool use disclosed in PR description if applicable
 - [ ] No build logs, binaries, or credentials committed
 

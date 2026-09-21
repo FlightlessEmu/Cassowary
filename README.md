@@ -75,10 +75,22 @@ The vast majority of the code in this repo is still from the original developers
 
 ---
 
+## iOS App (Cassowary)
+
+This repo also builds **Cassowary**, an independent iOS, iPadOS, and Mac
+Catalyst front end that reuses OpenEmu's engine — the same cores and shared
+frameworks that the macOS app uses. It lives in [`Cassowary/`](Cassowary/) and
+is not affiliated with or endorsed by the OpenEmu Team.
+
+See [`Cassowary/README.md`](Cassowary/README.md) for how to build and run it.
+
+---
+
 ## Documentation
 
 | Doc | What's in it |
 |-----|-------------|
+| [`docs/PROJECT_LAYOUT.md`](docs/PROJECT_LAYOUT.md) | Map of the repository — what lives where, and why |
 | [Wiki](https://github.com/OpenEmu-Silicon/OpenEmu-Silicon/wiki) | User guides: getting started, BIOS files, importing, CD games, controllers, troubleshooting |
 | [Migrating from OpenEmu](https://github.com/OpenEmu-Silicon/OpenEmu-Silicon/wiki/Migrating-from-OpenEmu) | Switching from the original OpenEmu: what carries over, what doesn't, and how to back up |
 | [Supported Systems](https://github.com/OpenEmu-Silicon/OpenEmu-Silicon/wiki/Supported-Systems) | Every system: working status, known issues, in-progress cores, what's planned, and BIOS requirements |
