@@ -236,6 +236,13 @@ struct LibraryView: View {
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button {
+                    showFileImporter = true
+                } label: {
+                    Label("Add Games", systemImage: "plus")
+                }
+            }
+            ToolbarItem(placement: .primaryAction) {
+                Button {
                     showSettings = true
                 } label: {
                     Label("Settings", systemImage: "gear")
@@ -427,7 +434,7 @@ struct LibraryView: View {
                       !system.hasCore {
                 Text("There is no core installed for \(system.name) yet, so these games cannot be played.")
             } else {
-                Text("Pick ROM files from the Files app, or drag them onto this window.")
+                Text("Use Add Games to pick ROM files from the Files app, or drag them in on iPad and Mac.")
             }
         } actions: {
             if !isSystemWithoutCore(target) {
