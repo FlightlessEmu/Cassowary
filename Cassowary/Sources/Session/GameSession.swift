@@ -354,6 +354,16 @@ final class GameSession: NSObject {
         }
     }
 
+    // MARK: - Upscaling
+
+    /// Turn MetalFX spatial upscaling on or off for the running game.
+    ///
+    /// The helper falls back to the plain picture wherever the device or the
+    /// frame size does not suit MetalFX, so this is always safe to call.
+    func setMetalFXUpscalingEnabled(_ enabled: Bool) {
+        helper.setMetalFXUpscalingEnabled(enabled)
+    }
+
     // MARK: - Save states
 
     /// Where save states for a game live.

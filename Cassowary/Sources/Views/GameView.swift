@@ -23,9 +23,13 @@
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import SwiftUI
+import Metal
 import OpenEmuBase
 import OpenEmuSystem
 import OpenEmuKit
+#if canImport(MetalFX)
+import MetalFX
+#endif
 
 /// Plays one game.
 ///
@@ -48,6 +52,10 @@ struct GameView: View {
     @State private var notice: String?
     @StateObject private var shaderCatalog = ShaderCatalog()
     @State private var shaderName: String?
+
+    /// MetalFX spatial upscaling, remembered for every game. It suits the
+    /// screen rather than one system, so one pick covers them all.
+    @AppStorage("cassowary.metalFXUpscaling") private var metalFXUpscaling = false
 
     var body: some View {
         ZStack {
@@ -167,6 +175,21 @@ struct GameView: View {
                     } label: {
                         Label("Video Filter", systemImage: "camera.filters")
                     }
+                    Menu {
+                        Button {
+                            applyMetalFXUpscaling(false)
+                        } label: {
+                            filterMenuLabel("Off", selected: !metalFXUpscaling)
+                        }
+                        Button {
+                            applyMetalFXUpscaling(true)
+                        } label: {
+                            filterMenuLabel("MetalFX Spatial", selected: metalFXUpscaling)
+                        }
+                        .disabled(!metalFXAvailable)
+                    } label: {
+                        Label("Upscaling", systemImage: "arrow.up.left.and.arrow.down.right")
+                    }
                     Divider()
                     Button("Close Game", role: .destructive) {
                         onClose()
@@ -256,6 +279,29 @@ struct GameView: View {
                 show(notice: error.localizedDescription)
             }
         }
+    }
+
+    // MARK: - Upscaling
+
+    /// Whether this device can run MetalFX at all. The Simulator has no
+    /// MetalFX, and some older GPUs cannot run the scaler.
+    private var metalFXAvailable: Bool {
+#if canImport(MetalFX)
+        guard let device = MTLCreateSystemDefaultDevice() else { return false }
+        return MTLFXSpatialScalerDescriptor.supportsDevice(device)
+#else
+        return false
+#endif
+    }
+
+    /// Switch MetalFX spatial upscaling on the running game.
+    ///
+    /// The pick is remembered for every game, and the engine quietly keeps
+    /// the plain picture where MetalFX cannot run.
+    private func applyMetalFXUpscaling(_ enabled: Bool) {
+        metalFXUpscaling = enabled
+        session?.setMetalFXUpscalingEnabled(enabled)
+        show(notice: enabled ? "MetalFX upscaling on" : "MetalFX upscaling off")
     }
 
     private func glassButton(_ symbol: String, action: @escaping () -> Void) -> some View {
@@ -377,6 +423,7 @@ struct GameView: View {
             self.session = session
             session.start {
                 self.applySavedFilter(on: session)
+                session.setMetalFXUpscalingEnabled(self.metalFXUpscaling)
             }
 
             runTestHooks(session)
@@ -471,6 +518,20 @@ struct GameView: View {
                         NSLog("[Cassowary] test shader clear failed: %@", error.localizedDescription)
                     }
                 }
+            }
+        }
+
+        // Turn MetalFX spatial upscaling on, then off again, to prove the
+        // setting reaches the renderer without a tap.
+        if UserDefaults.standard.bool(forKey: "cassowary.testMetalFXUpscaling") {
+            Task {
+                try? await Task.sleep(for: .seconds(3))
+                session.setMetalFXUpscalingEnabled(true)
+                NSLog("[Cassowary] test MetalFX upscaling on")
+
+                try? await Task.sleep(for: .seconds(3))
+                session.setMetalFXUpscalingEnabled(false)
+                NSLog("[Cassowary] test MetalFX upscaling off")
             }
         }
 #endif
