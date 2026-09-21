@@ -28,6 +28,8 @@ credits and per-core licenses.
 - Save states (plumbing in place; minimal UI)
 - Video filters: OpenEmu's shader presets (CRT Geom, CRT Royale Kurozumi, NTSC,
   VHS, …), switchable while playing and settable per system in Settings
+- Cover art: box art downloaded from libretro-thumbnails, and from
+  ScreenScraper too once an app key is set up (Settings → Cover Art)
 
 ## How it is put together
 
@@ -128,6 +130,32 @@ cp mygame.gb "$CONTAINER/Documents/"
 Then tap Refresh in the app. Pass `-cassowary.autoPlayFirstGame YES` on the
 launch line to boot the first game automatically, which is what the test
 scripts use.
+
+## Cover art
+
+Cassowary downloads box art for your games and keeps it in the app's
+Application Support folder. Each game is looked up on
+[libretro-thumbnails](https://thumbnails.libretro.com) first — it is free and
+needs no account — and then on ScreenScraper, when an app key is set up. A game
+that is not found is left alone for a week before it is tried again.
+
+The switch, a "Download Missing Artwork" button, and the account fields are in
+**Settings → Cover Art**. Per game, long-press the tile for *Download Cover
+Art* / *Remove Cover Art*.
+
+ScreenScraper is the optional second source. It has better coverage for discs,
+and it needs an app key, which screenscraper.fr issues to software developers
+(Developer area → My API credentials). To bake one into a build:
+
+```bash
+cp Cassowary/ScreenScraperDevCredentials.example.plist \
+   Cassowary/Resources/ScreenScraperDevCredentials.plist
+# fill in devid and devpassword, then rebuild
+```
+
+That file is not committed. App keys can also be entered in
+Settings → Cover Art → ScreenScraper → App Key, which is the way to try one on
+a device without a rebuild.
 
 ## Moving from the OpenEmu iOS prototype
 
