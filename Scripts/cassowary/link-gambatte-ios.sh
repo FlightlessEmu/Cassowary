@@ -47,7 +47,7 @@ trap 'rm -rf "$PLUGIN_DIR"' ERR
 # of the iOS app target. At this stage they are linked from the SDK build tree.
 case "$MODE" in
   catalyst) SDK_BUILD="$PWD/build/catalyst" ;;
-  *)        SDK_BUILD="$PWD/OpenEmu-SDK/build/Debug-iphone${MODE}" ;;
+  *)        SDK_BUILD="$PWD/OpenEmu-SDK/build/Debug-${SDK_NAME}" ;;
 esac
 FRAMEWORKS=(
   "$SDK_BUILD/OpenEmuBase.framework"

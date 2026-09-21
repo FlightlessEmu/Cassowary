@@ -13,10 +13,22 @@
 #
 # Usage:
 #   Scripts/cassowary/build-cassowary.sh [--device | --catalyst] [--app-only]
+#                                       [--team TEAMID] [--udid UDID] [--no-sign]
 #
 #   --device     target a real iPhone instead of the Simulator
 #   --catalyst   build the same app natively for the Mac (Mac Catalyst)
 #   --app-only   skip the frameworks and plugins; just rebuild the app
+#
+# Device builds only:
+#
+#   --team       the Apple team to sign with. The default is DEVELOPMENT_TEAM
+#                from the environment, then the team Xcode is set up with,
+#                then the Apple Development certificate on this Mac.
+#   --udid       the iPhone to build for. The default is the only device
+#                devicectl can see. The phone is added to the provisioning
+#                profile, which is what lets the app install.
+#   --no-sign    build without signing. The app will not install on a phone;
+#                this is for checking that a device build compiles.
 
 set -euo pipefail
 
@@ -25,18 +37,34 @@ setopt NULL_GLOB 2>/dev/null || true
 
 MODE=simulator
 APP_ONLY=0
+SIGN=1
+TEAM_ID=${DEVELOPMENT_TEAM:-}
+DEVICE_UDID=${CASSOWARY_DEVICE_UDID:-}
 
-for arg in "$@"; do
-  case "$arg" in
-    --device)   MODE=device ;;
-    --catalyst) MODE=catalyst ;;
-    --app-only) APP_ONLY=1 ;;
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --device)   MODE=device; shift ;;
+    --catalyst) MODE=catalyst; shift ;;
+    --app-only) APP_ONLY=1; shift ;;
+    --team)     TEAM_ID=${2:?--team needs a team ID}; shift 2 ;;
+    --udid)     DEVICE_UDID=${2:?--udid needs a device UDID}; shift 2 ;;
+    --no-sign)  SIGN=0; shift ;;
     *)
-      print -u2 -- "unknown option: $arg"
+      print -u2 -- "unknown option: $1"
       exit 1
       ;;
   esac
 done
+
+# The UDIDs of the physical devices CoreDevice can see, one per line.
+# devicectl lists simulators alongside them, so they are filtered out here.
+# The UDID is the hardware one, which is what xcodebuild's -destination wants.
+device_udids() {
+  xcrun devicectl list devices \
+    --hide-default-columns --columns udid --hide-headers \
+    --filter 'hardwareProperties.reality != "simulated"' 2>/dev/null \
+    | awk 'NF' | sort -u || true
+}
 
 # Each mode differs in three ways: which SDK, which ABI, and which destination
 # string the build system understands.
@@ -65,6 +93,62 @@ if [[ "$MODE" == catalyst ]]; then
 fi
 BUILD="$PWD/build/cassowary-$MODE"
 SUPPORTED="iphoneos iphonesimulator macosx"
+
+# A real iPhone will not run an unsigned app, and it will not load the core
+# plugins unless they are signed for the same team as the app. Signing is off
+# in project.yml so Simulator and Catalyst builds need no Apple account; for
+# --device it is switched back on here.
+APP_DESTINATION=$DESTINATION
+SIGN_FLAGS=()
+if [[ "$MODE" == device && $SIGN -eq 1 ]]; then
+  # The team to sign with: what the caller passed, then the team Xcode is
+  # set up with, then the Apple Development certificate on this Mac.
+  #
+  # A certificate's team is its OU. The value in the common name's
+  # parentheses is not a team ID for personal teams, even though it looks
+  # like one, and xcodebuild rejects it as an unknown team.
+  if [[ -z "$TEAM_ID" ]]; then
+    TEAM_ID=$(defaults read com.apple.dt.Xcode IDEProvisioningTeamManagerLastSelectedTeamID 2>/dev/null || true)
+  fi
+  if [[ -z "$TEAM_ID" ]]; then
+    TEAM_ID=$(security find-certificate -a -c "Apple Development" -p 2>/dev/null \
+      | openssl x509 -noout -subject 2>/dev/null \
+      | sed -n 's/.*OU=\([A-Z0-9][A-Z0-9]*\).*/\1/p' | head -1 || true)
+  fi
+  if [[ -z "$TEAM_ID" ]]; then
+    print -u2 -- "error: no Apple signing identity or team found."
+    print -u2 -- ""
+    print -u2 -- "Open Xcode → Settings → Accounts, add your Apple ID, then run"
+    print -u2 -- "this again. To build without signing, pass --no-sign."
+    exit 1
+  fi
+
+  # Tell xcodebuild which phone this is for, so the device can be added to
+  # the provisioning profile. A generic destination can produce an app that
+  # no phone is allowed to install.
+  if [[ -z "$DEVICE_UDID" ]]; then
+    DEVICE_UDID=$(device_udids | head -1)
+  fi
+  if [[ -n "$DEVICE_UDID" ]]; then
+    APP_DESTINATION="platform=iOS,id=$DEVICE_UDID"
+    print -- "signing with team $TEAM_ID for $DEVICE_UDID"
+  else
+    print -u2 -- "warning: no iPhone found; building for a generic device."
+    print -u2 -- "         Pass --udid <UDID> once the phone is connected."
+  fi
+
+  # The macOS sandbox entitlements are not valid on iOS. An empty value drops
+  # the file XcodeGen generated from project.yml.
+  SIGN_FLAGS=(
+    CODE_SIGNING_ALLOWED=YES
+    CODE_SIGNING_REQUIRED=YES
+    CODE_SIGN_STYLE=Automatic
+    CODE_SIGN_IDENTITY="Apple Development"
+    DEVELOPMENT_TEAM="$TEAM_ID"
+    CODE_SIGN_ENTITLEMENTS=
+    -allowProvisioningUpdates
+  )
+fi
 
 banner() {
   print -- ""
@@ -138,7 +222,7 @@ if [[ $APP_ONLY -eq 0 ]]; then
 
   case "$MODE" in
     simulator) CORE_MODE_FLAG="" ; CORE_OUT="build/cassowary-plugins" ;;
-    device)    CORE_MODE_FLAG="--device" ; CORE_OUT="build/cassowary-plugins" ;;
+    device)    CORE_MODE_FLAG="--device" ; CORE_OUT="build/cassowary-plugins-device" ;;
     catalyst)  CORE_MODE_FLAG="--catalyst" ; CORE_OUT="build/cassowary-plugins-catalyst" ;;
   esac
 
@@ -162,6 +246,10 @@ if [[ $APP_ONLY -eq 0 ]]; then
   # a staged plugin without an Info.plist is pruned, loudly.
   rm -rf Cassowary/PlugIns/Cores/*.oecoreplugin
   rm -rf Cassowary/PlugIns/Systems/*.oesystemplugin
+  # A fresh checkout has no PlugIns/Cores or PlugIns/Systems yet. Without
+  # them, the first cp below would create the directory as a copy of the
+  # first plugin and spill that plugin's files next to the other bundles.
+  mkdir -p Cassowary/PlugIns/Cores Cassowary/PlugIns/Systems
   if [[ ${#WANT_PRODUCTS[@]} -gt 0 ]]; then
     for product in "${WANT_PRODUCTS[@]}"; do
       kind=Cores
@@ -175,9 +263,8 @@ if [[ $APP_ONLY -eq 0 ]]; then
       fi
     done
   else
-    # Note: core bundles currently share one output directory across modes,
-    # so a device build stages whatever was built last for that directory.
-    # System plugins are mode-separated (build/cassowary-plugins-$MODE).
+    # Cores and system plugins are staged from that mode's own output
+    # directory, so a device build never picks up Simulator binaries.
     staged=0
     for src in "$CORE_OUT"/*.oecoreplugin; do
       [[ -d "$src" ]] || continue
@@ -223,8 +310,9 @@ banner "Building the app"
 xcodebuild -project Cassowary/Cassowary.xcodeproj \
   -scheme Cassowary \
   -configuration Debug \
-  -destination "$DESTINATION" \
+  -destination "$APP_DESTINATION" \
   "${SDK_FLAGS[@]}" \
+  "${SIGN_FLAGS[@]}" \
   -derivedDataPath "$BUILD/app" \
   ARCHS=arm64 ONLY_ACTIVE_ARCH=NO \
   build
@@ -234,6 +322,15 @@ case "$MODE" in
   *)        PRODUCT_DIR=Debug-$APP_PLATFORM ;;
 esac
 APP="$BUILD/app/Build/Products/$PRODUCT_DIR/Cassowary.app"
+
+# A signed device build is only useful if the signature actually validates.
+# A plugin signed by the wrong team fails when the app tries to load it on
+# the phone, so catch that here rather than on the device.
+if [[ "$MODE" == device && $SIGN -eq 1 ]]; then
+  banner "Checking the signature"
+  codesign --verify --deep "$APP"
+  codesign -dv "$APP" 2>&1 | sed -n 's/^Authority=/signed by /p' | head -1
+fi
 
 # Mac Catalyst is signed ad-hoc after the fact. Xcode wants a development team
 # to sign a Catalyst target, and a local build only needs a valid signature so
@@ -256,3 +353,17 @@ fi
 
 print -- ""
 print -- "built $APP"
+
+if [[ "$MODE" == device ]]; then
+  print -- ""
+  if [[ $SIGN -eq 1 ]]; then
+    HINT="Scripts/cassowary/run-cassowary.sh --device"
+    if [[ -n "$DEVICE_UDID" ]]; then
+      HINT="$HINT --udid $DEVICE_UDID"
+    fi
+    print -- "install it on the iPhone with:"
+    print -- "  $HINT"
+  else
+    print -- "this build is unsigned; it will not install on a device."
+  fi
+fi
