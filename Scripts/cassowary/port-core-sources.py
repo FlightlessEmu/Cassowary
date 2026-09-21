@@ -149,13 +149,14 @@ def main():
         'OpenEmu.iconset', 'OpenEmu-metal.xcworkspace', 'OpenEmu.xcworkspace',
     }
 
+    cores_root = os.path.join(repo, 'cores')
     cores = args.cores
     if not cores:
         cores = []
-        for name in sorted(os.listdir(repo)):
+        for name in sorted(os.listdir(cores_root)):
             if name in NOT_CORES or name.startswith('.'):
                 continue
-            core_dir = os.path.join(repo, name)
+            core_dir = os.path.join(cores_root, name)
             if not os.path.isdir(core_dir):
                 continue
             if not any(f.endswith('.xcodeproj') for f in os.listdir(core_dir)):
@@ -167,7 +168,7 @@ def main():
     problems = []
 
     for core in cores:
-        core_dir = os.path.join(repo, core)
+        core_dir = os.path.join(repo, 'cores', core)
         if not os.path.isdir(core_dir):
             print(f'warning: no such core: {core}', file=sys.stderr)
             continue

@@ -72,17 +72,21 @@ case "$path" in
   *)              rel_path="$path" ;;
 esac
 
-# The first path component is the core directory candidate.
-core="${rel_path%%/*}"
+# Cores live under cores/. The first path component selects the group; when
+# it is `cores`, the core name is the second component.
+# Core directories contain an `Info.plist` plus a `*.xcodeproj` (or are
+# referenced by the workspace). Use a simple filesystem check rather than
+# maintaining a hardcoded list.
+core=""
+case "$rel_path" in
+  cores/*) core="${rel_path#cores/}"; core="${core%%/*}" ;;
+esac
 
-# Skip non-core paths quickly. Core directories are top-level and contain
-# an `Info.plist` plus a `*.xcodeproj` (or are referenced by the workspace).
-# Use a simple filesystem check rather than maintaining a hardcoded list.
-if [ -z "$core" ] || [ ! -d "$REPO_ROOT/$core" ]; then
+if [ -z "$core" ] || [ ! -d "$REPO_ROOT/cores/$core" ]; then
   echo '{}'
   exit 0
 fi
-if [ ! -f "$REPO_ROOT/$core/Info.plist" ]; then
+if [ ! -f "$REPO_ROOT/cores/$core/Info.plist" ]; then
   # Not a core directory.
   echo '{}'
   exit 0

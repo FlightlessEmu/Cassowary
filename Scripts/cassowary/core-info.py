@@ -406,7 +406,7 @@ def main():
     args = parser.parse_args()
 
     repo = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    core_dir = os.path.join(repo, args.core)
+    core_dir = os.path.join(repo, 'cores', args.core)
     if not os.path.isdir(core_dir):
         print(f'error: no core directory at {core_dir}', file=sys.stderr)
         return 1

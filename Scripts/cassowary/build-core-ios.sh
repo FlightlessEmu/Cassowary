@@ -94,7 +94,7 @@ case "$CORE" in
     # -I. The libcue static-library target's sources are compiled in as
     # well — the iOS link has no .a files.
     for libcue_src in cd.c cdtext.c cue_parser.c cue_scanner.c rem.c time.c; do
-      SOURCES+=("$PWD/4DO/libcue-1.4.0/src/libcue/$libcue_src")
+      SOURCES+=("$PWD/cores/4DO/libcue-1.4.0/src/libcue/$libcue_src")
       SOURCE_FLAGS+=("")
     done
     ;;
@@ -120,7 +120,7 @@ case "$CORE" in
     # up the wrong file and INLINE goes undefined. Searching
     # genplusgx_source first restores Xcode's resolution — macros.h is the
     # only basename the two directories share.
-    QUOTE_INCLUDES=("$PWD/GenesisPlus/genplusgx_source" "${QUOTE_INCLUDES[@]}")
+    QUOTE_INCLUDES=("$PWD/cores/GenesisPlus/genplusgx_source" "${QUOTE_INCLUDES[@]}")
     ;;
   MAME)
     # The project compiles MAMEGameCore.m as ObjC++
@@ -130,7 +130,7 @@ case "$CORE" in
     # The emulator itself is a separate dylib built by MAME's own makefile
     # (Scripts/build-mame-core.sh), not by the Xcode project's sources. It is
     # named without a lib prefix, so it is linked by path, not with -l.
-    MAME_DYLIB="$PWD/MAME/deps/mame/mamearcade_headless.dylib"
+    MAME_DYLIB="$PWD/cores/MAME/deps/mame/mamearcade_headless.dylib"
     if [[ -f "$MAME_DYLIB" ]]; then
       EXTRA_LINK_FLAGS=("$MAME_DYLIB")
       EMBED_LIBS=("$MAME_DYLIB")

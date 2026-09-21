@@ -97,7 +97,7 @@ xcrun -sdk "$SDK_NAME" clang++ \
 python3 - "$PLUGIN_DIR/Info.plist" <<'PY'
 import plistlib, sys
 
-src = 'Gambatte/Info.plist'
+src = 'cores/Gambatte/Info.plist'
 dst = sys.argv[1]
 
 with open(src, 'rb') as fh:
@@ -127,7 +127,7 @@ with open(dst, 'wb') as fh:
 PY
 
 # Core artwork and localizations, if any.
-[[ -d Gambatte/en.lproj ]] && cp -R Gambatte/en.lproj "$PLUGIN_DIR/" 2>/dev/null || true
+[[ -d cores/Gambatte/en.lproj ]] && cp -R cores/Gambatte/en.lproj "$PLUGIN_DIR/" 2>/dev/null || true
 
 print -- "built $PLUGIN_DIR"
 file "$PLUGIN_DIR/Gambatte"

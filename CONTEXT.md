@@ -10,7 +10,7 @@ This file is the source of truth for what each term means *in this codebase*. If
 
 | Term | Meaning |
 |---|---|
-| **core** | An emulator backend for one or more game systems. There is one core per top-level directory (e.g. `Dolphin/`, `Flycast/`, `Mednafen/`). Some cores cover multiple systems (Mednafen covers PSX, Saturn, WonderSwan, Lynx). |
+| **core** | An emulator backend for one or more game systems. There is one core per directory under `cores/` (e.g. `cores/Dolphin/`, `cores/Flycast/`, `cores/Mednafen/`). Some cores cover multiple systems (Mednafen covers PSX, Saturn, WonderSwan, Lynx). |
 | **plugin** / **`.oecoreplugin`** | The packaged build of a core — a macOS bundle that the host app loads at runtime. Lives at `~/Library/Application Support/OpenEmu/Cores/<Name>.oecoreplugin` once installed. |
 | **system** | A console or platform (NES, SNES, Genesis, etc.). Multiple cores can support the same system; a core can support multiple systems. |
 | **native core** | A core that subclasses `OEGameCore` directly (Mednafen, Mupen64Plus, BSNES, Snes9x, Genesis Plus GX, etc.). Owns its own frame loop and integrates cross-cutting services in-tree. Every core this fork ships is a native core. |

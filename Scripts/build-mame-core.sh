@@ -5,7 +5,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(dirname "$SCRIPT_DIR")"
-MAME_DIR="$REPO_ROOT/MAME"
+MAME_DIR="$REPO_ROOT/cores/MAME"
 DD="$MAME_DIR/build/XcodeDerived"
 
 # MAME's project generator mishandles absolute paths containing spaces. The
@@ -25,16 +25,16 @@ if [[ -z "${MAME_BUILD_NO_REEXEC:-}" && "$REPO_ROOT" =~ [[:space:]] ]]; then
   mkdir -p "$TMP_REPO"
   rsync -a --delete \
     --exclude '.git' \
-    --exclude 'MAME/deps' \
-    --exclude 'MAME/build' \
+    --exclude 'cores/MAME/deps' \
+    --exclude 'cores/MAME/build' \
     "$REPO_ROOT/" "$TMP_REPO/"
 
   MAME_BUILD_NO_REEXEC=1 "$TMP_REPO/Scripts/build-mame-core.sh"
 
   rm -rf "$DD"
   mkdir -p "$(dirname "$DD")" "$MAME_DIR/deps/mame"
-  rsync -a --delete "$TMP_REPO/MAME/build/XcodeDerived/" "$DD/"
-  cp -f "$TMP_REPO/MAME/deps/mame/mamearcade_headless.dylib" "$MAME_DIR/deps/mame/mamearcade_headless.dylib"
+  rsync -a --delete "$TMP_REPO/cores/MAME/build/XcodeDerived/" "$DD/"
+  cp -f "$TMP_REPO/cores/MAME/deps/mame/mamearcade_headless.dylib" "$MAME_DIR/deps/mame/mamearcade_headless.dylib"
 
   PLUGIN="$DD/Build/Products/Release/MAME.oecoreplugin"
   echo ""

@@ -58,7 +58,7 @@ DEST="$HOME/Library/Application Support/OpenEmu/Cores/${CORE}.oecoreplugin"
 # Look in two places, in this order, and pick the most recently built:
 #   1. ~/Builds/openemu/<branch>/  — worktree mode build path, used by verify.sh
 #                                    when run inside a git worktree
-#   2. <Core>/build/XcodeDerived/  — core-local build path used by heavyweight
+#   2. cores/<Core>/build/XcodeDerived/  — core-local build path used by heavyweight
 #                                    standalone build scripts such as MAME
 #   3. ~/Library/Developer/Xcode/DerivedData/OpenEmu-metal-*/  — standard build path
 #
@@ -77,7 +77,7 @@ if [ -f "$REPO_ROOT/.git" ]; then
   fi
 fi
 
-LOCAL_CORE_BUILD="$REPO_ROOT/${CORE}/build/XcodeDerived/Build/Products/${CONFIG}/${CORE}.oecoreplugin"
+LOCAL_CORE_BUILD="$REPO_ROOT/cores/${CORE}/build/XcodeDerived/Build/Products/${CONFIG}/${CORE}.oecoreplugin"
 [ -e "$LOCAL_CORE_BUILD/Contents/MacOS/${CORE}" ] || LOCAL_CORE_BUILD=""
 DERIVED_BUILD=$(ls -dt "$HOME/Library/Developer/Xcode/DerivedData/OpenEmu-metal-"*/Build/Products/${CONFIG}/"${CORE}.oecoreplugin" 2>/dev/null | head -1 || true)
 

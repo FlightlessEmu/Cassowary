@@ -36,8 +36,8 @@ cd "$REPO_ROOT"
 #                    path component after it>, which is what the pbxproj
 #                    references. (Dolphin: Externals, Flycast: core/deps.)
 CORES=(
-  "Dolphin:Dolphin/dolphin/.gitmodules:Dolphin/dolphin:Dolphin/Dolphin.xcodeproj/project.pbxproj:Externals"
-  "Flycast:Flycast/flycast/.gitmodules:Flycast/flycast:Flycast/Flycast.xcodeproj/project.pbxproj:core/deps"
+  "Dolphin:cores/Dolphin/dolphin/.gitmodules:cores/Dolphin/dolphin:cores/Dolphin/Dolphin.xcodeproj/project.pbxproj:Externals"
+  "Flycast:cores/Flycast/flycast/.gitmodules:cores/Flycast/flycast:cores/Flycast/Flycast.xcodeproj/project.pbxproj:core/deps"
 )
 
 fail=0

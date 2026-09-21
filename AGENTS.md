@@ -29,7 +29,7 @@ The goal is to honor the original OpenEmu spirit — a beautifully designed, fir
 2. **Branch from `main`, open PRs against `main`.** There is no staging branch.
 3. **Build before committing.** Run an `xcodebuild` check on any Swift/ObjC changes before staging a commit.
 4. **Don't rewrite files wholesale.** This is a large, complex Xcode project. Make surgical changes. Rewriting `.pbxproj` or large ObjC files without understanding them will break the build.
-5. **Respect the flattened architecture.** Submodule directories (`Nestopia/`, `BSNES/`, etc.) are regular directories — do not attempt to re-initialize them as git submodules.
+5. **Respect the flattened architecture.** Core directories under `cores/` (`cores/Nestopia/`, `cores/BSNES/`, etc.) are regular directories — do not attempt to re-initialize them as git submodules.
 6. **Do not commit build artifacts.** No `.o` files, derived data, `.app` bundles, build logs, or compiled executables.
 
 ---
@@ -84,7 +84,7 @@ cp OpenEmu/OEGoogleDriveSecrets.template.swift OpenEmu/OEGoogleDriveSecrets.swif
 | Shared protocols/types | `OpenEmu-SDK/` |
 | UI components | `OpenEmuKit/` |
 | Metal shaders | `OpenEmu-Shaders/` |
-| Emulator cores | `[CoreName]/` (top-level dirs) |
+| Emulator cores | `cores/[CoreName]/` |
 | Build and utility scripts | `Scripts/` |
 | Xcode project | `OpenEmu/OpenEmu.xcodeproj/` |
 
@@ -193,7 +193,7 @@ xcodebuild \
 open ~/Library/Developer/Xcode/DerivedData/OpenEmu-metal-*/Build/Products/Debug/OpenEmu.app
 ```
 
-**If the PR touches a core plugin** (anything inside `Dolphin/`, `Flycast/`, etc.):
+**If the PR touches a core plugin** (anything inside `cores/Dolphin/`, `cores/Flycast/`, etc.):
 
 ```
 ## How to test locally

@@ -51,10 +51,10 @@ INCLUDES=(
   -I "$PWD/OpenEmu-SDK/OpenEmuBase"
   -I "$PWD/OpenEmu-SDK/OpenEmuSystem"
   -I "$PWD/OpenEmu/SystemPlugins/GameBoy"
-  -I "$PWD/Gambatte"
-  -I "$PWD/Gambatte/src"
-  -I "$PWD/Gambatte/src/libgambatte"
-  -I "$PWD/Gambatte/src/resample"
+  -I "$PWD/cores/Gambatte"
+  -I "$PWD/cores/Gambatte/src"
+  -I "$PWD/cores/Gambatte/src/libgambatte"
+  -I "$PWD/cores/Gambatte/src/resample"
   -I "$PWD/Vendor/rcheevos/include"
   -I "$PWD/Vendor/rcheevos/src"
   -I "$PWD/OpenEmuKit/Source"
@@ -87,21 +87,21 @@ CCFLAGS=(
 
 # Gambatte's own sources, plus the shared support files the core links.
 SOURCES=(
-  Gambatte/GBGameCore.mm
+  cores/Gambatte/GBGameCore.mm
   # The root-level statesaver is the one the core target builds.
-  Gambatte/statesaver.cpp
+  cores/Gambatte/statesaver.cpp
   Vendor/rcheevos/rcheevos_build.c
   OpenEmuKit/Source/OERetroAchievementsTransport.m
   OpenEmuKit/Source/OERetroAchievementsBridge.m
-  Gambatte/src/libgambatte/*.cpp
-  # Note: Gambatte/statesaver.cpp and Gambatte/src/libgambatte/statesaver.cpp
+  cores/Gambatte/src/libgambatte/*.cpp
+  # Note: cores/Gambatte/statesaver.cpp and cores/Gambatte/src/libgambatte/statesaver.cpp
   # both exist and define the same symbols. The core's Xcode target compiles
-  # only the one in Gambatte/, so this list must not add the other.
-  Gambatte/src/libgambatte/mem/*.cpp
-  Gambatte/src/libgambatte/sound/*.cpp
-  Gambatte/src/libgambatte/video/*.cpp
-  Gambatte/src/libgambatte/file/*.cpp
-  Gambatte/src/resample/*.cpp
+  # only the one in cores/Gambatte/, so this list must not add the other.
+  cores/Gambatte/src/libgambatte/mem/*.cpp
+  cores/Gambatte/src/libgambatte/sound/*.cpp
+  cores/Gambatte/src/libgambatte/video/*.cpp
+  cores/Gambatte/src/libgambatte/file/*.cpp
+  cores/Gambatte/src/resample/*.cpp
 )
 
 failures=0
@@ -109,7 +109,7 @@ compiled=0
 for source in "${SOURCES[@]}"; do
   [[ -f "$source" ]] || continue
   # Skipped on purpose: see the note in SOURCES.
-  [[ "$source" == "Gambatte/src/libgambatte/statesaver.cpp" ]] && continue
+  [[ "$source" == "cores/Gambatte/src/libgambatte/statesaver.cpp" ]] && continue
   # Keep the source's directory in the object path: Gambatte has two different
   # files called statesaver.cpp, and flattening the name would lose one.
   object="$OUT/${source//\//_}.o"

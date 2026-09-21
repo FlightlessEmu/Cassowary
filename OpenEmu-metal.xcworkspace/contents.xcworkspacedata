@@ -5,10 +5,10 @@
       location = "group:OpenEmu-SDK/OpenEmu-SDK.xcodeproj">
    </FileRef>
    <FileRef
-      location = "group:SNES9x/SNES9x.xcodeproj">
+      location = "group:cores/SNES9x/SNES9x.xcodeproj">
    </FileRef>
    <FileRef
-      location = "group:BSNES/BSNES.xcodeproj">
+      location = "group:cores/BSNES/BSNES.xcodeproj">
    </FileRef>
    <FileRef
       location = "group:OpenEmuKit/OpenEmuKit.xcodeproj">
@@ -17,81 +17,81 @@
       location = "group:OpenEmu-Shaders/OpenEmuShaders.xcodeproj">
    </FileRef>
    <FileRef
-      location = "group:Stella/Stella.xcodeproj">
+      location = "group:cores/Stella/Stella.xcodeproj">
    </FileRef>
    <FileRef
-      location = "group:Flycast/Flycast.xcodeproj">
+      location = "group:cores/Flycast/Flycast.xcodeproj">
    </FileRef>
    <FileRef
-      location = "group:Mupen64Plus/Mupen64Plus.xcodeproj">
+      location = "group:cores/Mupen64Plus/Mupen64Plus.xcodeproj">
    </FileRef>
    <FileRef
-      location = "group:PokeMini/PokeMini.xcodeproj">
+      location = "group:cores/PokeMini/PokeMini.xcodeproj">
    </FileRef>
    <FileRef
-      location = "group:Potator-Core/Potator.xcodeproj">
+      location = "group:cores/Potator-Core/Potator.xcodeproj">
    </FileRef>
    <FileRef
-      location = "group:PPSSPP/PPSSPP-Core/PPSSPP.xcodeproj">
+      location = "group:cores/PPSSPP/PPSSPP-Core/PPSSPP.xcodeproj">
    </FileRef>
    <FileRef
-      location = "group:4DO/4DO.xcodeproj">
+      location = "group:cores/4DO/4DO.xcodeproj">
    </FileRef>
    <FileRef
-      location = "group:Atari800/Atari800.xcodeproj">
+      location = "group:cores/Atari800/Atari800.xcodeproj">
    </FileRef>
    <FileRef
-      location = "group:Bliss/Bliss.xcodeproj">
+      location = "group:cores/Bliss/Bliss.xcodeproj">
    </FileRef>
    <FileRef
-      location = "group:CrabEmu/CrabEmu.xcodeproj">
+      location = "group:cores/CrabEmu/CrabEmu.xcodeproj">
    </FileRef>
    <FileRef
-      location = "group:DeSmuME/src/frontend/cocoa/DeSmuME (Latest).xcodeproj">
+      location = "group:cores/DeSmuME/src/frontend/cocoa/DeSmuME (Latest).xcodeproj">
    </FileRef>
    <FileRef
-      location = "group:FCEU/FCEU.xcodeproj">
+      location = "group:cores/FCEU/FCEU.xcodeproj">
    </FileRef>
    <FileRef
-      location = "group:Gambatte/Gambatte.xcodeproj">
+      location = "group:cores/Gambatte/Gambatte.xcodeproj">
    </FileRef>
    <FileRef
-      location = "group:GenesisPlus/GenesisPlus.xcodeproj">
+      location = "group:cores/GenesisPlus/GenesisPlus.xcodeproj">
    </FileRef>
    <FileRef
-      location = "group:JollyCV/JollyCV.xcodeproj">
+      location = "group:cores/JollyCV/JollyCV.xcodeproj">
    </FileRef>
    <FileRef
-      location = "group:Mednafen/Mednafen.xcodeproj">
+      location = "group:cores/Mednafen/Mednafen.xcodeproj">
    </FileRef>
    <FileRef
-      location = "group:Nestopia/Nestopia.xcodeproj">
+      location = "group:cores/Nestopia/Nestopia.xcodeproj">
    </FileRef>
    <FileRef
-      location = "group:O2EM/O2EM.xcodeproj">
+      location = "group:cores/O2EM/O2EM.xcodeproj">
    </FileRef>
    <FileRef
-      location = "group:ProSystem/ProSystem.xcodeproj">
+      location = "group:cores/ProSystem/ProSystem.xcodeproj">
    </FileRef>
    <FileRef
-      location = "group:VecXGL/VecXGL.xcodeproj">
+      location = "group:cores/VecXGL/VecXGL.xcodeproj">
    </FileRef>
    <FileRef
-      location = "group:VirtualJaguar/VirtualJaguar.xcodeproj">
+      location = "group:cores/VirtualJaguar/VirtualJaguar.xcodeproj">
    </FileRef>
    <FileRef
-      location = "group:blueMSX/blueMSX.xcodeproj">
+      location = "group:cores/blueMSX/blueMSX.xcodeproj">
    </FileRef>
    <FileRef
-      location = "group:mGBA/mGBA.xcodeproj">
+      location = "group:cores/mGBA/mGBA.xcodeproj">
    </FileRef>
    <FileRef
-      location = "group:picodrive/Picodrive.xcodeproj">
+      location = "group:cores/picodrive/Picodrive.xcodeproj">
    </FileRef>
    <FileRef
-      location = "group:Dolphin/Dolphin.xcodeproj">
+      location = "group:cores/Dolphin/Dolphin.xcodeproj">
    </FileRef>
    <FileRef
-      location = "group:MAME/MAME.xcodeproj">
+      location = "group:cores/MAME/MAME.xcodeproj">
    </FileRef>
 </Workspace>
