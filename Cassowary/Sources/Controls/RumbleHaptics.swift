@@ -22,6 +22,8 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+import CoreHaptics
+import GameController
 import UIKit
 
 /// How hard an emulated rumble plays back as haptics.
@@ -57,12 +59,13 @@ enum RumbleStrength: String, CaseIterable, Identifiable {
     }
 }
 
-/// Plays the emulated Rumble Pak on the device.
+/// Plays the emulated Rumble Pak.
 ///
-/// A rumble is a motor held on, not a tap, so this repeats a soft impact for
-/// as long as the game holds it. Core Haptics would be smoother, but the
-/// impact generator is the one that works on every device the app runs on,
-/// and it matches the button feedback in `ButtonHaptics`.
+/// Each player's rumble goes to that player's controller when it has motors,
+/// so in a two-player game the pad that shakes is the one the game shook.
+/// Players with no such controller — and single-device play — buzz the device
+/// instead. The strength comes from the in-game menu, read when a rumble
+/// starts rather than cached.
 @MainActor
 final class RumbleHaptics {
 
@@ -73,11 +76,46 @@ final class RumbleHaptics {
             .flatMap(RumbleStrength.init(rawValue:)) ?? .medium
     }
 
+    /// Controllers that can rumble, in the order they connected. The engine
+    /// hands out players in that order too, so the first one is player one.
+    /// A controller the app has given a `playerIndex` wins over the order.
+    private var controllers: [GCController] = []
+
     /// Which players are rumbling right now. A game can rumble more than one.
     private var rumbling: Set<UInt> = []
 
+    /// The controller engines, kept per controller so a fast rattle does not
+    /// build a new one for every pulse.
+    private var engines: [ObjectIdentifier: CHHapticEngine] = [:]
+
+    /// The player running on a controller, by player number.
+    private var players: [UInt: CHHapticPatternPlayer] = [:]
+
+    // The device fallback.
     private var timer: Timer?
     private var generator: UIImpactFeedbackGenerator?
+
+    private var observers: [NSObjectProtocol] = []
+
+    init() {
+        let center = NotificationCenter.default
+        observers.append(center.addObserver(forName: .GCControllerDidConnect, object: nil, queue: .main) { [weak self] note in
+            guard let controller = note.object as? GCController else { return }
+            Task { @MainActor in self?.add(controller) }
+        })
+        observers.append(center.addObserver(forName: .GCControllerDidDisconnect, object: nil, queue: .main) { [weak self] note in
+            guard let controller = note.object as? GCController else { return }
+            Task { @MainActor in self?.remove(controller) }
+        })
+
+        for controller in GCController.controllers() {
+            add(controller)
+        }
+    }
+
+    deinit {
+        observers.forEach { NotificationCenter.default.removeObserver($0) }
+    }
 
     func setRumbling(_ on: Bool, forPlayer player: UInt) {
         if on {
@@ -95,15 +133,123 @@ final class RumbleHaptics {
         update()
     }
 
-    private func update() {
-        let wantsRumble = !rumbling.isEmpty && Self.strength != .off
+    // MARK: - Controllers
 
-        guard wantsRumble else {
-            timer?.invalidate()
-            timer = nil
+    private func add(_ controller: GCController) {
+        guard controller.haptics != nil, !controllers.contains(where: { $0 === controller }) else { return }
+
+        controllers.append(controller)
+    }
+
+    private func remove(_ controller: GCController) {
+        controllers.removeAll { $0 === controller }
+        engines[ObjectIdentifier(controller)] = nil
+
+        // Whatever it was playing is gone with it; the next rumble rebuilds.
+        players.values.forEach { try? $0.stop(atTime: CHHapticTimeImmediate) }
+        players.removeAll()
+
+        update()
+    }
+
+    /// The controller for a player: its `playerIndex` if the app set one,
+    /// otherwise the connection order the engine uses for players.
+    private func controller(forPlayer player: UInt) -> GCController? {
+        let index = Int(player) - 1
+
+        if let assigned = controllers.first(where: { $0.playerIndex.rawValue == index }) {
+            return assigned
+        }
+
+        return controllers.indices.contains(index) ? controllers[index] : nil
+    }
+
+    private func engine(for controller: GCController) -> CHHapticEngine? {
+        let key = ObjectIdentifier(controller)
+
+        if let engine = engines[key] {
+            return engine
+        }
+
+        guard let haptics = controller.haptics,
+              let engine = haptics.createEngine(withLocality: .default)
+        else { return nil }
+
+        engine.playsHapticsOnly = true
+        engines[key] = engine
+
+        return engine
+    }
+
+    private func startController(_ controller: GCController, forPlayer player: UInt) {
+        guard let engine = engine(for: controller),
+              let pattern = try? makePattern(on: engine),
+              (try? engine.start()) != nil
+        else { return }
+
+        guard (try? pattern.start(atTime: CHHapticTimeImmediate)) != nil else { return }
+
+        players[player] = pattern
+    }
+
+    private func stopController(forPlayer player: UInt) {
+        guard let pattern = players.removeValue(forKey: player) else { return }
+
+        try? pattern.stop(atTime: CHHapticTimeImmediate)
+    }
+
+    private func makePattern(on engine: CHHapticEngine) throws -> CHHapticPatternPlayer {
+        let intensity = Float(Self.strength.intensity)
+
+        // One long event: the game stops the rumble when it wants it stopped.
+        let event = CHHapticEvent(
+            eventType: .hapticContinuous,
+            parameters: [
+                CHHapticEventParameter(parameterID: .hapticIntensity, value: intensity),
+                CHHapticEventParameter(parameterID: .hapticSharpness, value: 0.3),
+            ],
+            relativeTime: 0,
+            duration: 3600)
+
+        return try engine.makePlayer(with: CHHapticPattern(events: [event], parameters: []))
+    }
+
+    // MARK: - Playback
+
+    private func update() {
+        guard Self.strength != .off, !rumbling.isEmpty else {
+            players.keys.forEach { stopController(forPlayer: $0) }
+            stopDevice()
             return
         }
 
+        for player in players.keys where !rumbling.contains(player) {
+            stopController(forPlayer: player)
+        }
+
+        var needsDevice = false
+
+        for player in rumbling {
+            if let controller = controller(forPlayer: player) {
+                if players[player] == nil {
+                    startController(controller, forPlayer: player)
+                }
+            } else {
+                // No controller for this player: the device stands in.
+                needsDevice = true
+            }
+        }
+
+        if needsDevice {
+            startDevice()
+        } else {
+            stopDevice()
+        }
+    }
+
+    // MARK: - Device
+
+    private func startDevice() {
         guard timer == nil else { return }
 
         let generator = self.generator ?? UIImpactFeedbackGenerator(style: .medium)
@@ -123,5 +269,10 @@ final class RumbleHaptics {
         }
         RunLoop.main.add(timer, forMode: .common)
         self.timer = timer
+    }
+
+    private func stopDevice() {
+        timer?.invalidate()
+        timer = nil
     }
 }
