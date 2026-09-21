@@ -204,14 +204,18 @@ banner() {
 if [[ $APP_ONLY -eq 0 ]]; then
   banner "Building the SDK frameworks"
   for target in OpenEmuBase OpenEmuSystem; do
-    xcodebuild -project OpenEmu-SDK/OpenEmu-SDK.xcodeproj \
+    if ! xcodebuild -project OpenEmu-SDK/OpenEmu-SDK.xcodeproj \
       -scheme "$target" \
       -configuration Debug \
       -destination "$DESTINATION" \
       "${SDK_FLAGS[@]}" \
       ARCHS=arm64 ONLY_ACTIVE_ARCH=NO \
       CONFIGURATION_BUILD_DIR="$BUILD" \
-      build >/dev/null
+      build > "$BUILD/$target.log" 2>&1; then
+      print -u2 -- "error: $target did not build; last lines of $BUILD/$target.log:"
+      tail -25 "$BUILD/$target.log" >&2
+      exit 1
+    fi
   done
 fi
 
@@ -219,14 +223,18 @@ fi
 # resolves OpenEmuShaders' Swift package dependencies.
 if [[ $APP_ONLY -eq 0 ]]; then
   banner "Building OpenEmuKit"
-  xcodebuild -workspace OpenEmu-metal.xcworkspace \
+  if ! xcodebuild -workspace OpenEmu-metal.xcworkspace \
     -scheme OpenEmuKit \
     -configuration Debug \
     -destination "$DESTINATION" \
     "${SDK_FLAGS[@]}" \
     ARCHS=arm64 ONLY_ACTIVE_ARCH=NO \
     CONFIGURATION_BUILD_DIR="$BUILD" \
-    build >/dev/null
+    build > "$BUILD/OpenEmuKit.log" 2>&1; then
+    print -u2 -- "error: OpenEmuKit did not build; last lines of $BUILD/OpenEmuKit.log:"
+    tail -25 "$BUILD/OpenEmuKit.log" >&2
+    exit 1
+  fi
 
   banner "Collecting the frameworks"
   mkdir -p "$FRAMEWORKS_DIR"

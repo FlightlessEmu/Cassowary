@@ -25,6 +25,8 @@
 import Foundation
 import UIKit
 import Combine
+import OpenEmuBase
+import OpenEmuKit
 
 /// Everything the Apple TV knows and does: which phone it talks to, what the
 /// phone's library looks like, what is downloaded, and how saves get home.
@@ -49,7 +51,9 @@ final class TVStore: ObservableObject {
         }
     }
 
-    /// One game, as this TV knows it.
+    /// One game, as this TV knows it. It stays in the list even when the
+    /// device it came from is away: what is here is this TV's library, not a
+    /// window onto someone else's.
     struct LocalGame: Codable, Hashable, Identifiable {
         var id: String
         var title: String
@@ -62,12 +66,36 @@ final class TVStore: ObservableObject {
         var lastPlayedAt: Date?
         var playCount: Int
         var favorite: Bool
+        /// Which source this came from. Optional so a library saved before
+        /// sources existed still loads.
+        var sourceDeviceID: String?
+        var sourceName: String?
 
         var isDownloaded: Bool { downloadedAt != nil }
     }
 
+    /// A source this TV can borrow games from. The phone is one; a network
+    /// mount would be another, and both would be listed here.
+    struct KnownHost: Codable, Hashable, Identifiable {
+        var deviceID: String
+        var name: String
+        var platformName: String
+        var lastConnectedAt: Date
+
+        var id: String { deviceID }
+
+        var platformLabel: String {
+            switch platformName {
+            case "ios":  return "iPhone or iPad"
+            case "mac":  return "Mac"
+            default:     return "Phone"
+            }
+        }
+    }
+
     struct State: Codable {
         var games: [String: LocalGame] = [:]
+        var hosts: [String: KnownHost] = [:]
         var lastHostDeviceID: String?
         var lastHostName: String?
     }
@@ -100,6 +128,7 @@ final class TVStore: ObservableObject {
 
     func start() {
         browser.start()
+        importBundledDemos()
 
         // Reconnect to the last phone by itself when it shows up again.
         browser.$hosts
@@ -212,6 +241,10 @@ final class TVStore: ObservableObject {
 
             state.lastHostDeviceID = host.deviceID
             state.lastHostName = host.name
+            state.hosts[host.deviceID] = KnownHost(deviceID: host.deviceID,
+                                                   name: host.name,
+                                                   platformName: host.platformName,
+                                                   lastConnectedAt: Date())
             saveState()
 
             try await refreshLibrary()
@@ -236,13 +269,38 @@ final class TVStore: ObservableObject {
     }
 
     func forgetHost() {
-        disconnect()
         if let id = state.lastHostDeviceID {
-            TrustStore.shared.remove(deviceID: id)
+            forgetHost(deviceID: id)
+        } else {
+            disconnect()
         }
-        state.lastHostDeviceID = nil
-        state.lastHostName = nil
+    }
+
+    /// Forgets one remembered source, leaving the rest of the library alone.
+    func forgetHost(deviceID: String) {
+        TrustStore.shared.remove(deviceID: deviceID)
+        state.hosts.removeValue(forKey: deviceID)
+
+        if state.lastHostDeviceID == deviceID {
+            state.lastHostDeviceID = nil
+            state.lastHostName = nil
+            disconnect()
+        }
+
         saveState()
+    }
+
+    /// Every source this TV has connected to before, newest first.
+    var knownHosts: [KnownHost] {
+        state.hosts.values.sorted { $0.lastConnectedAt > $1.lastConnectedAt }
+    }
+
+    /// Whether a game's source is the one right now. The demo game has no
+    /// source, so it is always available.
+    func isSourceAvailable(for game: LocalGame) -> Bool {
+        guard let source = game.sourceDeviceID else { return true }
+        guard case .connected(let host) = connection else { return false }
+        return source == host.deviceID
     }
 
     // MARK: - Library
@@ -255,25 +313,54 @@ final class TVStore: ObservableObject {
         Array(Set(state.games.values.map(\.systemName))).sorted()
     }
 
+    /// The game that ships with the app belongs in the library like any other:
+    /// it is already here, it needs no source, and it is the way to check the
+    /// TV without a phone.
+    func importBundledDemos() {
+        for demo in TVDemoLibrary.load() {
+            guard let hash = Hashing.sha256(ofFileAt: demo.url), state.games[hash] == nil else { continue }
+
+            let size = Int64((try? demo.url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0)
+            let systemID = TVDemoLibrary.systemPlugin(forExtension: demo.url.pathExtension)?.systemIdentifier ?? ""
+
+            state.games[hash] = LocalGame(id: hash,
+                                          title: demo.title,
+                                          fileName: demo.url.lastPathComponent,
+                                          systemIdentifier: systemID,
+                                          systemName: demo.systemName,
+                                          size: size,
+                                          hasArtwork: false,
+                                          downloadedAt: Date(),
+                                          lastPlayedAt: nil,
+                                          playCount: 0,
+                                          favorite: false,
+                                          sourceDeviceID: nil,
+                                          sourceName: "This Apple TV")
+        }
+        saveState()
+    }
+
     private func refreshLibrary() async throws {
         guard let client else { return }
         libraryIsLoading = true
         defer { libraryIsLoading = false }
 
         let manifest = try await client.library()
-        let known = state.games
+        let host = self.host
 
-        var updated: [String: LocalGame] = [:]
+        var updated = state.games
         for entry in manifest.games {
-            if var existing = known[entry.id] {
+            if var existing = updated[entry.id] {
                 // Keep what is local — what is downloaded and how it was
-                // played — and take the rest from the host.
+                // played — and take the rest from the source.
                 existing.title = entry.title
                 existing.fileName = entry.fileName
                 existing.systemIdentifier = entry.systemIdentifier
                 existing.systemName = entry.systemName
                 existing.size = entry.size
                 existing.hasArtwork = entry.hasArtwork
+                existing.sourceDeviceID = host?.deviceID ?? existing.sourceDeviceID
+                existing.sourceName = host?.name ?? existing.sourceName
                 updated[entry.id] = existing
             } else {
                 updated[entry.id] = LocalGame(id: entry.id,
@@ -286,15 +373,14 @@ final class TVStore: ObservableObject {
                                               downloadedAt: nil,
                                               lastPlayedAt: nil,
                                               playCount: 0,
-                                              favorite: false)
+                                              favorite: false,
+                                              sourceDeviceID: host?.deviceID,
+                                              sourceName: host?.name)
             }
         }
 
-        // A game that is gone from the host stays only if it is still here.
-        for (id, game) in known where updated[id] == nil && game.isDownloaded {
-            updated[id] = game
-        }
-
+        // A game the source no longer lists is kept: this TV's library is its
+        // own, and a game that was downloaded here plays here regardless.
         state.games = updated
         saveState()
         refreshPlayInfo()
@@ -346,7 +432,11 @@ final class TVStore: ObservableObject {
     func progress(for id: String) -> Double? { downloads[id] }
 
     func download(_ game: LocalGame) async {
-        guard let client, downloads[game.id] == nil else { return }
+        guard let client else {
+            syncSummary = "Connect to a source to download this game."
+            return
+        }
+        guard downloads[game.id] == nil else { return }
         downloads[game.id] = 0
         defer { downloads.removeValue(forKey: game.id) }
 
@@ -389,6 +479,10 @@ final class TVStore: ObservableObject {
     }
 
     func removeDownload(_ game: LocalGame) {
+        // A game that belongs to this TV is re-copied from the bundle on the
+        // next launch, so there is nothing to remove.
+        guard game.sourceDeviceID != nil else { return }
+
         try? FileManager.default.removeItem(at: SharingPaths.cachedGameFolder(id: game.id))
         var updated = game
         updated.downloadedAt = nil
@@ -399,8 +493,19 @@ final class TVStore: ObservableObject {
 
     func playableURL(for game: LocalGame) -> URL? {
         guard game.isDownloaded else { return nil }
-        let url = SharingPaths.cachedGameFolder(id: game.id).appendingPathComponent(game.fileName)
+        let url = fileURL(for: game)
         return FileManager.default.fileExists(atPath: url.path) ? url : nil
+    }
+
+    /// Where a game's ROM lives. A game that belongs to this TV (the bundled
+    /// demo) sits in its own folder; anything borrowed sits in the cache.
+    private func fileURL(for game: LocalGame) -> URL {
+        if game.sourceDeviceID == nil {
+            return SharingPaths.supportDirectory
+                .appendingPathComponent("Demo Games", isDirectory: true)
+                .appendingPathComponent(game.fileName)
+        }
+        return SharingPaths.cachedGameFolder(id: game.id).appendingPathComponent(game.fileName)
     }
 
     // MARK: - Cache budget
@@ -518,12 +623,28 @@ final class TVStore: ObservableObject {
         state.games[id]?.title ?? "A game"
     }
 
+    /// Whether this TV has a core that can run the game's system. A game
+    /// whose system has no core here can still be downloaded, but there would
+    /// be nothing to start, so the grid says so first.
+    func hasCore(for game: LocalGame) -> Bool {
+        !OECorePlugin.corePlugins(forSystemIdentifier: game.systemIdentifier).isEmpty
+    }
+
+    /// Puts a line on the library screen: used for things like a missing core.
+    func note(_ message: String) {
+        syncSummary = message
+    }
+
     // MARK: - Saves
 
     /// Where a game's saves live on the TV: the vault, so throwing the cache
-    /// away does not throw the saves away with it.
+    /// away does not throw the saves away with it. Games that belong to this
+    /// TV and nowhere else (the bundled demo) are left out: there is no other
+    /// device that would have the same game.
     private var locations: [GameLocation] {
-        state.games.values.map { GameLocation(id: $0.id, romURL: vaultROMURL(gameID: $0.id)) }
+        state.games.values
+            .filter { $0.sourceDeviceID != nil }
+            .map { GameLocation(id: $0.id, romURL: vaultROMURL(gameID: $0.id)) }
     }
 
     private func vaultROMURL(gameID: String) -> URL {

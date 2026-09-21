@@ -61,6 +61,18 @@ NSString *OEEventNamespaceKeys[] = { @"", @"OEGlobalNamespace", @"OEKeyboardName
 
 @implementation OEGameCoreController
 
+static NSURL *_supportFolderOverride = nil;
+
++ (NSURL *)supportFolderOverride
+{
+    return _supportFolderOverride;
+}
+
++ (void)setSupportFolderOverride:(NSURL *)supportFolderOverride
+{
+    _supportFolderOverride = [supportFolderOverride copy];
+}
+
 - (instancetype)init
 {
     return [self initWithBundle:[NSBundle bundleForClass:[self class]]];
@@ -80,7 +92,10 @@ NSString *OEEventNamespaceKeys[] = { @"", @"OEGlobalNamespace", @"OEKeyboardName
         NSArray *urls = [fileManager URLsForDirectory:NSApplicationSupportDirectory inDomains:NSUserDomainMask];
         NSURL *baseURL = (urls.count > 0) ? urls.firstObject : fileManager.temporaryDirectory;
 
-        NSURL *supportFolder = [baseURL URLByAppendingPathComponent:@"OpenEmu"];
+        // A host that cannot use Application Support (tvOS) supplies its own
+        // folder; everything below it keeps the same layout.
+        NSURL *supportFolder = self.class.supportFolderOverride ?:
+            [baseURL URLByAppendingPathComponent:@"OpenEmu"];
         _supportDirectory = [supportFolder URLByAppendingPathComponent:_pluginName];
         _biosDirectory    = [supportFolder URLByAppendingPathComponent:@"BIOS"];
     }

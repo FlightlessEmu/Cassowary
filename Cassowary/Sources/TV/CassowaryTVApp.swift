@@ -37,6 +37,13 @@ import OpenEmuKit
 struct CassowaryTVApp: App {
 
     init() {
+        // tvOS will not let an app create folders inside Application Support,
+        // and the engine keeps battery saves and BIOS files under there. Send
+        // it to the caches folder instead, which is where tvOS wants data
+        // that can be fetched again.
+        OEGameCoreController.supportFolderOverride = SharingPaths.supportDirectory
+            .appendingPathComponent("Engine", isDirectory: true)
+
         // Plugins are discovered by scanning the app bundle. This has to run
         // before any plugin is looked up.
         OECorePlugin.registerClass()

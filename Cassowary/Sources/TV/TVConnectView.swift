@@ -24,135 +24,169 @@
 
 import SwiftUI
 
-/// Finding the phone.
+/// Where the games come from.
 ///
-/// A host advertises itself on the network, so this is a list of what is
-/// around, not a place to type addresses. The phone has to be open with
-/// sharing switched on; the hint below says so when nothing turns up.
+/// The phone is one source; the demo game in the bundle is another; a network
+/// share would be a third. The TV's own library stays put whatever happens to
+/// a source, so this screen is about finding more games, not about holding the
+/// library together.
 struct TVConnectView: View {
+
+    /// Shown when this screen is opened from the library, so there is a way
+    /// back. When it is the whole app (nothing cached yet), there is nothing
+    /// to go back to and no button is shown.
+    var onClose: (() -> Void)?
 
     @ObservedObject private var store = TVStore.shared
 
-    @State private var demos: [TVDemoGame] = []
-    @State private var playingDemo: TVDemoGame?
-
     var body: some View {
-        Group {
-            if let playingDemo {
-                TVPlayerView(title: playingDemo.title, url: playingDemo.url) {
-                    self.playingDemo = nil
-                }
-            } else {
-                content
+        content
+            .onAppear {
+                store.start()
             }
-        }
-        .onAppear {
-            store.start()
-            demos = TVDemoLibrary.load()
-        }
     }
 
     private var content: some View {
         ZStack {
             Color.black.ignoresSafeArea()
 
-            VStack(spacing: 48) {
-                VStack(spacing: 12) {
-                    Text("Cassowary")
-                        .font(.system(size: 76, weight: .semibold))
+            ScrollView {
+                VStack(alignment: .leading, spacing: 44) {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Sources")
+                            .font(.system(size: 64, weight: .semibold))
 
-                    switch store.connection {
-                    case .connecting(let name):
-                        Text("Connecting to \(name)…")
-                            .font(.title3)
-                            .foregroundStyle(.secondary)
-                    case .failed(let message):
-                        Text(message)
-                            .font(.title3)
-                            .foregroundStyle(.orange)
-                            .multilineTextAlignment(.center)
-                            .frame(maxWidth: 900)
-                    default:
-                        Text("Choose the iPhone, iPad, or Mac holding your games.")
-                            .font(.title3)
-                            .foregroundStyle(.secondary)
+                        switch store.connection {
+                        case .connecting(let name):
+                            Text("Connecting to \(name)…")
+                                .font(.title3)
+                                .foregroundStyle(.secondary)
+                        case .failed(let message):
+                            Text(message)
+                                .font(.title3)
+                                .foregroundStyle(.orange)
+                        default:
+                            Text("Where games come from. What you download stays on this Apple TV.")
+                                .font(.title3)
+                                .foregroundStyle(.secondary)
+                        }
                     }
-                }
 
-                if store.browser.hosts.isEmpty {
-                    VStack(spacing: 16) {
-                        ProgressView()
-                            .scaleEffect(1.6)
-                        Text("Looking for Cassowary on your network…")
-                            .font(.headline)
-                            .foregroundStyle(.secondary)
-                    }
-                    .padding(.top, 20)
-                } else {
-                    HStack(spacing: 40) {
-                        ForEach(store.browser.hosts) { host in
-                            Button {
-                                Task { await store.connect(to: host) }
-                            } label: {
-                                hostTile(host)
+                    if !discovered.isEmpty {
+                        section("On Your Network") {
+                            ForEach(discovered) { host in
+                                hostCard(name: host.name,
+                                         detail: host.platformName == "tvos" ? "Apple TV" : "iPhone, iPad, or Mac",
+                                         symbol: "wifi",
+                                         subtitle: nil) {
+                                    Task { await store.connect(to: host) }
+                                }
                             }
-                            .buttonStyle(.card)
                         }
                     }
-                }
 
-                VStack(spacing: 20) {
-                    if !demos.isEmpty {
-                        Button {
-                            playingDemo = demos.first
-                        } label: {
-                            Label("Play the Demo Game", systemImage: "gamecontroller")
-                        }
-                        .buttonStyle(.bordered)
-                    }
-
-                    VStack(spacing: 8) {
-                        Text("Nothing there? Open Cassowary on your iPhone and turn on Settings → Share with Apple TV. The phone serves the library, so it has to stay open while you play.")
-                            .font(.callout)
-                            .foregroundStyle(.secondary)
-                            .multilineTextAlignment(.center)
-                            .frame(maxWidth: 1000)
-
-                        if store.state.lastHostName != nil {
-                            Button("Forget \(store.state.lastHostName ?? "the saved phone")") {
-                                store.forgetHost()
+                    if !remembered.isEmpty {
+                        section("Remembered") {
+                            ForEach(remembered) { host in
+                                hostCard(name: host.name,
+                                         detail: host.platformLabel,
+                                         symbol: "wifi.slash",
+                                         subtitle: "Not on this network right now") {
+                                    store.note("\(host.name) is not on the network right now. Open Cassowary on it and turn on sharing.")
+                                }
+                                .contextMenu {
+                                    Button("Forget \(host.name)", role: .destructive) {
+                                        store.forgetHost(deviceID: host.deviceID)
+                                    }
+                                }
                             }
-                            .buttonStyle(.bordered)
                         }
                     }
+
+                    if store.browser.hosts.isEmpty, remembered.isEmpty {
+                        HStack(spacing: 16) {
+                            ProgressView()
+                            Text("Looking for Cassowary on your network…")
+                                .font(.headline)
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(.vertical, 8)
+                    }
+
+                    Text("Sharing has to be switched on in the phone's settings, and the phone has to stay open while the Apple TV uses it. The demo game that ships with the app is already in the library. A network share on your home server can be another source later.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: 1100, alignment: .leading)
                 }
-                .padding(.top, 12)
+                .padding(80)
             }
-            .padding(80)
+        }
+        .overlay(alignment: .topLeading) {
+            if let onClose {
+                Button("Close", action: onClose)
+                    .padding(40)
+            }
         }
     }
 
-    private func hostTile(_ host: FoundHost) -> some View {
-        VStack(spacing: 18) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 24, style: .continuous)
-                    .fill(.quaternary)
+    // MARK: - Pieces
 
-                Image(systemName: host.platformName == "mac" ? "laptopcomputer" : "ipad.and.iphone")
-                    .font(.system(size: 80))
-                    .foregroundStyle(.secondary)
+    private func section<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 20) {
+            Text(title)
+                .font(.title2.weight(.semibold))
+            HStack(spacing: 32) {
+                content()
             }
-            .frame(width: 340, height: 340)
+        }
+    }
 
-            VStack(spacing: 4) {
-                Text(host.name)
-                    .font(.title3.weight(.semibold))
-                if host.deviceID == store.state.lastHostDeviceID {
-                    Text("Last used")
-                        .font(.caption)
+    private func hostCard(name: String,
+                          detail: String,
+                          symbol: String,
+                          subtitle: String?,
+                          action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: 14) {
+                Image(systemName: symbol)
+                    .font(.system(size: 44))
+                    .foregroundStyle(.secondary)
+                    .frame(height: 56)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(name)
+                        .font(.title3.weight(.semibold))
+                    Text(detail)
+                        .font(.callout)
                         .foregroundStyle(.secondary)
+                    if let subtitle {
+                        Text(subtitle)
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                    }
                 }
             }
+            .frame(width: 300, height: 200, alignment: .leading)
+            .padding(24)
+            .background(.quaternary, in: .rect(cornerRadius: 24))
+        }
+        .buttonStyle(.card)
+    }
+
+    /// Hosts the browser can see right now, other than the one connected.
+    private var discovered: [FoundHost] {
+        store.browser.hosts.filter { host in
+            if case .connected(let connected) = store.connection, connected.deviceID == host.deviceID {
+                return false
+            }
+            return true
+        }
+    }
+
+    /// Hosts this TV has used before that are not around at the moment.
+    private var remembered: [TVStore.KnownHost] {
+        store.knownHosts.filter { known in
+            !store.browser.hosts.contains { $0.deviceID == known.deviceID }
         }
     }
 }

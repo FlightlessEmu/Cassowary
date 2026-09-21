@@ -90,6 +90,14 @@ extern NSString *const OEGameCoreSupportsRetroAchievementsKey;
 @property(readonly) NSURL      *biosDirectory;
 @property(readonly) NSUInteger  playerCount;
 
+/// Where cores keep their support files, battery saves and BIOS.
+///
+/// Unset means the usual place: `Application Support/OpenEmu` on the device.
+/// tvOS refuses to create folders inside Application Support, so the Apple TV
+/// app points this at its caches folder instead. Set it before any core is
+/// loaded.
+@property(class, nonatomic, copy) NSURL *supportFolderOverride;
+
 - (bycopy OEGameCore *)newGameCore;
 - (NSArray<NSDictionary<NSString *, id> *> *)requiredFilesForSystemIdentifier:(NSString *)systemIdentifier;
 - (BOOL)requiresFilesForSystemIdentifier:(NSString *)systemIdentifier;

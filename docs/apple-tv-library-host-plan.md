@@ -81,6 +81,15 @@ So: the TV keeps a **working set, never a library**, and every cached game is
 treated as disposable. Our own budget: **2 GB by default**, adjustable, and
 never the only copy of anything that matters.
 
+**A device note.** On real tvOS hardware, an app cannot create folders inside
+`Library/Application Support` at all: the write is refused with "You don't
+have permission to save the file … in the folder Application Support". So
+everything the TV app keeps — the library index, the save vault, play
+history, conflicts — lives under `Caches/Sharing`, and the engine's support
+folder (battery saves and BIOS files, normally `Application Support/OpenEmu`)
+is pointed there too through `OEGameCoreController.supportFolderOverride`.
+Saves are sent to the phone, so a purge costs a re-sync, not the save.
+
 ### 2.2 The phone can only serve while its app is open
 
 iOS suspends an app that is only listening on a socket. There is no honest way
@@ -288,13 +297,21 @@ A "Share with Apple TV" section in Settings:
 
 ### 4.11 TV UI
 
-- Connect screen listing nearby hosts.
+- Sources screen: the hosts nearby, the ones this TV has used before, and the
+  demo game in the bundle. A network share would be another row here.
 - Library grid with badges: Ready, Download 43%, On iPhone, No TV core.
 - Download screen: size, progress, cancel; play begins when it is complete.
 - Player: the existing game screen without touch controls; controller-driven
   menu for pause, save, load, and quit.
 - A small "saves waiting" indicator, and Settings for cache budget and
   trusted hosts.
+
+The TV's library is **local-first**. A game downloaded here plays here, with
+or without the phone, and entries stay in the grid when the device they came
+from is away — marked with that device's name, and only then unavailable.
+Downloading again is the only thing that needs a source. This is why the
+home screen shows the library whenever there is anything in it, and the
+Sources screen is a place to find more games rather than the only screen.
 
 ---
 

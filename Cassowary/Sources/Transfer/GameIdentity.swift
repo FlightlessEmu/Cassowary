@@ -53,15 +53,31 @@ extension Digest {
 /// Where the sharing feature keeps its own small files.
 ///
 /// None of this is the library itself: the games stay where they are, and
-/// everything here can be deleted and rebuilt.
+/// everything here can be deleted and rebuilt. On tvOS, Application Support
+/// does not exist by default and may refuse to be created, so the caches
+/// folder is used when that happens: saves are sent to the phone either way.
 enum SharingPaths {
 
-    static var supportDirectory: URL {
-        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("Sharing", isDirectory: true)
-        try? FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
-        return base
-    }
+    /// Resolved once per launch: the first choice that works is kept.
+    static let supportDirectory: URL = {
+        let fileManager = FileManager.default
+        let candidates = [
+            fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first,
+            fileManager.urls(for: .cachesDirectory, in: .userDomainMask).first,
+        ].compactMap { $0 }
+
+        for candidate in candidates {
+            let base = candidate.appendingPathComponent("Sharing", isDirectory: true)
+            do {
+                try fileManager.createDirectory(at: base, withIntermediateDirectories: true)
+                return base
+            } catch {
+                NSLog("[Cassowary] could not use %@: %@", base.path, error.localizedDescription)
+            }
+        }
+
+        return fileManager.temporaryDirectory.appendingPathComponent("Sharing", isDirectory: true)
+    }()
 
     /// What the host knows about its own games, keyed by content hash.
     static var gameIndex: URL { supportDirectory.appendingPathComponent("games.json") }
@@ -91,10 +107,17 @@ enum SharingPaths {
         return base
     }
 
-    /// Where the engine writes battery saves, one folder per core.
+    /// Where the engine writes battery saves, one folder per core. On tvOS
+    /// the engine's support folder is pointed at the caches directory (see
+    /// the TV app's launch), because tvOS refuses to create folders inside
+    /// Application Support.
     static var batterySavesRoot: URL {
-        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+#if os(tvOS)
+        return supportDirectory.appendingPathComponent("Engine", isDirectory: true)
+#else
+        return FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("OpenEmu", isDirectory: true)
+#endif
     }
 
     /// A game's folder in the TV's cache.

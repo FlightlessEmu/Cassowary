@@ -20,6 +20,11 @@
 	<string>1.3.0</string>
 	<key>CFBundleVersion</key>
 	<string>1</string>
+	<!-- The app draws its own dark screens. Without this, tvOS runs it in
+	     light appearance, where primary text is black and vanishes against
+	     the black background. -->
+	<key>UIUserInterfaceStyle</key>
+	<string>Dark</string>
 	<!-- Finding the phone on the local network is the next phase; the strings
 	     are here so the permission is described before the first prompt. -->
 	<key>NSLocalNetworkUsageDescription</key>

@@ -44,11 +44,11 @@ struct TVDemoGame: Identifiable, Hashable {
 /// Finds the demo ROMs in the app bundle and prepares a writable copy of each.
 enum TVDemoLibrary {
 
-    /// Where the playable copies live. tvOS keeps very little permanent
-    /// storage, but the demo ROM is 32 KB.
+    /// Where the playable copies live. The demo ROM is 32 KB, so this does
+    /// not matter for room; it has to be somewhere writable, because the
+    /// engine writes a save state beside the ROM.
     private static var gamesDirectory: URL {
-        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("Demo Games", isDirectory: true)
+        SharingPaths.supportDirectory.appendingPathComponent("Demo Games", isDirectory: true)
     }
 
     static func load() -> [TVDemoGame] {
@@ -71,7 +71,8 @@ enum TVDemoLibrary {
                 do {
                     try fileManager.copyItem(at: source, to: destination)
                 } catch {
-                    NSLog("[Cassowary] could not copy the demo game: %@", error.localizedDescription)
+                    NSLog("[Cassowary] could not copy the demo game from %@ to %@: %@",
+                          source.path, destination.path, error.localizedDescription)
                     return nil
                 }
             }

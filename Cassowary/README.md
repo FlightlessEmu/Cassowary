@@ -129,6 +129,11 @@ The Apple TV borrows games from a phone, iPad, or Mac. On the host, turn on
 the phone from the list. The TV copies a game into its cache before playing
 it, and sends saves back when it is done.
 
+The TV's library is its own. A game downloaded there plays there with or
+without the phone, and stays in the grid when the phone is away — marked with
+the phone's name. The Sources screen lists what can be connected to, so a
+later network share would be another row rather than a new library.
+
 What syncs, all of it through the same queue and retry rules:
 
 - save states (the `.oesavestate` beside the ROM),
