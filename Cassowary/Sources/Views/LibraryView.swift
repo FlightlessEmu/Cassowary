@@ -459,11 +459,8 @@ struct LibraryView: View {
 
         for provider in fileProviders {
             group.enter()
-            provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { item, error in
-                if let error {
-                    NSLog("[Cassowary] could not read a dropped file: \(error.localizedDescription)")
-                }
-                if let url = Self.fileURL(from: item) {
+            Self.resolve(provider) { url in
+                if let url {
                     lock.lock()
                     urls.append(url)
                     lock.unlock()
@@ -481,11 +478,68 @@ struct LibraryView: View {
                     )
                     return
                 }
-                importNotice = notice(for: await library.add(contentsOf: urls))
+                let summary = await library.add(contentsOf: urls)
+                // Copies made below for drops that had no file URL are ours to
+                // clear away.
+                try? FileManager.default.removeItem(at: Self.dropStagingDirectory)
+                importNotice = notice(for: summary)
             }
         }
 
         return true
+    }
+
+    /// The file behind one dropped item, as a URL the library can copy.
+    ///
+    /// A file URL is asked for first, which is what iOS hands over. Mac
+    /// Catalyst hands the same thing back as `Data`, and some sources do not
+    /// offer a file URL at all — a Finder drop can arrive as just the file's
+    /// own type. Those are asked for a file representation instead, which
+    /// gives a temporary copy.
+    private static func resolve(_ provider: NSItemProvider, completion: @escaping (URL?) -> Void) {
+        provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { item, error in
+            if let url = fileURL(from: item) {
+                completion(url)
+                return
+            }
+            if let error {
+                NSLog("[Cassowary] dropped file has no file URL (\(error.localizedDescription)); types: \(provider.registeredTypeIdentifiers)")
+            }
+            stagedCopy(of: provider, completion: completion)
+        }
+    }
+
+    /// The temporary copy of a drop that could not supply a file URL.
+    ///
+    /// The system deletes its copy as soon as the completion returns, so it is
+    /// copied into the app's own temporary folder, where the library's usual
+    /// path can pick it up.
+    private static func stagedCopy(of provider: NSItemProvider, completion: @escaping (URL?) -> Void) {
+        provider.loadFileRepresentation(forTypeIdentifier: UTType.data.identifier) { url, error in
+            guard let url else {
+                NSLog("[Cassowary] dropped file could not be copied: \(error?.localizedDescription ?? "no error given")")
+                completion(nil)
+                return
+            }
+            do {
+                try FileManager.default.createDirectory(at: dropStagingDirectory, withIntermediateDirectories: true)
+                // The system's copy is named after the type it was asked for,
+                // so the provider's own name for the file is preferred.
+                let name = provider.suggestedName ?? url.lastPathComponent
+                let staged = dropStagingDirectory.appendingPathComponent(name)
+                try? FileManager.default.removeItem(at: staged)
+                try FileManager.default.copyItem(at: url, to: staged)
+                completion(staged)
+            } catch {
+                NSLog("[Cassowary] dropped file could not be staged: \(error.localizedDescription)")
+                completion(nil)
+            }
+        }
+    }
+
+    /// Where copies of drops without a file URL wait for the library.
+    private static var dropStagingDirectory: URL {
+        FileManager.default.temporaryDirectory.appendingPathComponent("CassowaryDrops", isDirectory: true)
     }
 
     /// The file URL out of one dropped item.
@@ -497,8 +551,14 @@ struct LibraryView: View {
         if let url = item as? URL {
             return url
         }
+        if let url = item as? NSURL {
+            return url as URL
+        }
         if let data = item as? Data {
             return URL(dataRepresentation: data, relativeTo: nil)
+        }
+        if let path = item as? String {
+            return URL(fileURLWithPath: path)
         }
         return nil
     }
