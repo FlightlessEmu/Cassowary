@@ -62,6 +62,13 @@ struct OnScreenControls: View {
         }
     }
 
+    /// The on-screen pads report through this, so every touch press buzzes the
+    /// phone at the strength picked in Settings → Controls. A physical
+    /// controller or keyboard goes straight to the session and stays silent.
+    private var pressHandler: any ControlPressHandler {
+        HapticPressHandler(target: session)
+    }
+
     // MARK: - D-pad
 
     /// The directional control, in the style the user picked.
@@ -81,11 +88,11 @@ struct OnScreenControls: View {
         } else {
             switch style {
             case .buttons:
-                SplitButtonsPad(up: buttons.up, down: buttons.down, left: buttons.left, right: buttons.right, handler: session, theme: theme, buttonSize: buttonSize)
+                SplitButtonsPad(up: buttons.up, down: buttons.down, left: buttons.left, right: buttons.right, handler: pressHandler, theme: theme, buttonSize: buttonSize)
             case .dpad:
-                ClassicDPadView(up: buttons.up, down: buttons.down, left: buttons.left, right: buttons.right, handler: session, theme: theme, size: buttonSize * 3)
+                ClassicDPadView(up: buttons.up, down: buttons.down, left: buttons.left, right: buttons.right, handler: pressHandler, theme: theme, size: buttonSize * 3)
             case .stick:
-                ThumbstickView(up: buttons.up, down: buttons.down, left: buttons.left, right: buttons.right, handler: session, theme: theme, diameter: buttonSize * 2.8)
+                ThumbstickView(up: buttons.up, down: buttons.down, left: buttons.left, right: buttons.right, handler: pressHandler, theme: theme, diameter: buttonSize * 2.8)
                     .frame(width: buttonSize * 3, height: buttonSize * 3)
             }
         }
@@ -101,7 +108,7 @@ struct OnScreenControls: View {
             ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
                 HStack(spacing: 10) {
                     ForEach(row) { button in
-                        FaceButtonView(button: button, handler: session, theme: theme, size: buttonSize)
+                        FaceButtonView(button: button, handler: pressHandler, theme: theme, size: buttonSize)
                     }
                 }
             }
