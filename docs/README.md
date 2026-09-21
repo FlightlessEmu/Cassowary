@@ -41,6 +41,7 @@ with a [template](adr/template.md).
 | [retro-achievements/retroachievements-compliance-evidence.md](retro-achievements/retroachievements-compliance-evidence.md) | RA compliance evidence. |
 | [retro-achievements/retroachievements-submission-package.md](retro-achievements/retroachievements-submission-package.md) | RA submission package. |
 | [retroarch-removal-migration.md](retroarch-removal-migration.md) | Migrating off the removed libretro bridge. |
+| [apple-tv-library-host-plan.md](apple-tv-library-host-plan.md) | Plan for the Apple TV build and the phone-hosted library. |
 
 ## Other
 
