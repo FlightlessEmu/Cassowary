@@ -1,0 +1,92 @@
+# XcodeGen definition for the VirtualC64 core plugin.
+#
+# The plugin bundle itself contains only the OpenEmu glue in VirtualC64/.
+# The emulator lives in VCCore/ and is compiled into a static library by
+# Scripts/cassowary/build-virtualc64-ios.sh; build-core-ios.sh links that
+# library into the bundle.
+#
+# Regenerate with:
+#   xcodegen generate --spec cores/VirtualC64/project.yml --project cores/VirtualC64
+#
+# The committed VirtualC64.xcodeproj is what the build scripts read (they take
+# the source list and build settings from it), so regenerate it whenever this
+# file changes.
+
+name: VirtualC64
+
+options:
+  bundleIdPrefix: org.openemu
+  createIntermediateGroups: true
+
+targets:
+  VirtualC64:
+    type: bundle
+    platform: macOS
+    deploymentTarget: "10.13"
+    sources:
+      - path: VirtualC64
+        excludes:
+          - "*.plist"
+    settings:
+      base:
+        PRODUCT_NAME: VirtualC64
+        PRODUCT_BUNDLE_IDENTIFIER: org.openemu.VirtualC64
+        WRAPPER_EXTENSION: oecoreplugin
+        INFOPLIST_FILE: VirtualC64/VirtualC64-Info.plist
+        CLANG_ENABLE_OBJC_ARC: "YES"
+        CLANG_CXX_LANGUAGE_STANDARD: c++20
+        GCC_SYMBOLS_PRIVATE_EXTERN: "YES"
+        GCC_PREPROCESSOR_DEFINITIONS:
+          - USE_ZLIB=1
+          - _USE_MATH_DEFINES
+        # Mirrors the include paths VCCore's own CMake build uses.
+        HEADER_SEARCH_PATHS:
+          - "$(SRCROOT)/VCCore"
+          - "$(SRCROOT)/VCCore/Components"
+          - "$(SRCROOT)/VCCore/Components/CIA"
+          - "$(SRCROOT)/VCCore/Components/CPU"
+          - "$(SRCROOT)/VCCore/Components/CPU/Peddle"
+          - "$(SRCROOT)/VCCore/Components/Memory"
+          - "$(SRCROOT)/VCCore/Components/SID"
+          - "$(SRCROOT)/VCCore/Components/SID/resid"
+          - "$(SRCROOT)/VCCore/Components/VICII"
+          - "$(SRCROOT)/VCCore/Infrastructure"
+          - "$(SRCROOT)/VCCore/Media"
+          - "$(SRCROOT)/VCCore/Media/Cartridges"
+          - "$(SRCROOT)/VCCore/Media/Cartridges/CustomCartridges"
+          - "$(SRCROOT)/VCCore/Misc"
+          - "$(SRCROOT)/VCCore/Misc/RegressionTester"
+          - "$(SRCROOT)/VCCore/Misc/RemoteServers"
+          - "$(SRCROOT)/VCCore/Misc/RetroShell"
+          - "$(SRCROOT)/VCCore/Peripherals"
+          - "$(SRCROOT)/VCCore/Peripherals/Datasette"
+          - "$(SRCROOT)/VCCore/Peripherals/Drive"
+          - "$(SRCROOT)/VCCore/Peripherals/Joystick"
+          - "$(SRCROOT)/VCCore/Peripherals/Keyboard"
+          - "$(SRCROOT)/VCCore/Peripherals/Monitor"
+          - "$(SRCROOT)/VCCore/Peripherals/Mouse"
+          - "$(SRCROOT)/VCCore/Peripherals/Network"
+          - "$(SRCROOT)/VCCore/Peripherals/Paddle"
+          - "$(SRCROOT)/VCCore/Ports"
+          - "$(SRCROOT)/VCCore/ThirdParty"
+          - "$(SRCROOT)/VCCore/rvlib"
+          - "$(SRCROOT)/VCCore/rvlib/Devices"
+          - "$(SRCROOT)/VCCore/rvlib/FileSystems"
+          - "$(SRCROOT)/VCCore/rvlib/FileSystems/Amiga"
+          - "$(SRCROOT)/VCCore/rvlib/FileSystems/CBM"
+          - "$(SRCROOT)/VCCore/rvlib/Images"
+          - "$(SRCROOT)/VCCore/rvlib/Images/ADF"
+          - "$(SRCROOT)/VCCore/rvlib/Images/D64"
+          - "$(SRCROOT)/VCCore/rvlib/Images/DMS"
+          - "$(SRCROOT)/VCCore/rvlib/Images/EADF"
+          - "$(SRCROOT)/VCCore/rvlib/Images/EXE"
+          - "$(SRCROOT)/VCCore/rvlib/Images/Encoders"
+          - "$(SRCROOT)/VCCore/rvlib/Images/HDF"
+          - "$(SRCROOT)/VCCore/rvlib/Images/IMG"
+          - "$(SRCROOT)/VCCore/rvlib/Images/ST"
+          - "$(SRCROOT)/VCCore/rvlib/Images/SVM"
+          - "$(SRCROOT)/VCCore/rvlib/Roms"
+          - "$(SRCROOT)/VCCore/rvlib/ThirdParty"
+          - "$(SRCROOT)/VCCore/rvlib/utlib"
+          - "$(SRCROOT)/VCCore/utlib/include"
+          - "$(SRCROOT)/VCCore/utlib/thirdparty"

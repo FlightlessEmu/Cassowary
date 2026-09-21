@@ -345,6 +345,7 @@ struct AboutView: View {
     private static let licenses: [String: String] = [
         "org.openemu.Gambatte": "GPL-2.0-or-later (Gambatte-DMS)",
         "org.openemu.mGBA": "MPL-2.0 (mGBA)",
+        "org.openemu.VirtualC64": "GPL-3.0-or-later or MPL-2.0 (VirtualC64)",
         // Non-commercial only: never charge for a build that includes these.
         "org.openemu.GenesisPlus": "Non-commercial (Genesis Plus GX)",
         "org.openemu.Picodrive": "Non-commercial (Picodrive)",

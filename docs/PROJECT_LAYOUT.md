@@ -59,6 +59,7 @@ All paths are relative to `cores/`.
 | Atari Jaguar | `VirtualJaguar/` |
 | Atari Lynx | `Mednafen/` |
 | ColecoVision | `JollyCV/`, `CrabEmu/`, `blueMSX/` |
+| Commodore 64 | `VirtualC64/` |
 | Game Boy / GBC | `Gambatte/` |
 | Game Boy Advance | `mGBA/` |
 | GameCube / Wii | `Dolphin/` |

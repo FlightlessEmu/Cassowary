@@ -1,0 +1,398 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		132CBDEF5E6FD851B3090110 /* VirtualC64GameCore.mm in Sources */ = {isa = PBXBuildFile; fileRef = 0E79522A816598918E6B9C21 /* VirtualC64GameCore.mm */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		0E79522A816598918E6B9C21 /* VirtualC64GameCore.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = VirtualC64GameCore.mm; sourceTree = "<group>"; };
+		8F5C8DD9CD548550ED74494F /* VirtualC64GameCore.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = VirtualC64GameCore.h; sourceTree = "<group>"; };
+		D39DE06B1EC66D58F9A151B5 /* VirtualC64.bundle */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = VirtualC64.bundle; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		1808C0B2F70F1ACD214E464E = {
+			isa = PBXGroup;
+			children = (
+				8F155E45B77E1DF6691EFD3E /* VirtualC64 */,
+				F1BE981EF45B2F5EB1BF3D9E /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		8F155E45B77E1DF6691EFD3E /* VirtualC64 */ = {
+			isa = PBXGroup;
+			children = (
+				8F5C8DD9CD548550ED74494F /* VirtualC64GameCore.h */,
+				0E79522A816598918E6B9C21 /* VirtualC64GameCore.mm */,
+			);
+			path = VirtualC64;
+			sourceTree = "<group>";
+		};
+		F1BE981EF45B2F5EB1BF3D9E /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				D39DE06B1EC66D58F9A151B5 /* VirtualC64.bundle */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		8384DF846C262E863EAAE255 /* VirtualC64 */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = D61CCEC8815361DE8859BD98 /* Build configuration list for PBXNativeTarget "VirtualC64" */;
+			buildPhases = (
+				354354A7F2A66DB28376C2C8 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = VirtualC64;
+			packageProductDependencies = (
+			);
+			productName = VirtualC64;
+			productReference = D39DE06B1EC66D58F9A151B5 /* VirtualC64.bundle */;
+			productType = "com.apple.product-type.bundle";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		6ACD7BD56A80180F032B8F62 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+				};
+			};
+			buildConfigurationList = 24DC434BF48ACD8ABF03BEFA /* Build configuration list for PBXProject "VirtualC64" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 1808C0B2F70F1ACD214E464E;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = F1BE981EF45B2F5EB1BF3D9E /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				8384DF846C262E863EAAE255 /* VirtualC64 */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		354354A7F2A66DB28376C2C8 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				132CBDEF5E6FD851B3090110 /* VirtualC64GameCore.mm in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		7CA46BE57A80F49A69F0B119 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		AB24BBDB1E3C05BD35C3B0B0 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_CXX_LANGUAGE_STANDARD = "c++20";
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COMBINE_HIDPI_IMAGES = YES;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"USE_ZLIB=1",
+					_USE_MATH_DEFINES,
+				);
+				GCC_SYMBOLS_PRIVATE_EXTERN = YES;
+				HEADER_SEARCH_PATHS = (
+					"$(SRCROOT)/VCCore",
+					"$(SRCROOT)/VCCore/Components",
+					"$(SRCROOT)/VCCore/Components/CIA",
+					"$(SRCROOT)/VCCore/Components/CPU",
+					"$(SRCROOT)/VCCore/Components/CPU/Peddle",
+					"$(SRCROOT)/VCCore/Components/Memory",
+					"$(SRCROOT)/VCCore/Components/SID",
+					"$(SRCROOT)/VCCore/Components/SID/resid",
+					"$(SRCROOT)/VCCore/Components/VICII",
+					"$(SRCROOT)/VCCore/Infrastructure",
+					"$(SRCROOT)/VCCore/Media",
+					"$(SRCROOT)/VCCore/Media/Cartridges",
+					"$(SRCROOT)/VCCore/Media/Cartridges/CustomCartridges",
+					"$(SRCROOT)/VCCore/Misc",
+					"$(SRCROOT)/VCCore/Misc/RegressionTester",
+					"$(SRCROOT)/VCCore/Misc/RemoteServers",
+					"$(SRCROOT)/VCCore/Misc/RetroShell",
+					"$(SRCROOT)/VCCore/Peripherals",
+					"$(SRCROOT)/VCCore/Peripherals/Datasette",
+					"$(SRCROOT)/VCCore/Peripherals/Drive",
+					"$(SRCROOT)/VCCore/Peripherals/Joystick",
+					"$(SRCROOT)/VCCore/Peripherals/Keyboard",
+					"$(SRCROOT)/VCCore/Peripherals/Monitor",
+					"$(SRCROOT)/VCCore/Peripherals/Mouse",
+					"$(SRCROOT)/VCCore/Peripherals/Network",
+					"$(SRCROOT)/VCCore/Peripherals/Paddle",
+					"$(SRCROOT)/VCCore/Ports",
+					"$(SRCROOT)/VCCore/ThirdParty",
+					"$(SRCROOT)/VCCore/rvlib",
+					"$(SRCROOT)/VCCore/rvlib/Devices",
+					"$(SRCROOT)/VCCore/rvlib/FileSystems",
+					"$(SRCROOT)/VCCore/rvlib/FileSystems/Amiga",
+					"$(SRCROOT)/VCCore/rvlib/FileSystems/CBM",
+					"$(SRCROOT)/VCCore/rvlib/Images",
+					"$(SRCROOT)/VCCore/rvlib/Images/ADF",
+					"$(SRCROOT)/VCCore/rvlib/Images/D64",
+					"$(SRCROOT)/VCCore/rvlib/Images/DMS",
+					"$(SRCROOT)/VCCore/rvlib/Images/EADF",
+					"$(SRCROOT)/VCCore/rvlib/Images/EXE",
+					"$(SRCROOT)/VCCore/rvlib/Images/Encoders",
+					"$(SRCROOT)/VCCore/rvlib/Images/HDF",
+					"$(SRCROOT)/VCCore/rvlib/Images/IMG",
+					"$(SRCROOT)/VCCore/rvlib/Images/ST",
+					"$(SRCROOT)/VCCore/rvlib/Images/SVM",
+					"$(SRCROOT)/VCCore/rvlib/Roms",
+					"$(SRCROOT)/VCCore/rvlib/ThirdParty",
+					"$(SRCROOT)/VCCore/rvlib/utlib",
+					"$(SRCROOT)/VCCore/utlib/include",
+					"$(SRCROOT)/VCCore/utlib/thirdparty",
+				);
+				INFOPLIST_FILE = "VirtualC64/VirtualC64-Info.plist";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 10.13;
+				PRODUCT_BUNDLE_IDENTIFIER = org.openemu.VirtualC64;
+				PRODUCT_NAME = VirtualC64;
+				SDKROOT = macosx;
+				WRAPPER_EXTENSION = oecoreplugin;
+			};
+			name = Debug;
+		};
+		CF075ADCB716241272238694 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_CXX_LANGUAGE_STANDARD = "c++20";
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COMBINE_HIDPI_IMAGES = YES;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"USE_ZLIB=1",
+					_USE_MATH_DEFINES,
+				);
+				GCC_SYMBOLS_PRIVATE_EXTERN = YES;
+				HEADER_SEARCH_PATHS = (
+					"$(SRCROOT)/VCCore",
+					"$(SRCROOT)/VCCore/Components",
+					"$(SRCROOT)/VCCore/Components/CIA",
+					"$(SRCROOT)/VCCore/Components/CPU",
+					"$(SRCROOT)/VCCore/Components/CPU/Peddle",
+					"$(SRCROOT)/VCCore/Components/Memory",
+					"$(SRCROOT)/VCCore/Components/SID",
+					"$(SRCROOT)/VCCore/Components/SID/resid",
+					"$(SRCROOT)/VCCore/Components/VICII",
+					"$(SRCROOT)/VCCore/Infrastructure",
+					"$(SRCROOT)/VCCore/Media",
+					"$(SRCROOT)/VCCore/Media/Cartridges",
+					"$(SRCROOT)/VCCore/Media/Cartridges/CustomCartridges",
+					"$(SRCROOT)/VCCore/Misc",
+					"$(SRCROOT)/VCCore/Misc/RegressionTester",
+					"$(SRCROOT)/VCCore/Misc/RemoteServers",
+					"$(SRCROOT)/VCCore/Misc/RetroShell",
+					"$(SRCROOT)/VCCore/Peripherals",
+					"$(SRCROOT)/VCCore/Peripherals/Datasette",
+					"$(SRCROOT)/VCCore/Peripherals/Drive",
+					"$(SRCROOT)/VCCore/Peripherals/Joystick",
+					"$(SRCROOT)/VCCore/Peripherals/Keyboard",
+					"$(SRCROOT)/VCCore/Peripherals/Monitor",
+					"$(SRCROOT)/VCCore/Peripherals/Mouse",
+					"$(SRCROOT)/VCCore/Peripherals/Network",
+					"$(SRCROOT)/VCCore/Peripherals/Paddle",
+					"$(SRCROOT)/VCCore/Ports",
+					"$(SRCROOT)/VCCore/ThirdParty",
+					"$(SRCROOT)/VCCore/rvlib",
+					"$(SRCROOT)/VCCore/rvlib/Devices",
+					"$(SRCROOT)/VCCore/rvlib/FileSystems",
+					"$(SRCROOT)/VCCore/rvlib/FileSystems/Amiga",
+					"$(SRCROOT)/VCCore/rvlib/FileSystems/CBM",
+					"$(SRCROOT)/VCCore/rvlib/Images",
+					"$(SRCROOT)/VCCore/rvlib/Images/ADF",
+					"$(SRCROOT)/VCCore/rvlib/Images/D64",
+					"$(SRCROOT)/VCCore/rvlib/Images/DMS",
+					"$(SRCROOT)/VCCore/rvlib/Images/EADF",
+					"$(SRCROOT)/VCCore/rvlib/Images/EXE",
+					"$(SRCROOT)/VCCore/rvlib/Images/Encoders",
+					"$(SRCROOT)/VCCore/rvlib/Images/HDF",
+					"$(SRCROOT)/VCCore/rvlib/Images/IMG",
+					"$(SRCROOT)/VCCore/rvlib/Images/ST",
+					"$(SRCROOT)/VCCore/rvlib/Images/SVM",
+					"$(SRCROOT)/VCCore/rvlib/Roms",
+					"$(SRCROOT)/VCCore/rvlib/ThirdParty",
+					"$(SRCROOT)/VCCore/rvlib/utlib",
+					"$(SRCROOT)/VCCore/utlib/include",
+					"$(SRCROOT)/VCCore/utlib/thirdparty",
+				);
+				INFOPLIST_FILE = "VirtualC64/VirtualC64-Info.plist";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 10.13;
+				PRODUCT_BUNDLE_IDENTIFIER = org.openemu.VirtualC64;
+				PRODUCT_NAME = VirtualC64;
+				SDKROOT = macosx;
+				WRAPPER_EXTENSION = oecoreplugin;
+			};
+			name = Release;
+		};
+		FF53CB47D12A5CA277BC2226 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		24DC434BF48ACD8ABF03BEFA /* Build configuration list for PBXProject "VirtualC64" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				FF53CB47D12A5CA277BC2226 /* Debug */,
+				7CA46BE57A80F49A69F0B119 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		D61CCEC8815361DE8859BD98 /* Build configuration list for PBXNativeTarget "VirtualC64" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AB24BBDB1E3C05BD35C3B0B0 /* Debug */,
+				CF075ADCB716241272238694 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 6ACD7BD56A80180F032B8F62 /* Project object */;
+}

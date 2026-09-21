@@ -133,7 +133,8 @@ if [[ $APP_ONLY -eq 0 ]]; then
     CrabEmu:CrabEmu FCEU:FCEU Gambatte:Gambatte GenesisPlus:GenesisPlus
     JollyCV:JollyCV MAME:MAME Mednafen:Mednafen mGBA:mGBA Nestopia:Nestopia
     O2EM:O2EM picodrive:Picodrive PokeMini:PokeMini Potator-Core:Potator
-    ProSystem:ProSystem SNES9x:SNES9x Stella:Stella VirtualJaguar:VirtualJaguar
+    ProSystem:ProSystem SNES9x:SNES9x Stella:Stella VirtualC64:VirtualC64
+    VirtualJaguar:VirtualJaguar
   )
 
   case "$MODE" in

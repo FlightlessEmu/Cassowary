@@ -122,6 +122,32 @@ case "$CORE" in
     # only basename the two directories share.
     QUOTE_INCLUDES=("$PWD/cores/GenesisPlus/genplusgx_source" "${QUOTE_INCLUDES[@]}")
     ;;
+  VirtualC64)
+    # The emulator is VirtualC64's VCCore, a CMake project, so it is built
+    # separately as a set of static libraries. Build it here if it is missing
+    # so that a single build-core-ios.sh run is enough.
+    case "$PLATFORM" in
+      simulator) VC64_FLAG="" ;;
+      *)         VC64_FLAG="--$PLATFORM" ;;
+    esac
+    VIRTUALC64_LIB_DIR="$PWD/build/cassowary-virtualc64-$PLATFORM/lib"
+    if [[ ! -f "$VIRTUALC64_LIB_DIR/libVCCore.a" ]]; then
+      print -- "building the VirtualC64 emulator library first..."
+      ./Scripts/cassowary/build-virtualc64-ios.sh $VC64_FLAG
+    fi
+    # Static archives do not carry their dependencies. The order below is the
+    # dependency order (VCCore → reSID/rvlib/utlib, rvlib → xdms/utlib), so a
+    # single pass resolves everything. -lz is for VCCore's zlib support
+    # (snapshot compression, gzip images).
+    EXTRA_LINK_FLAGS=(
+      "$VIRTUALC64_LIB_DIR/libVCCore.a"
+      "$VIRTUALC64_LIB_DIR/libresid.a"
+      "$VIRTUALC64_LIB_DIR/librvlib.a"
+      "$VIRTUALC64_LIB_DIR/libxdms.a"
+      "$VIRTUALC64_LIB_DIR/libutlib.a"
+      -lz
+    )
+    ;;
   MAME)
     # The project compiles MAMEGameCore.m as ObjC++
     # (GCC_INPUT_FILETYPE = sourcecode.cpp.objcpp): it assigns braced lists

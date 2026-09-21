@@ -123,6 +123,7 @@ are not included.
 | Atari 7800 | ProSystem |
 | Atari Jaguar | VirtualJaguar |
 | ColecoVision | JollyCV, CrabEmu, blueMSX |
+| Commodore 64 | VirtualC64 |
 | Game Boy / GBC | Gambatte |
 | Game Boy Advance | mGBA |
 | Intellivision | Bliss |
