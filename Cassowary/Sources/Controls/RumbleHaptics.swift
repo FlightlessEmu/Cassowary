@@ -93,7 +93,9 @@ final class RumbleHaptics {
 
     // The device fallback.
     private var timer: Timer?
+#if os(iOS)
     private var generator: UIImpactFeedbackGenerator?
+#endif
 
     private var observers: [NSObjectProtocol] = []
 
@@ -250,6 +252,7 @@ final class RumbleHaptics {
     // MARK: - Device
 
     private func startDevice() {
+#if os(iOS)
         guard timer == nil else { return }
 
         let generator = self.generator ?? UIImpactFeedbackGenerator(style: .medium)
@@ -269,6 +272,11 @@ final class RumbleHaptics {
         }
         RunLoop.main.add(timer, forMode: .common)
         self.timer = timer
+#else
+        // An Apple TV has no haptics hardware. Controller rumble still plays
+        // through GameController; a player without a controller just does not
+        // rumble.
+#endif
     }
 
     private func stopDevice() {

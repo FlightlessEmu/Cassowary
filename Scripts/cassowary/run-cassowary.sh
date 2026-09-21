@@ -14,6 +14,7 @@
 #   Scripts/cassowary/run-cassowary.sh --ipad       run on the iPad mini Simulator
 #   Scripts/cassowary/run-cassowary.sh --ipad-pro   run on the 13-inch iPad Pro Simulator
 #   Scripts/cassowary/run-cassowary.sh --catalyst   run on the Mac (Mac Catalyst)
+#   Scripts/cassowary/run-cassowary.sh --tvos-sim   run in the Apple TV Simulator
 #
 # Notes on running the app on the Mac itself:
 #
@@ -47,6 +48,7 @@ while [[ $# -gt 0 ]]; do
     --ipad) TARGET_MODE=ipad; shift ;;
     --ipad-pro) TARGET_MODE=ipad-pro; shift ;;
     --catalyst) TARGET_MODE=catalyst; shift ;;
+    --tvos-sim) TARGET_MODE=tvos-sim; shift ;;
     --game) GAME="$2"; shift 2 ;;
     *) print -u2 -- "unknown option: $1"; exit 1 ;;
   esac
@@ -164,6 +166,57 @@ if [[ "$TARGET_MODE" == catalyst ]]; then
   open "$APP"
   print -- ""
   print -- "running. the app is a normal window on the Mac."
+  exit 0
+fi
+
+# --- Apple TV Simulator ----------------------------------------------------
+#
+# The TV app has its own bundle id, simulator and build directory. There is no
+# Documents folder to drop a game into: what the TV can play by itself is the
+# demo game built into the bundle.
+if [[ "$TARGET_MODE" == tvos-sim ]]; then
+  APP="build/cassowary-tvos-sim/app/Build/Products/Debug-appletvsimulator/Cassowary.app"
+  BUNDLE_ID=org.cassowary.CassowaryTV
+  TV_DEVICE_NAME="Cassowary-TV"
+  TV_DEVICE_TYPE="com.apple.CoreSimulator.SimDeviceType.Apple-TV-4K-3rd-generation-1080p"
+  TV_RUNTIME="com.apple.CoreSimulator.SimRuntime.tvOS-26-5"
+
+  if ! xcrun simctl list devices | grep -q "$TV_DEVICE_NAME"; then
+    print -- "creating simulator $TV_DEVICE_NAME"
+    xcrun simctl create "$TV_DEVICE_NAME" "$TV_DEVICE_TYPE" "$TV_RUNTIME" >/dev/null
+  fi
+
+  TV_DEVICE_ID=$(xcrun simctl list devices available \
+    | sed -n "s/.*$TV_DEVICE_NAME (\([0-9A-F-]\{36\}\)).*/\1/p" | head -1)
+
+  if [[ -z "$TV_DEVICE_ID" ]]; then
+    print -u2 -- "error: could not find the Apple TV simulator"
+    exit 1
+  fi
+
+  if ! xcrun simctl list devices | grep -q "$TV_DEVICE_ID) (Booted)"; then
+    print -- "booting $TV_DEVICE_NAME"
+    xcrun simctl boot "$TV_DEVICE_ID" 2>/dev/null || true
+  fi
+  xcrun simctl bootstatus "$TV_DEVICE_ID" -b >/dev/null 2>&1 || true
+
+  open -a Simulator
+
+  if [[ $REBUILD -eq 1 || ! -d "$APP" ]]; then
+    print -- "building for the Apple TV Simulator..."
+    ./Scripts/cassowary/build-cassowary.sh --tvos-sim
+  fi
+  [[ -d "$APP" ]] || { print -u2 -- "error: $APP was not built"; exit 1; }
+
+  xcrun simctl terminate "$TV_DEVICE_ID" "$BUNDLE_ID" 2>/dev/null || true
+  print -- "installing..."
+  xcrun simctl install "$TV_DEVICE_ID" "$APP"
+
+  print -- "launching..."
+  xcrun simctl launch "$TV_DEVICE_ID" "$BUNDLE_ID" >/dev/null
+
+  print -- ""
+  print -- "running. the app is in the Apple TV Simulator window."
   exit 0
 fi
 

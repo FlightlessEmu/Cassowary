@@ -11,6 +11,9 @@
 #
 # Options:
 #   --device      target a real iPhone instead of the Simulator
+#   --catalyst    build for the Mac (Mac Catalyst)
+#   --tvos        target a real Apple TV
+#   --tvos-sim    target the Apple TV Simulator
 #   --keep-going  compile every file even after one fails, then report a summary
 #   --quiet       only print the summary
 #
@@ -43,6 +46,16 @@ for arg in "$@"; do
       SDK_NAME=macosx
       TARGET=arm64-apple-ios17.0-macabi
       ;;
+    --tvos)
+      PLATFORM=tvos
+      SDK_NAME=appletvos
+      TARGET=arm64-apple-tvos17.0
+      ;;
+    --tvos-sim)
+      PLATFORM=tvos-sim
+      SDK_NAME=appletvsimulator
+      TARGET=arm64-apple-tvos17.0-simulator
+      ;;
     --keep-going) KEEP_GOING=1 ;;
     --quiet) QUIET=1 ;;
     # N64 only: build the pure interpreter instead of the ARM64 dynarec.
@@ -73,6 +86,8 @@ if [[ ! -d "$SDK_BUILD/OpenEmuBase.framework" ]]; then
   case "$PLATFORM" in
     catalyst) DESTINATION="platform=macOS,variant=Mac Catalyst" ; SDK_OPT=() ;;
     device)   DESTINATION="generic/platform=iOS"                 ; SDK_OPT=(-sdk iphoneos) ;;
+    tvos)     DESTINATION="generic/platform=tvOS"                ; SDK_OPT=(-sdk appletvos) ;;
+    tvos-sim) DESTINATION="generic/platform=tvOS Simulator"      ; SDK_OPT=(-sdk appletvsimulator) ;;
     *)        DESTINATION="generic/platform=iOS Simulator"       ; SDK_OPT=(-sdk iphonesimulator) ;;
   esac
   xcodebuild -project OpenEmu-SDK/OpenEmu-SDK.xcodeproj \
@@ -407,6 +422,8 @@ PLUGIN_DIR="build/cassowary-plugins/${PRODUCT}.${WRAPPER}"
 case "$PLATFORM" in
   device)   PLUGIN_DIR="build/cassowary-plugins-device/${PRODUCT}.${WRAPPER}" ;;
   catalyst) PLUGIN_DIR="build/cassowary-plugins-catalyst/${PRODUCT}.${WRAPPER}" ;;
+  tvos)     PLUGIN_DIR="build/cassowary-plugins-tvos/${PRODUCT}.${WRAPPER}" ;;
+  tvos-sim) PLUGIN_DIR="build/cassowary-plugins-tvos-sim/${PRODUCT}.${WRAPPER}" ;;
 esac
 rm -rf "$PLUGIN_DIR"
 mkdir -p "$PLUGIN_DIR"
@@ -538,7 +555,10 @@ done
 # separately (it needs MoltenVK and the parallel-rdp sources): see
 # build/spike/parallel-plugin/build.sh. Override the directory with
 # MUPEN_PARALLEL_PLUGIN_DIR when the plugin lives somewhere else.
-if [[ "$CORE" == Mupen64Plus ]]; then
+#
+# There is no tvOS build of the plugin yet, so the staging step is skipped
+# there rather than copying a Mac or iOS dylib into the bundle.
+if [[ "$CORE" == Mupen64Plus && "$PLATFORM" != tvos && "$PLATFORM" != tvos-sim ]]; then
   case "$PLATFORM" in
     simulator) MUPEN_PLUGIN_PLATFORM="simulator" ;;
     catalyst)  MUPEN_PLUGIN_PLATFORM="catalyst" ;;

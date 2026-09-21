@@ -876,6 +876,8 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 050A9A0924F9B26C00321847 /* Config.xcconfig */;
 			buildSettings = {
+				TVOS_DEPLOYMENT_TARGET = 17.0;
+				SUPPORTED_PLATFORMS = "appletvos appletvsimulator iphoneos iphonesimulator macosx";
 				SUPPORTS_MACCATALYST = YES;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_STYLE = Automatic;
@@ -907,6 +909,8 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 050A9A0924F9B26C00321847 /* Config.xcconfig */;
 			buildSettings = {
+				TVOS_DEPLOYMENT_TARGET = 17.0;
+				SUPPORTED_PLATFORMS = "appletvos appletvsimulator iphoneos iphonesimulator macosx";
 				SUPPORTS_MACCATALYST = YES;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_STYLE = Automatic;

@@ -58,13 +58,18 @@ class GameHelperMetalLayer: CAMetalLayer {
                 // Currently we use ITUR_709 (HDTV) which is close to sRGB but adapted to a dark room.
                 let colorSpace = CGColorSpace(name: CGColorSpace.itur_709)
                 colorspace = colorSpace
+#if !os(tvOS)
+                // tvOS's CAMetalLayer has no extended-dynamic-range switch.
                 wantsExtendedDynamicRangeContent = false
+#endif
             case .rgba16Float:
                 // For a filter that wants to output HDR, or at least linear gamma.
                 // This "should" use the colorspace above but linear. This is close enough.
                 let colorSpace = CGColorSpace(name: CGColorSpace.extendedLinearSRGB)
                 colorspace = colorSpace
+#if !os(tvOS)
                 wantsExtendedDynamicRangeContent = true
+#endif
             default:
                 break
             }

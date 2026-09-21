@@ -39,7 +39,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 #if TARGET_OS_OSX
 @interface OESystemResponder : NSResponder
-#elif TARGET_OS_IOS
+#elif TARGET_OS_IOS || TARGET_OS_TV
 @interface OESystemResponder : UIResponder
 #endif
 

@@ -2,9 +2,11 @@
 
 _2026-09-21_
 
-Status: **plan only.** Nothing here is built yet. This is the reference for the
-phases below. Update it as decisions change — it is meant to be corrected, not
-preserved.
+Status: **Phase 0 in progress.** The tvOS target builds, and the bundled demo
+game runs in the Apple TV Simulator with working input and video. The engine
+port is proven; the library host (Phase 1) is next. Audio and a real Apple TV
+still need a hands-on check. Update this document as decisions change — it is
+meant to be corrected, not preserved.
 
 ---
 
@@ -334,7 +336,7 @@ controller — not that it compiled.
 | Area | Change |
 |---|---|
 | `Cassowary/project.yml` | New `CassowaryTV` target: platform tvOS, target 17.0, device family 3, bundle id `org.cassowary.Cassowary.tv`, its own Info.plist. Shares `Sources`, plus `Sources/TV/`. Uses separate `Frameworks-tvOS/` and `PlugIns-tvOS/` so staging one platform never clobbers another. |
-| `Scripts/cassowary/build-cassowary.sh` | New `--tvos` mode: builds frameworks, plugins, cores for tvOS, then the TV app. Outputs to `build/cassowary-tvos`, `build/cassowary-plugins-tvos`. |
+| `Scripts/cassowary/build-cassowary.sh` | New `--tvos` (real Apple TV) and `--tvos-sim` (Apple TV Simulator) modes: builds frameworks, plugins, cores for tvOS, then the TV app. Outputs to `build/cassowary-tvos`, `build/cassowary-plugins-tvos`, and stages into `Frameworks-tvOS/`, `PlugIns-tvOS/`. |
 | `build-system-plugin-ios.sh`, `build-core-ios.sh` | New `--tvos` mode. |
 | `check-kit-sources.sh` | New `--tvos` mode, to find engine files that need guards. |
 | `Cassowary/Resources/Info-tvOS.plist` | New. No file sharing keys; adds local-network usage description and Bonjour service. |

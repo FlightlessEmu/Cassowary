@@ -1182,6 +1182,7 @@
 		C6772A3A1710A4BA00ED580A /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				TVOS_DEPLOYMENT_TARGET = 17.0;
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++0x";
 				CLANG_CXX_LIBRARY = "libc++";
@@ -1224,7 +1225,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
 				SKIP_INSTALL = YES;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SUPPORTED_PLATFORMS = "appletvos appletvsimulator iphoneos iphonesimulator macosx";
 				SUPPORTS_MACCATALYST = YES;
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
@@ -1237,6 +1238,7 @@
 		C6772A3B1710A4BA00ED580A /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				TVOS_DEPLOYMENT_TARGET = 17.0;
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++0x";
 				CLANG_CXX_LIBRARY = "libc++";
@@ -1272,7 +1274,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
 				SKIP_INSTALL = YES;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SUPPORTED_PLATFORMS = "appletvos appletvsimulator iphoneos iphonesimulator macosx";
 				SUPPORTS_MACCATALYST = YES;
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_VERSION = 5.0;
@@ -1284,8 +1286,9 @@
 		C6772A991710CD7E00ED580A /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				TVOS_DEPLOYMENT_TARGET = 17.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SUPPORTED_PLATFORMS = "appletvos appletvsimulator iphoneos iphonesimulator macosx";
 				SUPPORTS_MACCATALYST = YES;
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++0x";
@@ -1342,8 +1345,9 @@
 		C6772A9A1710CD7E00ED580A /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				TVOS_DEPLOYMENT_TARGET = 17.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SUPPORTED_PLATFORMS = "appletvos appletvsimulator iphoneos iphonesimulator macosx";
 				SUPPORTS_MACCATALYST = YES;
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++0x";

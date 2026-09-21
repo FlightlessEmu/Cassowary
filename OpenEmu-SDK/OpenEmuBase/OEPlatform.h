@@ -41,10 +41,10 @@
 
 #if TARGET_OS_OSX
 #import <Cocoa/Cocoa.h>
-#elif TARGET_OS_IOS
+#elif TARGET_OS_IOS || TARGET_OS_TV
 #import <UIKit/UIKit.h>
 #else
-#error "OpenEmu supports macOS and iOS"
+#error "OpenEmu supports macOS, iOS, and tvOS"
 #endif
 
 /// The image type used for system icons and controller artwork.

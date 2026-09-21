@@ -28,8 +28,9 @@
 
 // The synthetic devices are built where IOKit cannot supply them: iOS has
 // none, and Mac Catalyst's sandbox blocks the HID user client. macOS proper
-// gets real devices from IOKit instead.
-#if TARGET_OS_IOS
+// gets real devices from IOKit instead. tvOS has no IOKit either, so it shares
+// this bridge.
+#if TARGET_OS_IOS || TARGET_OS_TV
 
 #import <GameController/GameController.h>
 #import <math.h>

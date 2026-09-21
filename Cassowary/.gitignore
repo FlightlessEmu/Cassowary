@@ -1,7 +1,10 @@
 # Build products
 Frameworks/*.framework
+Frameworks-tvOS/*.framework
 PlugIns/Cores/*.oecoreplugin
 PlugIns/Systems/*.oesystemplugin
+PlugIns-tvOS/Cores/*.oecoreplugin
+PlugIns-tvOS/Systems/*.oesystemplugin
 Cassowary.xcodeproj/
 
 # XcodeGen writes this from the properties in project.yml.

@@ -46,6 +46,10 @@ targets:
     deploymentTarget: "17.0"
     sources:
       - path: Sources
+        # The Apple TV app has its own @main and tvOS-only views. They live
+        # under Sources/TV and are compiled by the CassowaryTV target instead.
+        excludes:
+          - TV
       # Info.plist is picked up through INFOPLIST_FILE; listing the directory
       # would also copy it as a resource, which conflicts. Shaders are excluded
       # here and added as a folder reference below, because the bundle has to
@@ -55,8 +59,10 @@ targets:
         buildPhase: resources
         excludes:
           - Info.plist
+          - Info-tvOS.plist
           - "*.entitlements"
           - Shaders
+          - TV
       # The video filters, copied as one folder so the tree survives.
       - path: Resources/Shaders
         type: folder
@@ -155,5 +161,92 @@ targets:
         embed: true
         codeSign: true
       - framework: Frameworks/OpenEmuKit.framework
+        embed: true
+        codeSign: true
+
+  # The Apple TV app. It shares the engine-facing sources with the phone app
+  # and adds its own UI under Sources/TV. Games and saves are pulled from a
+  # phone later; for now it plays the demo game in the bundle, which proves
+  # the engine runs on tvOS.
+  #
+  # Its frameworks and plugins are staged into Frameworks-tvOS/ and
+  # PlugIns-tvOS/ by Scripts/cassowary/build-cassowary.sh --tvos-sim, so a TV
+  # build never overwrites the phone's copies (and the other way around).
+  CassowaryTV:
+    type: application
+    platform: tvOS
+    deploymentTarget: "17.0"
+    sources:
+      # The game session and the Metal layer host: the same files the phone
+      # runs, plus the input and layout code the session needs.
+      - path: Sources/TV
+      - path: Sources/Session
+      - path: Sources/Views/GameLayerView.swift
+      - path: Sources/Controls/ControllerLayout.swift
+      - path: Sources/Controls/InputBindings.swift
+      - path: Sources/Controls/KeyboardKey.swift
+      - path: Sources/Controls/RumbleHaptics.swift
+      - path: Resources
+        buildPhase: resources
+        excludes:
+          - Info.plist
+          - Info-tvOS.plist
+          - "*.entitlements"
+          - Shaders
+          - TV
+      # The demo game, copied to the bundle root so Bundle.main finds it.
+      - path: Resources/TV
+        buildPhase: resources
+        excludes:
+          - "*.md"
+
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: org.cassowary.CassowaryTV
+        PRODUCT_NAME: Cassowary
+        INFOPLIST_FILE: Resources/Info-tvOS.plist
+        # 3 is Apple TV.
+        TARGETED_DEVICE_FAMILY: "3"
+        SWIFT_OBJC_BRIDGING_HEADER: Sources/Cassowary-Bridging-Header.h
+        ENABLE_BITCODE: "NO"
+        LD_RUNPATH_SEARCH_PATHS:
+          - "@executable_path/Frameworks"
+          - "@executable_path/PlugIns/Cores"
+          - "@executable_path/PlugIns/Systems"
+        # OpenEmuKit's private module map lives in its source tree, not in the
+        # built framework, so Swift needs this search path to resolve it.
+        SWIFT_INCLUDE_PATHS:
+          - "$(SRCROOT)/../OpenEmuKit/Source"
+    postCompileScripts:
+      - name: Copy PlugIns
+        script: |
+          set -e
+          DEST="${TARGET_BUILD_DIR}/${CONTENTS_FOLDER_PATH}/PlugIns"
+          mkdir -p "$DEST/Cores" "$DEST/Systems"
+          rsync -a --delete "${SRCROOT}/PlugIns-tvOS/Cores/" "$DEST/Cores/"
+          rsync -a --delete "${SRCROOT}/PlugIns-tvOS/Systems/" "$DEST/Systems/"
+          # A device build signs the app and its frameworks but not these
+          # bundles, which arrive by rsync outside any embed phase. Sign them
+          # with the identity Xcode is using, dylibs first.
+          if [ "${CODE_SIGNING_ALLOWED:-NO}" = "YES" ] && [ -n "${EXPANDED_CODE_SIGN_IDENTITY:-}" ] && [ "${EXPANDED_CODE_SIGN_IDENTITY}" != "-" ]; then
+            for bundle in "$DEST/Cores/"*.oecoreplugin "$DEST/Systems/"*.oesystemplugin; do
+              [ -e "$bundle" ] || continue
+              find "$bundle" -type f -name "*.dylib" -exec codesign --force --sign "${EXPANDED_CODE_SIGN_IDENTITY}" {} \;
+              codesign --force --sign "${EXPANDED_CODE_SIGN_IDENTITY}" "$bundle"
+            done
+          fi
+    dependencies:
+      # Built for tvOS by Scripts/cassowary/build-cassowary.sh, then linked
+      # from the TV staging directory.
+      - framework: Frameworks-tvOS/OpenEmuBase.framework
+        embed: true
+        codeSign: true
+      - framework: Frameworks-tvOS/OpenEmuSystem.framework
+        embed: true
+        codeSign: true
+      - framework: Frameworks-tvOS/OpenEmuShaders.framework
+        embed: true
+        codeSign: true
+      - framework: Frameworks-tvOS/OpenEmuKit.framework
         embed: true
         codeSign: true

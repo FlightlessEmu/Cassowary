@@ -8,7 +8,7 @@
 # every directory in OpenEmu/SystemPlugins and reports a summary.
 #
 # Usage:
-#   Scripts/cassowary/build-all-system-plugins-ios.sh [--device | --catalyst] [--keep-going] [--quiet]
+#   Scripts/cassowary/build-all-system-plugins-ios.sh [--device | --catalyst | --tvos | --tvos-sim] [--keep-going] [--quiet]
 
 set -euo pipefail
 setopt NULL_GLOB 2>/dev/null || true
@@ -23,6 +23,8 @@ for arg in "$@"; do
   case "$arg" in
     --device)   MODE=device ;;
     --catalyst) MODE=catalyst ;;
+    --tvos)     MODE=tvos ;;
+    --tvos-sim) MODE=tvos-sim ;;
     --keep-going) KEEP_GOING=1 ;;
     --quiet) QUIET=1 ;;
     *) print -u2 -- "unknown option: $arg"; exit 1 ;;
@@ -33,6 +35,8 @@ case "$MODE" in
   simulator) MODE_FLAG="" ;;
   device)    MODE_FLAG="--device" ;;
   catalyst)  MODE_FLAG="--catalyst" ;;
+  tvos)      MODE_FLAG="--tvos" ;;
+  tvos-sim)  MODE_FLAG="--tvos-sim" ;;
 esac
 
 built=0

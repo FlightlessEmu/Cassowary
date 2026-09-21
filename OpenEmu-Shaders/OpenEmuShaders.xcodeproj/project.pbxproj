@@ -923,6 +923,7 @@
 		05EEE34D227CC35D007D011B /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				TVOS_DEPLOYMENT_TARGET = 17.0;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_IDENTITY = "";
 				CODE_SIGN_STYLE = Manual;
@@ -959,6 +960,7 @@
 		05EEE34E227CC35D007D011B /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				TVOS_DEPLOYMENT_TARGET = 17.0;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_IDENTITY = "";
 				CODE_SIGN_STYLE = Manual;

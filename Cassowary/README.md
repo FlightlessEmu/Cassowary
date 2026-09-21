@@ -96,6 +96,32 @@ One-command dev loop and end-to-end test:
 ./Scripts/cassowary/test-cassowary.sh --ipad    # the same check on iPad
 ```
 
+## Building for the Apple TV
+
+```bash
+./Scripts/cassowary/build-cassowary.sh --tvos-sim   # Apple TV Simulator
+./Scripts/cassowary/build-cassowary.sh --tvos       # a real Apple TV
+./Scripts/cassowary/run-cassowary.sh --tvos-sim     # build, install, launch
+```
+
+The TV app is a separate target, `CassowaryTV`. It shares the engine-facing
+sources with the phone app and adds its own screens under `Sources/TV`. Its
+frameworks and plugins are staged under `Cassowary/Frameworks-tvOS/` and
+`Cassowary/PlugIns-tvOS/`, so building for one platform never overwrites the
+other's copies.
+
+This first TV build plays the demo game that ships in the bundle, which is
+what proves the engine runs on tvOS. Copying games and saves from a phone is
+the next phase; the plan is in
+[`docs/apple-tv-library-host-plan.md`](../docs/apple-tv-library-host-plan.md).
+
+Only the cores listed for tvOS in `build-cassowary.sh` are built for it. A
+core joins that list once it has actually been run on an Apple TV, so a
+missing core shows up as "No core on this Apple TV" rather than a crash.
+
+On a real Apple TV the build signs like a phone build does (`--tvos`), and the
+app is installed from Xcode's **Devices** window or with `devicectl`.
+
 ## Running on a real iPhone
 
 ```bash

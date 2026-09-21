@@ -45,8 +45,9 @@
 // controllers. iOS has no IOKit; Mac Catalyst links it, but the sandbox blocks
 // the HID user client, so a Catalyst app never sees a device through it. Both
 // platforms take the GameController path instead — see
-// `OEiOSGameControllerManager`. macOS proper keeps the real thing.
-#if TARGET_OS_IOS
+// `OEiOSGameControllerManager`. macOS proper keeps the real thing, and tvOS
+// has no IOKit either, so it needs the same stand-ins as iOS.
+#if TARGET_OS_IOS || TARGET_OS_TV
 
 #import "OEHID_iOS.h"
 

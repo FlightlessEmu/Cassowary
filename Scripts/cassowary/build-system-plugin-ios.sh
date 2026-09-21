@@ -7,7 +7,7 @@
 # Unlike cores they have no emulator code, so they are quick to build.
 #
 # Usage:
-#   Scripts/cassowary/build-system-plugin-ios.sh <PluginName> [--device]
+#   Scripts/cassowary/build-system-plugin-ios.sh <PluginName> [--device | --catalyst | --tvos | --tvos-sim]
 #
 # Example:
 #   Scripts/cassowary/build-system-plugin-ios.sh GameBoy
@@ -27,12 +27,16 @@ MODE=simulator
 case "${1:-}" in
   --device)   MODE=device ;;
   --catalyst) MODE=catalyst ;;
+  --tvos)     MODE=tvos ;;
+  --tvos-sim) MODE=tvos-sim ;;
 esac
 
 case "$MODE" in
   simulator) SDK_NAME=iphonesimulator ; TARGET=arm64-apple-ios17.0-simulator ;;
   device)    SDK_NAME=iphoneos        ; TARGET=arm64-apple-ios17.0 ;;
   catalyst)  SDK_NAME=macosx          ; TARGET=arm64-apple-ios17.0-macabi ;;
+  tvos)      SDK_NAME=appletvos       ; TARGET=arm64-apple-tvos17.0 ;;
+  tvos-sim)  SDK_NAME=appletvsimulator ; TARGET=arm64-apple-tvos17.0-simulator ;;
 esac
 
 # The directory name under OpenEmu/SystemPlugins that holds the plugin.
@@ -65,10 +69,12 @@ if [[ "$MODE" == catalyst ]]; then
 fi
 
 if [[ ! -d "$SDK_BUILD/OpenEmuSystem.framework" ]]; then
-  print -u2 -- "building the SDK for iOS first..."
+  print -u2 -- "building the SDK frameworks first..."
   case "$MODE" in
     catalyst) DESTINATION="platform=macOS,variant=Mac Catalyst" ; SDK_OPT=() ;;
     device)   DESTINATION="generic/platform=iOS"                 ; SDK_OPT=(-sdk iphoneos) ;;
+    tvos)     DESTINATION="generic/platform=tvOS"                ; SDK_OPT=(-sdk appletvos) ;;
+    tvos-sim) DESTINATION="generic/platform=tvOS Simulator"      ; SDK_OPT=(-sdk appletvsimulator) ;;
     *)        DESTINATION="generic/platform=iOS Simulator"       ; SDK_OPT=(-sdk iphonesimulator) ;;
   esac
   xcodebuild -project OpenEmu-SDK/OpenEmu-SDK.xcodeproj \
@@ -196,14 +202,19 @@ done
 
 # Asset catalogs have to be compiled, not copied: the app reads them through
 # NSBundle's asset API, which looks for Assets.car. actool names platforms the
-# way the SDK does (iphoneos, iphonesimulator, macosx).
+# way the SDK does (iphoneos, iphonesimulator, appletvos, ...), and tvOS has a
+# single "tv" target device rather than the phone/tablet pair.
 ACTOOL_PLATFORM="$SDK_NAME"
+TARGET_DEVICES=(--target-device iphone --target-device ipad)
+case "$MODE" in
+  tvos|tvos-sim) TARGET_DEVICES=(--target-device tv) ;;
+esac
 if [[ -d "$SOURCE_DIR/Images.xcassets" ]]; then
   xcrun actool "$SOURCE_DIR/Images.xcassets" \
     --compile "$OUT" \
     --platform "$ACTOOL_PLATFORM" \
     --minimum-deployment-target 17.0 \
-    --target-device iphone --target-device ipad \
+    "${TARGET_DEVICES[@]}" \
     --output-format human-readable-text >/dev/null
 fi
 

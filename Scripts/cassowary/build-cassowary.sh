@@ -12,11 +12,13 @@
 #   5. the app itself
 #
 # Usage:
-#   Scripts/cassowary/build-cassowary.sh [--device | --catalyst] [--app-only]
-#                                       [--team TEAMID] [--udid UDID] [--no-sign]
+#   Scripts/cassowary/build-cassowary.sh [--device | --catalyst | --tvos | --tvos-sim]
+#                                       [--app-only] [--team TEAMID] [--udid UDID] [--no-sign]
 #
 #   --device     target a real iPhone instead of the Simulator
 #   --catalyst   build the same app natively for the Mac (Mac Catalyst)
+#   --tvos       build the Apple TV app for a real Apple TV
+#   --tvos-sim   build the Apple TV app for the Apple TV Simulator
 #   --app-only   skip the frameworks and plugins; just rebuild the app
 #
 # Device builds only:
@@ -45,6 +47,8 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --device)   MODE=device; shift ;;
     --catalyst) MODE=catalyst; shift ;;
+    --tvos)     MODE=tvos; shift ;;
+    --tvos-sim) MODE=tvos-sim; shift ;;
     --app-only) APP_ONLY=1; shift ;;
     --team)     TEAM_ID=${2:?--team needs a team ID}; shift 2 ;;
     --udid)     DEVICE_UDID=${2:?--udid needs a device UDID}; shift 2 ;;
@@ -81,6 +85,14 @@ case "$MODE" in
     SDK_NAME=macosx
     DESTINATION='platform=macOS,variant=Mac Catalyst'
     ;;
+  tvos)
+    SDK_NAME=appletvos
+    DESTINATION='generic/platform=tvOS'
+    ;;
+  tvos-sim)
+    SDK_NAME=appletvsimulator
+    DESTINATION='generic/platform=tvOS Simulator'
+    ;;
 esac
 
 APP_PLATFORM=$SDK_NAME
@@ -94,13 +106,38 @@ fi
 BUILD="$PWD/build/cassowary-$MODE"
 SUPPORTED="iphoneos iphonesimulator macosx"
 
-# A real iPhone will not run an unsigned app, and it will not load the core
-# plugins unless they are signed for the same team as the app. Signing is off
-# in project.yml so Simulator and Catalyst builds need no Apple account; for
-# --device it is switched back on here.
+# The Apple TV app stages its frameworks and plugins apart from the phone's,
+# so building one platform never overwrites the other's copies.
+case "$MODE" in
+  tvos|tvos-sim)
+    FRAMEWORKS_DIR="Cassowary/Frameworks-tvOS"
+    PLUGINS_DIR="Cassowary/PlugIns-tvOS"
+    APP_SCHEME="CassowaryTV"
+    ;;
+  *)
+    FRAMEWORKS_DIR="Cassowary/Frameworks"
+    PLUGINS_DIR="Cassowary/PlugIns"
+    APP_SCHEME="Cassowary"
+    ;;
+esac
+
+# tvOS device builds sign the same way a phone build does; the destination
+# names the Apple TV instead of a phone.
+DEVICE_LIKE=0
+[[ "$MODE" == device || "$MODE" == tvos ]] && DEVICE_LIKE=1
+if [[ "$MODE" == tvos ]]; then
+  DEVICE_PLATFORM=tvOS
+else
+  DEVICE_PLATFORM=iOS
+fi
+
+# A real iPhone or Apple TV will not run an unsigned app, and it will not load
+# the core plugins unless they are signed for the same team as the app. Signing
+# is off in project.yml so Simulator and Catalyst builds need no Apple account;
+# for --device and --tvos it is switched back on here.
 APP_DESTINATION=$DESTINATION
 SIGN_FLAGS=()
-if [[ "$MODE" == device && $SIGN -eq 1 ]]; then
+if [[ $DEVICE_LIKE -eq 1 && $SIGN -eq 1 ]]; then
   # The team to sign with: what the caller passed, then the team Xcode is
   # set up with, then the Apple Development certificate on this Mac.
   #
@@ -123,15 +160,23 @@ if [[ "$MODE" == device && $SIGN -eq 1 ]]; then
     exit 1
   fi
 
-  # Tell xcodebuild which phone this is for, so the device can be added to
+  # Tell xcodebuild which device this is for, so the device can be added to
   # the provisioning profile. A generic destination can produce an app that
-  # no phone is allowed to install.
-  if [[ -z "$DEVICE_UDID" ]]; then
+  # no device is allowed to install.
+  #
+  # A phone is picked automatically when there is exactly one. An Apple TV is
+  # not: devicectl lists phones and TVs together, and signing for the wrong
+  # one is a confusing failure, so the TV's UDID is asked for.
+  if [[ -z "$DEVICE_UDID" && "$MODE" == device ]]; then
     DEVICE_UDID=$(device_udids | head -1)
   fi
   if [[ -n "$DEVICE_UDID" ]]; then
-    APP_DESTINATION="platform=iOS,id=$DEVICE_UDID"
+    APP_DESTINATION="platform=$DEVICE_PLATFORM,id=$DEVICE_UDID"
     print -- "signing with team $TEAM_ID for $DEVICE_UDID"
+  elif [[ "$MODE" == tvos ]]; then
+    print -u2 -- "warning: no Apple TV UDID given; building for a generic device."
+    print -u2 -- "         Pass --udid <UDID> (xcrun devicectl list devices) so the"
+    print -u2 -- "         Apple TV is added to the provisioning profile."
   else
     print -u2 -- "warning: no iPhone found; building for a generic device."
     print -u2 -- "         Pass --udid <UDID> once the phone is connected."
@@ -184,14 +229,14 @@ if [[ $APP_ONLY -eq 0 ]]; then
     build >/dev/null
 
   banner "Collecting the frameworks"
-  mkdir -p Cassowary/Frameworks
-  rm -rf Cassowary/Frameworks/*.framework
+  mkdir -p "$FRAMEWORKS_DIR"
+  rm -rf "$FRAMEWORKS_DIR"/*.framework
   for framework in OpenEmuBase OpenEmuSystem OpenEmuKit OpenEmuShaders; do
     if [[ ! -d "$BUILD/$framework.framework" ]]; then
       print -u2 -- "error: $BUILD/$framework.framework is missing"
       exit 1
     fi
-    cp -R "$BUILD/$framework.framework" Cassowary/Frameworks/
+    cp -R "$BUILD/$framework.framework" "$FRAMEWORKS_DIR/"
   done
 fi
 
@@ -206,26 +251,44 @@ if [[ $APP_ONLY -eq 0 ]]; then
     simulator) PLUGIN_MODE_FLAG="" ;;
     device)    PLUGIN_MODE_FLAG="--device" ;;
     catalyst)  PLUGIN_MODE_FLAG="--catalyst" ;;
+    tvos)      PLUGIN_MODE_FLAG="--tvos" ;;
+    tvos-sim)  PLUGIN_MODE_FLAG="--tvos-sim" ;;
   esac
   ./Scripts/cassowary/build-all-system-plugins-ios.sh $PLUGIN_MODE_FLAG --keep-going
 
   # The cores to build, as source directory → product bundle name. The two
   # differ in case (picodrive → Picodrive) or in full (Potator-Core →
   # Potator), so both are listed. Extend this list when a new core is ported.
-  CORES=(
-    4DO:4DO Atari800:Atari800 Bliss:Bliss blueMSX:blueMSX BSNES:BSNES
-    CrabEmu:CrabEmu FCEU:FCEU Gambatte:Gambatte GenesisPlus:GenesisPlus
-    JollyCV:JollyCV MAME:MAME Mednafen:Mednafen melonDS:melonDS mGBA:mGBA
-    Mupen64Plus:Mupen64Plus Nestopia:Nestopia O2EM:O2EM picodrive:Picodrive
-    PokeMini:PokeMini Potator-Core:Potator ProSystem:ProSystem SNES9x:SNES9x
-    Stella:Stella VecXGL:VecXGL VirtualC64:VirtualC64
-    VirtualJaguar:VirtualJaguar
-  )
+  #
+  # tvOS gets a short list. Every core has to compile against the tvOS SDK and
+  # then actually run on an Apple TV, so a core is added here only once it has
+  # been tried; one that is missing is simply not staged, and the library says
+  # "No core on this Apple TV" for its systems.
+  case "$MODE" in
+    tvos|tvos-sim)
+      CORES=(
+        Gambatte:Gambatte
+      )
+      ;;
+    *)
+      CORES=(
+        4DO:4DO Atari800:Atari800 Bliss:Bliss blueMSX:blueMSX BSNES:BSNES
+        CrabEmu:CrabEmu FCEU:FCEU Gambatte:Gambatte GenesisPlus:GenesisPlus
+        JollyCV:JollyCV MAME:MAME Mednafen:Mednafen melonDS:melonDS mGBA:mGBA
+        Mupen64Plus:Mupen64Plus Nestopia:Nestopia O2EM:O2EM picodrive:Picodrive
+        PokeMini:PokeMini Potator-Core:Potator ProSystem:ProSystem SNES9x:SNES9x
+        Stella:Stella VecXGL:VecXGL VirtualC64:VirtualC64
+        VirtualJaguar:VirtualJaguar
+      )
+      ;;
+  esac
 
   case "$MODE" in
     simulator) CORE_MODE_FLAG="" ; CORE_OUT="build/cassowary-plugins" ;;
     device)    CORE_MODE_FLAG="--device" ; CORE_OUT="build/cassowary-plugins-device" ;;
     catalyst)  CORE_MODE_FLAG="--catalyst" ; CORE_OUT="build/cassowary-plugins-catalyst" ;;
+    tvos)      CORE_MODE_FLAG="--tvos" ; CORE_OUT="build/cassowary-plugins-tvos" ;;
+    tvos-sim)  CORE_MODE_FLAG="--tvos-sim" ; CORE_OUT="build/cassowary-plugins-tvos-sim" ;;
   esac
 
   # Cores take tens of minutes in total, so only build what is missing from
@@ -249,20 +312,20 @@ if [[ $APP_ONLY -eq 0 ]]; then
   # The destination directories are not in git; without them, cp -R creates
   # the first one as a flattened copy of the first bundle (which then fails
   # code signing).
-  mkdir -p Cassowary/PlugIns/Cores Cassowary/PlugIns/Systems
-  rm -rf Cassowary/PlugIns/Cores/*.oecoreplugin
-  rm -rf Cassowary/PlugIns/Systems/*.oesystemplugin
+  mkdir -p "$PLUGINS_DIR/Cores" "$PLUGINS_DIR/Systems"
+  rm -rf "$PLUGINS_DIR"/Cores/*.oecoreplugin
+  rm -rf "$PLUGINS_DIR"/Systems/*.oesystemplugin
   # A fresh checkout has no PlugIns/Cores or PlugIns/Systems yet. Without
   # them, the first cp below would create the directory as a copy of the
   # first plugin and spill that plugin's files next to the other bundles.
-  mkdir -p Cassowary/PlugIns/Cores Cassowary/PlugIns/Systems
+  mkdir -p "$PLUGINS_DIR/Cores" "$PLUGINS_DIR/Systems"
   if [[ ${#WANT_PRODUCTS[@]} -gt 0 ]]; then
     for product in "${WANT_PRODUCTS[@]}"; do
       kind=Cores
       case "$product" in *.oesystemplugin) kind=Systems ;; esac
       src="build/cassowary-plugins-$MODE/$product"
       if [[ -d "$src" ]]; then
-        cp -R "$src" "Cassowary/PlugIns/$kind/"
+        cp -R "$src" "$PLUGINS_DIR/$kind/"
       else
         print -u2 -- "error: $src missing; its build step failed"
         exit 1
@@ -270,11 +333,12 @@ if [[ $APP_ONLY -eq 0 ]]; then
     done
   else
     # Cores and system plugins are staged from that mode's own output
-    # directory, so a device build never picks up Simulator binaries.
+    # directory, so a device build never picks up Simulator binaries, and a
+    # TV build never picks up the phone's.
     staged=0
     for src in "$CORE_OUT"/*.oecoreplugin; do
       [[ -d "$src" ]] || continue
-      cp -R "$src" Cassowary/PlugIns/Cores/
+      cp -R "$src" "$PLUGINS_DIR/Cores/"
       staged=$((staged + 1))
     done
     [[ $staged -gt 0 ]] || {
@@ -285,7 +349,7 @@ if [[ $APP_ONLY -eq 0 ]]; then
     staged=0
     for src in build/cassowary-plugins-$MODE/*.oesystemplugin; do
       [[ -d "$src" ]] || continue
-      cp -R "$src" Cassowary/PlugIns/Systems/
+      cp -R "$src" "$PLUGINS_DIR/Systems/"
       staged=$((staged + 1))
     done
     [[ $staged -gt 0 ]] || {
@@ -299,7 +363,7 @@ if [[ $APP_ONLY -eq 0 ]]; then
   # scans as a bundle with an empty infoDictionary and crashes the app at
   # startup, so prune it here and say so loudly. (The build scripts also
   # remove their own husks on failure; this guards against stale ones.)
-  for staged in Cassowary/PlugIns/Cores/*.oecoreplugin Cassowary/PlugIns/Systems/*.oesystemplugin; do
+  for staged in "$PLUGINS_DIR"/Cores/*.oecoreplugin "$PLUGINS_DIR"/Systems/*.oesystemplugin; do
     [[ -e "$staged" ]] || continue
     if [[ ! -f "$staged/Info.plist" ]]; then
       print -u2 -- "warning: dropping $staged (no Info.plist — its build failed)"
@@ -314,7 +378,7 @@ xcodegen generate --spec Cassowary/project.yml --project Cassowary >/dev/null
 
 banner "Building the app"
 xcodebuild -project Cassowary/Cassowary.xcodeproj \
-  -scheme Cassowary \
+  -scheme "$APP_SCHEME" \
   -configuration Debug \
   -destination "$APP_DESTINATION" \
   "${SDK_FLAGS[@]}" \
@@ -332,7 +396,7 @@ APP="$BUILD/app/Build/Products/$PRODUCT_DIR/Cassowary.app"
 # A signed device build is only useful if the signature actually validates.
 # A plugin signed by the wrong team fails when the app tries to load it on
 # the phone, so catch that here rather than on the device.
-if [[ "$MODE" == device && $SIGN -eq 1 ]]; then
+if [[ $DEVICE_LIKE -eq 1 && $SIGN -eq 1 ]]; then
   banner "Checking the signature"
   codesign --verify --deep "$APP"
   codesign -dv "$APP" 2>&1 | sed -n 's/^Authority=/signed by /p' | head -1
@@ -360,16 +424,28 @@ fi
 print -- ""
 print -- "built $APP"
 
-if [[ "$MODE" == device ]]; then
+if [[ $DEVICE_LIKE -eq 1 ]]; then
   print -- ""
   if [[ $SIGN -eq 1 ]]; then
-    HINT="Scripts/cassowary/run-cassowary.sh --device"
-    if [[ -n "$DEVICE_UDID" ]]; then
-      HINT="$HINT --udid $DEVICE_UDID"
+    if [[ "$MODE" == tvos ]]; then
+      print -- "install it on the Apple TV from Xcode's Devices window, or with:"
+      print -- "  xcrun devicectl device install app --device ${DEVICE_UDID:-<UDID>} \"$APP\""
+    else
+      HINT="Scripts/cassowary/run-cassowary.sh --device"
+      if [[ -n "$DEVICE_UDID" ]]; then
+        HINT="$HINT --udid $DEVICE_UDID"
+      fi
+      print -- "install it on the iPhone with:"
+      print -- "  $HINT"
     fi
-    print -- "install it on the iPhone with:"
-    print -- "  $HINT"
   else
     print -- "this build is unsigned; it will not install on a device."
   fi
+fi
+
+if [[ "$MODE" == tvos-sim ]]; then
+  print -- ""
+  print -- "run it in a booted Apple TV Simulator with:"
+  print -- "  xcrun simctl install booted \"$APP\""
+  print -- "  xcrun simctl launch booted org.cassowary.CassowaryTV"
 fi
