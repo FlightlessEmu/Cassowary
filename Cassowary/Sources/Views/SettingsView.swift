@@ -41,6 +41,8 @@ struct SettingsView: View {
     @AppStorage(ButtonHaptics.enabledKey) private var hapticsEnabled = true
     @AppStorage(ButtonHaptics.styleKey) private var hapticStyle = "light"
 
+    @Environment(\.dismiss) private var dismiss
+
     private var selectedStyle: DPadStyle { DPadStyle(rawValue: styleRaw) ?? .buttons }
     private var selectedTheme: ButtonTheme { ButtonTheme(rawValue: themeRaw) ?? .glass }
 
@@ -213,6 +215,12 @@ struct SettingsView: View {
                 }
             }
             .navigationTitle("Settings")
+            .toolbar {
+                // Settings is a sheet, so it needs its own way out.
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
             .onAppear { catalog.refresh() }
         }
     }

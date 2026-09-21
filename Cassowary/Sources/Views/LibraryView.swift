@@ -91,31 +91,51 @@ struct LibraryView: View {
     @State private var importNotice: ImportNotice?
     @State private var showFileImporter = false
 
+    /// Whether the systems list is showing beside the games in a wide compact
+    /// window, such as a phone in landscape.
+    @State private var showCompactSidebar = true
+
     @AppStorage(CoverArtSetting.automaticKey) private var downloadCoverArt = true
 
     @Environment(\.horizontalSizeClass) private var sizeClass
 
     var body: some View {
-        Group {
-            if sizeClass == .compact {
-                // iPhone: an explicit stack with links, so every tap pushes.
-                // A collapsed split view drives pushes off selection state,
-                // which means tapping the already-selected row is a no-op
-                // and the library appears to not open.
-                NavigationStack {
-                    compactSidebar
-                        .navigationDestination(for: LibrarySelection.self) { target in
-                            detail(for: target)
-                                .onAppear { selection = target }
-                        }
+        GeometryReader { geometry in
+            let layout = layout(for: geometry.size.width)
+
+            Group {
+                switch layout {
+                case .stacked:
+                    // iPhone held upright: an explicit stack with links, so
+                    // every tap pushes. A collapsed split view drives pushes
+                    // off selection state, which means tapping the
+                    // already-selected row is a no-op and the library appears
+                    // to not open.
+                    NavigationStack {
+                        compactSidebar
+                            .navigationDestination(for: LibrarySelection.self) { target in
+                                detail(for: target)
+                                    .onAppear { selection = target }
+                            }
+                    }
+                case .sideBySide(let sidebarWidth):
+                    // A phone lying on its side: the systems list keeps a
+                    // column of its own beside the games, and folds away
+                    // when it is in the way.
+                    compactSplit(sidebarWidth: sidebarWidth)
+                case .split:
+                    // iPad, Mac, and any window wide enough for the system's
+                    // own two-column navigation.
+                    NavigationSplitView {
+                        sidebar
+                    } detail: {
+                        detail(for: selection ?? .all)
+                    }
+                    .navigationSplitViewStyle(.balanced)
                 }
-            } else {
-                NavigationSplitView {
-                    sidebar
-                } detail: {
-                    detail(for: selection ?? .all)
-                }
-                .navigationSplitViewStyle(.balanced)
+            }
+            .onChange(of: layout) { old, new in
+                layoutChanged(from: old, to: new)
             }
         }
         // Games are added by dropping files anywhere on the library, so the
@@ -146,6 +166,12 @@ struct LibraryView: View {
         .sheet(isPresented: $showCoverArtSettings) {
             NavigationStack {
                 CoverArtSettingsView()
+                    .toolbar {
+                        // This sheet has no other way out.
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("Done") { showCoverArtSettings = false }
+                        }
+                    }
             }
         }
         .alert(
@@ -204,47 +230,118 @@ struct LibraryView: View {
 
     // MARK: - Sidebar
 
-    /// iPhone sidebar: links that push the detail every time they are tapped.
-    private var compactSidebar: some View {
-        List {
-            NavigationLink(value: LibrarySelection.all) {
+    /// How the library arranges its two halves.
+    private enum LibraryLayout: Equatable {
+        /// One column: the systems list, which pushes the games on tap.
+        case stacked
+        /// Two columns in a compact-width window, with the systems list
+        /// beside the games and a way to fold it away.
+        case sideBySide(sidebarWidth: CGFloat)
+        /// Two columns the system manages (iPad, Mac, and wide windows).
+        case split
+    }
+
+    /// The layout for the space the library actually has.
+    ///
+    /// The size class is the primary signal: it is what changes when a
+    /// foldable opens or closes. The width check on top of it keeps a wide
+    /// compact window — a phone in landscape — from throwing the extra room
+    /// away.
+    private func layout(for width: CGFloat) -> LibraryLayout {
+        if sizeClass == .regular {
+            return .split
+        }
+        guard width >= Self.sideBySideMinimumWidth else { return .stacked }
+        // A list wide enough to read, never more than a third of the window.
+        return .sideBySide(sidebarWidth: min(300, max(240, width * 0.33)))
+    }
+
+    /// Enough room for a systems list and a useful games grid side by side.
+    private static let sideBySideMinimumWidth: CGFloat = 700
+
+    /// Keep the same system in view when the window changes shape.
+    ///
+    /// Folding a phone, or turning it, swaps one navigation container for
+    /// another. Which system is showing lives here in `selection`, so the
+    /// detail follows; the stack's path is rebuilt to match.
+    private func layoutChanged(from old: LibraryLayout, to new: LibraryLayout) {
+        guard old != new else { return }
+        if new == .stacked {
+            // The stack opens on the systems list. If a system was showing,
+            // open it again so the same thing stays on screen.
+            if path.isEmpty, let selection, case .system = selection {
+                path.append(selection)
+            }
+        } else {
+            path = NavigationPath()
+        }
+    }
+
+    /// The rows every systems list shares.
+    ///
+    /// `linked` picks how a row opens: a `NavigationLink` for the containers
+    /// that push, a tagged row for the ones that select.
+    @ViewBuilder
+    private func sidebarRows(linked: Bool) -> some View {
+        Section {
+            sidebarRow(for: .all, linked: linked) {
                 Label {
                     Text("All Games")
                 } icon: {
                     Image(systemName: "gamecontroller.fill")
                 }
-                .badge(library.games.count)
             }
+            .badge(library.games.count)
+        }
 
-            Section("Systems") {
-                ForEach(catalog.systems) { system in
-                    NavigationLink(value: LibrarySelection.system(system.id)) {
-                        Label {
-                            Text(system.name)
-                        } icon: {
-                            if let icon = system.icon {
-                                Image(uiImage: icon)
-                            } else {
-                                Image(systemName: "gamecontroller")
-                            }
+        Section("Systems") {
+            ForEach(catalog.systems) { system in
+                sidebarRow(for: .system(system.id), linked: linked) {
+                    Label {
+                        Text(system.name)
+                    } icon: {
+                        if let icon = system.icon {
+                            Image(uiImage: icon)
+                        } else {
+                            Image(systemName: "gamecontroller")
                         }
-                        .badge(gameCount(for: system.id))
                     }
                 }
+                .badge(gameCount(for: system.id))
             }
+        }
 
-            Section {
-                Label {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Cores")
-                        Text(coreStatus)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                } icon: {
-                    Image(systemName: "cpu")
+        Section {
+            Label {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Cores")
+                    Text(coreStatus)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
+            } icon: {
+                Image(systemName: "cpu")
             }
+        }
+    }
+
+    @ViewBuilder
+    private func sidebarRow(
+        for target: LibrarySelection,
+        linked: Bool,
+        @ViewBuilder label: () -> some View
+    ) -> some View {
+        if linked {
+            NavigationLink(value: target, label: label)
+        } else {
+            label().tag(target)
+        }
+    }
+
+    /// iPhone sidebar: links that push the detail every time they are tapped.
+    private var compactSidebar: some View {
+        List {
+            sidebarRows(linked: true)
         }
         .navigationTitle("Library")
         .toolbar {
@@ -274,55 +371,91 @@ struct LibraryView: View {
     /// selection, which then drives the detail.
     private var sidebar: some View {
         List(selection: $selection) {
-            Section {
-                NavigationLink(value: LibrarySelection.all) {
-                    Label {
-                        Text("All Games")
-                    } icon: {
-                        Image(systemName: "gamecontroller.fill")
-                    }
-                }
-                .badge(library.games.count)
-            }
-
-            Section("Systems") {
-                ForEach(catalog.systems) { system in
-                    NavigationLink(value: LibrarySelection.system(system.id)) {
-                        Label {
-                            Text(system.name)
-                        } icon: {
-                            if let icon = system.icon {
-                                Image(uiImage: icon)
-                            } else {
-                                Image(systemName: "gamecontroller")
-                            }
-                        }
-                    }
-                    .badge(gameCount(for: system.id))
-                }
-            }
-
-            Section {
-                Label {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Cores")
-                        Text(coreStatus)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                } icon: {
-                    Image(systemName: "cpu")
-                }
-            }
+            sidebarRows(linked: true)
         }
-        .navigationTitle("Library")
+        // On a narrow regular-width screen — a foldable's inner display, or
+        // an iPad in portrait — the system's default sidebar would leave the
+        // games a very small column. Keeping it near 240 leaves room for both.
+        .navigationSplitViewColumnWidth(min: 200, ideal: 240, max: 300)
         .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                sidebarTitle
+            }
             ToolbarItem(placement: .primaryAction) {
                 Button {
                     showSettings = true
                 } label: {
                     Label("Settings", systemImage: "gear")
                 }
+            }
+        }
+    }
+
+    /// The systems list beside the games on a phone in landscape.
+    private var compactSplitSidebar: some View {
+        List(selection: $selection) {
+            sidebarRows(linked: false)
+        }
+        .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                sidebarTitle
+            }
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    withAnimation { showCompactSidebar = false }
+                } label: {
+                    Label("Hide Systems", systemImage: "sidebar.left")
+                }
+            }
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    showSettings = true
+                } label: {
+                    Label("Settings", systemImage: "gear")
+                }
+            }
+        }
+    }
+
+    /// The sidebar's own title.
+    ///
+    /// A plain leading label rather than `.navigationTitle`: the navigation
+    /// title is centred, and on iOS 26 it slides to the centre as the list
+    /// scrolls under it. This one stays put, at the size a sidebar title has
+    /// always been.
+    private var sidebarTitle: some View {
+        Text("Library")
+            .font(.headline)
+            .lineLimit(1)
+            .fixedSize()
+            .accessibilityAddTraits(.isHeader)
+    }
+
+    /// Two columns for a compact-width window with room to spare: the systems
+    /// list keeps its own column, and folds away when it is in the way.
+    private func compactSplit(sidebarWidth: CGFloat) -> some View {
+        HStack(spacing: 0) {
+            if showCompactSidebar {
+                NavigationStack {
+                    compactSplitSidebar
+                }
+                .frame(width: sidebarWidth)
+                .transition(.move(edge: .leading))
+            }
+
+            NavigationStack {
+                detail(for: selection ?? .all)
+                    .toolbar {
+                        if !showCompactSidebar {
+                            ToolbarItem(placement: .topBarLeading) {
+                                Button {
+                                    withAnimation { showCompactSidebar = true }
+                                } label: {
+                                    Label("Show Systems", systemImage: "sidebar.left")
+                                }
+                            }
+                        }
+                    }
             }
         }
     }
