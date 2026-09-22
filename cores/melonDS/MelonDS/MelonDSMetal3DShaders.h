@@ -352,10 +352,12 @@ kernel void melonds_rasterise(
 
         if (pixel.x < uint(max(xspan.X0, 0)) || pixel.x >= uint(max(xspan.X1, 0)))
             continue;
+
         if (!((insideLeftEdge && (xspan.Flags & kXSpanSetup_FillLeft) != 0U)
               || (insideRightEdge && (xspan.Flags & kXSpanSetup_FillRight) != 0U)
               || (insidePolygonInside && (xspan.Flags & kXSpanSetup_FillInside) != 0U)))
             continue;
+
 
         // The edge flags the final pass uses to mark edges.
         uint attr = 0;
@@ -440,6 +442,7 @@ kernel void melonds_rasterise(
 
         if (a <= meta.AlphaRef)
             continue;
+
 
         const bool isShadowMask = (polygon.Attr & 0x3F000030U) == 0x00000030U;
 
