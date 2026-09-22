@@ -599,10 +599,7 @@ done
 # separately (it needs MoltenVK and the parallel-rdp sources): see
 # build/spike/parallel-plugin/build.sh. Override the directory with
 # MUPEN_PARALLEL_PLUGIN_DIR when the plugin lives somewhere else.
-#
-# There is no tvOS build of the plugin yet, so the staging step is skipped
-# there rather than copying a Mac or iOS dylib into the bundle.
-if [[ "$CORE" == Mupen64Plus && "$PLATFORM" != tvos && "$PLATFORM" != tvos-sim ]]; then
+if [[ "$CORE" == Mupen64Plus ]]; then
   case "$PLATFORM" in
     simulator) MUPEN_PLUGIN_PLATFORM="simulator" ;;
     catalyst)  MUPEN_PLUGIN_PLATFORM="catalyst" ;;
@@ -619,9 +616,9 @@ if [[ "$CORE" == Mupen64Plus && "$PLATFORM" != tvos && "$PLATFORM" != tvos-sim ]
     # MoltenVK ships unsigned in the xcframework, and dyld refuses to load an
     # unsigned dylib in the Simulator ("could not load the Vulkan loader").
     # The Simulator and Catalyst builds are ad-hoc signed, so the nested
-    # dylibs get the same treatment. Device builds are signed by Xcode, which
-    # needs the real identity; leave those alone.
-    if [[ "$PLATFORM" != device ]]; then
+    # dylibs get the same treatment. Device builds — a phone or an Apple TV —
+    # are signed by Xcode, which needs the real identity; leave those alone.
+    if [[ "$PLATFORM" == simulator || "$PLATFORM" == catalyst || "$PLATFORM" == tvos-sim ]]; then
       for lib in "$PLUGIN_DIR/PlugIns/"*.dylib; do
         codesign --force --sign - "$lib" 2>/dev/null || true
       done
