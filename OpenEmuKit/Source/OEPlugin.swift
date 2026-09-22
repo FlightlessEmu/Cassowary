@@ -201,26 +201,11 @@ public class OEPlugin: NSObject {
         var plugins = allPluginsByType[Self.pluginType]
         if plugins == nil {
             let fm = FileManager.default
-            
-            // load plugins in Application Support
-            let appSupportDir: URL
-            #if swift(>=5.7)
-            if #available(macOS 13.0, *) {
-                appSupportDir = .applicationSupportDirectory
-            } else {
-                appSupportDir = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-            }
-            #else
-            appSupportDir = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-            #endif
-            let pluginsDir = appSupportDir.appendingPathComponent("OpenEmu", isDirectory: true)
-                                          .appendingPathComponent(Self.pluginFolder, isDirectory: true)
-            let pluginURLs = try? fm.contentsOfDirectory(at: pluginsDir, includingPropertiesForKeys: [])
-            for bundleURL in pluginURLs ?? [] where bundleURL.pathExtension == Self.pluginExtension {
-                _ = try? plugin(bundleAtURL: bundleURL, forceReload: true)
-            }
-            
-            // load plugins in application bundle
+
+            // Load plugins from the app bundle only. The macOS app also looked in
+            // ~/Library/Application Support/OpenEmu for user-installed cores; on
+            // this app anything there is a leftover from another install and would
+            // show up as duplicate systems and cores.
             let builtInPluginsURL = Bundle.main.builtInPlugInsURL!
             let bundledPluginsDir = builtInPluginsURL.appendingPathComponent(Self.pluginFolder, isDirectory: true)
             let bundledPluginURLs = try? fm.contentsOfDirectory(at: bundledPluginsDir, includingPropertiesForKeys: [])
