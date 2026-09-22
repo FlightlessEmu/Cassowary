@@ -129,7 +129,7 @@ struct TVLibraryView: View {
     /// selection binding for lists).
     private var sidebar: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
+            VStack(alignment: .leading, spacing: 32) {
                 sidebarSection("Library") {
                     sidebarRow("All Games", symbol: "square.grid.2x2",
                                count: store.games.count, value: .all)
@@ -159,7 +159,10 @@ struct TVLibraryView: View {
 
     @ViewBuilder
     private func sidebarSection<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+        // The spacing is generous on purpose: a focused row grows a little
+        // under the TV's focus effect, and with a tight gap that highlight
+        // would cover the section heading above it.
+        VStack(alignment: .leading, spacing: 14) {
             Text(title)
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
@@ -239,7 +242,6 @@ struct TVLibraryView: View {
             .padding(.top, 16)
             .padding(.bottom, 40)
         }
-        .focusSection()
     }
 
     private var emptyState: some View {
