@@ -185,6 +185,8 @@ void Renderer::Reset(GPU& gpu)
 {
     if (_software != nullptr)
         _software->Reset(gpu);
+    if (_rasterizer != nullptr)
+        _rasterizer->Reset();
 }
 
 void Renderer::VCount144(GPU& gpu)
@@ -550,11 +552,31 @@ void EdgeParams_YMajor(bool side, s32 dx, const SpanSetupY& span, s32& edgelen, 
     }
 }
 
+/// The rasterise mode for a variant, mirroring how melonDS's own renderer
+/// picks its shader: 0 draws vertex colours, 1 multiplies them with the
+/// texture, 2 pastes an opaque texture over them, 3 and 4 run them through the
+/// toon table, and 5 records only depth for a shadow mask.
+uint32_t RasterModeForVariant(u8 blendMode, bool textured, bool highLightMode) noexcept
+{
+    if (blendMode == 4)
+        return 5;
+    if (!textured)
+        return (blendMode == 2) ? (highLightMode ? 4 : 3) : 0;
+    switch (blendMode)
+    {
+    case 0: return 1;
+    case 1: return 2;
+    case 2: return highLightMode ? 4 : 3;
+    default: return 2;
+    }
+}
+
 } // namespace
 
 Rasterizer3D::Rasterizer3D(id<MTLDevice> device, id<MTLCommandQueue> queue) noexcept
     : _device(device),
       _queue(queue),
+      _texcache(TexcacheLoader(device)),
       _ready(false)
 {
     if (_device == nil || _queue == nil)
@@ -575,10 +597,12 @@ Rasterizer3D::Rasterizer3D(id<MTLDevice> device, id<MTLCommandQueue> queue) noex
                                                            error:&error];
     _rasterisePipeline = [_device newComputePipelineStateWithFunction:[_library newFunctionWithName:@"melonds_rasterise"]
                                                                error:&error];
+    _finalPipeline = [_device newComputePipelineStateWithFunction:[_library newFunctionWithName:@"melonds_3d_final"]
+                                                           error:&error];
     _outputPipeline = [_device newComputePipelineStateWithFunction:[_library newFunctionWithName:@"melonds_3d_output"]
                                                             error:&error];
 
-    if (_clearPipeline == nil || _rasterisePipeline == nil || _outputPipeline == nil)
+    if (_clearPipeline == nil || _rasterisePipeline == nil || _finalPipeline == nil || _outputPipeline == nil)
     {
         NSLog(@"[melonDS] could not build the Metal 3D pipelines: %@", error);
         return;
@@ -599,15 +623,32 @@ Rasterizer3D::Rasterizer3D(id<MTLDevice> device, id<MTLCommandQueue> queue) noex
     _linePolyIndices = [_device newBufferWithLength:sizeof(u32) * MaxSpanIndices
                                              options:MTLResourceStorageModeShared];
 
+    // Bound when a variant uses no texture, so there is always something to
+    // sample from. It is never actually read.
+    MTLTextureDescriptor* dummyDesc =
+        [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatRGBA8Uint
+                                                           width:8
+                                                          height:8
+                                                       mipmapped:NO];
+    dummyDesc.textureType = MTLTextureType2DArray;
+    dummyDesc.arrayLength = 1;
+    dummyDesc.usage = MTLTextureUsageShaderRead;
+    dummyDesc.storageMode = MTLStorageModeShared;
+    _dummyTexture = [_device newTextureWithDescriptor:dummyDesc];
+
     const NSUInteger layerBytes = kScreenWidth * kScreenHeight * sizeof(u32);
     _colorBuffer = [_device newBufferWithLength:layerBytes options:MTLResourceStorageModeShared];
     _depthBuffer = [_device newBufferWithLength:layerBytes options:MTLResourceStorageModeShared];
     _attrBuffer = [_device newBufferWithLength:layerBytes options:MTLResourceStorageModeShared];
+    _colorBufferB = [_device newBufferWithLength:layerBytes options:MTLResourceStorageModeShared];
+    _depthBufferB = [_device newBufferWithLength:layerBytes options:MTLResourceStorageModeShared];
+    _attrBufferB = [_device newBufferWithLength:layerBytes options:MTLResourceStorageModeShared];
 
     if (_ySpanSetups == nil || _xSpanSetups == nil || _yspanIndices == nil
         || _renderPolygons == nil || _metaUniform == nil
-        || _linePolyOffsets == nil || _linePolyIndices == nil
-        || _colorBuffer == nil || _depthBuffer == nil || _attrBuffer == nil)
+        || _linePolyOffsets == nil || _linePolyIndices == nil || _dummyTexture == nil
+        || _colorBuffer == nil || _depthBuffer == nil || _attrBuffer == nil
+        || _colorBufferB == nil || _depthBufferB == nil || _attrBufferB == nil)
     {
         NSLog(@"[melonDS] rasteriser: could not create its buffers");
         return;
@@ -1006,9 +1047,22 @@ void Rasterizer3D::SetupFrame(GPU& gpu) noexcept
     const int screenHeight = 192;
     const u32 dispCnt = gpu.GPU3D.RenderDispCnt;
 
+    // Drop textures whose VRAM changed before looking any of them up.
+    _texcache.Update(gpu);
+
     u32 numSpans = 0;
     u32 numSpanIndices = 0;
     u32 numSetupPolygons = 0;
+
+    // Polygons that share a texture, sampler and blend mode are drawn in one
+    // dispatch. This grouping is melonDS's own.
+    // The frame's texture table: one slot per array texture the frame's
+    // polygons sample, so one dispatch can draw the whole frame.
+    __strong id<MTLTexture> textureSlots[MaxTextureSlots];
+    u32 numTextureSlots = 0;
+
+    const bool enableTextureMaps = (gpu.GPU3D.RenderDispCnt & (1 << 0)) != 0;
+    _highLightMode = (gpu.GPU3D.RenderDispCnt & (1 << 1)) != 0;
 
     for (u32 i = 0; i < (u32) gpu.GPU3D.RenderNumPolygons; i++)
     {
@@ -1031,12 +1085,60 @@ void Rasterizer3D::SetupFrame(GPU& gpu) noexcept
         rp.FirstXSpan = numSpanIndices;
         rp.Attr = polygon->Attr | (polygon->FacingView ? (1U << 6) : 0U);
 
-        // Textures are not drawn yet, so every polygon is the same variant.
-        // When the texture cache lands, this is where the array-texture layer
-        // and sampler are chosen, as melonDS does.
+        // Each polygon carries its own texture state, so one dispatch draws
+        // the whole frame in submission order.
         rp.Variant = 0;
         rp.TextureLayer = 0.0f;
+        rp.TexSlot = 0;
+        rp.TexWrap = 0;
+        rp.TexWidth = 8;
+        rp.TexHeight = 8;
         rp.WBuffer = polygon->WBuffer ? 1 : 0;
+
+        const u8 blendMode = polygon->IsShadowMask ? 4 : ((polygon->Attr >> 4) & 0x3);
+        rp.TexMode = RasterModeForVariant(blendMode, false, _highLightMode);
+
+        if (enableTextureMaps && (polygon->TexParam >> 26) & 0x7)
+        {
+            __strong id<MTLTexture> handle = nil;
+            u32 texLayer = 0;
+            u32* textureLastVariant = nullptr;
+            _texcache.GetTexture(gpu, polygon->TexParam, polygon->TexPalette,
+                                 handle, texLayer, textureLastVariant);
+            if (handle != nil)
+            {
+                u32 slot = 0;
+                for (; slot < numTextureSlots; slot++)
+                {
+                    if (textureSlots[slot] == handle)
+                        break;
+                }
+                if (slot >= numTextureSlots)
+                {
+                    if (numTextureSlots >= MaxTextureSlots)
+                    {
+                        NSLog(@"[melonDS] rasteriser: frame uses more texture tables than fit");
+                    }
+                    else
+                    {
+                        slot = numTextureSlots;
+                        textureSlots[numTextureSlots++] = handle;
+                    }
+                }
+
+                bool wrapS = (polygon->TexParam >> 16) & 1;
+                bool wrapT = (polygon->TexParam >> 17) & 1;
+                bool mirrorS = (polygon->TexParam >> 18) & 1;
+                bool mirrorT = (polygon->TexParam >> 19) & 1;
+
+                rp.TexSlot = slot;
+                rp.TexMode = RasterModeForVariant(blendMode, true, _highLightMode);
+                rp.TexWrap = (wrapS ? (mirrorS ? 2 : 1) : 0) + (wrapT ? (mirrorT ? 2 : 1) : 0) * 3;
+                rp.TexWidth = TextureWidth(polygon->TexParam);
+                rp.TexHeight = TextureHeight(polygon->TexParam);
+                rp.TextureLayer = (float) texLayer;
+            }
+        }
 
         if (polygon->FacingView)
         {
@@ -1161,6 +1263,11 @@ void Rasterizer3D::SetupFrame(GPU& gpu) noexcept
     _numSpanIndices = numSpanIndices;
     _numPolygons = (u32) gpu.GPU3D.RenderNumPolygons;
 
+    for (u32 s = 0; s < numTextureSlots; s++)
+        _textureSlots[s] = textureSlots[s];
+    _numTextureSlots = numTextureSlots;
+
+
     if (numSpans == 0)
         return;
 
@@ -1202,7 +1309,6 @@ void Rasterizer3D::SetupFrame(GPU& gpu) noexcept
     MetaUniform meta {};
     meta.DispCnt = gpu.GPU3D.RenderDispCnt;
     meta.NumPolygons = gpu.GPU3D.RenderNumPolygons;
-    meta.NumVariants = 1;
     meta.AlphaRef = gpu.GPU3D.RenderAlphaRef;
     {
         u32 r = (gpu.GPU3D.RenderClearAttr1 << 1) & 0x3E; if (r) r++;
@@ -1252,6 +1358,7 @@ void Rasterizer3D::SetupFrame(GPU& gpu) noexcept
     }
 
     memcpy(_metaUniform.contents, &meta, sizeof(meta));
+
 }
 
 void Rasterizer3D::Render(GPU& gpu, id<MTLTexture> output) noexcept
@@ -1272,12 +1379,18 @@ void Rasterizer3D::Render(GPU& gpu, id<MTLTexture> output) noexcept
         [encoder setBuffer:_colorBuffer offset:0 atIndex:1];
         [encoder setBuffer:_depthBuffer offset:0 atIndex:2];
         [encoder setBuffer:_attrBuffer offset:0 atIndex:3];
+        [encoder setBuffer:_colorBufferB offset:0 atIndex:4];
+        [encoder setBuffer:_depthBufferB offset:0 atIndex:5];
+        [encoder setBuffer:_attrBufferB offset:0 atIndex:6];
         [encoder dispatchThreads:layer threadsPerThreadgroup:group];
         [encoder endEncoding];
     }
 
     if (_numPolygons > 0)
     {
+        // One dispatch draws the whole frame in submission order, the way the
+        // software rasteriser does: each pixel walks only the polygons that
+        // touch its line, and each polygon samples its own texture slot.
         id<MTLComputeCommandEncoder> encoder = [commandBuffer computeCommandEncoder];
         [encoder setComputePipelineState:_rasterisePipeline];
         [encoder setBuffer:_renderPolygons offset:0 atIndex:0];
@@ -1288,6 +1401,30 @@ void Rasterizer3D::Render(GPU& gpu, id<MTLTexture> output) noexcept
         [encoder setBuffer:_attrBuffer offset:0 atIndex:5];
         [encoder setBuffer:_linePolyOffsets offset:0 atIndex:6];
         [encoder setBuffer:_linePolyIndices offset:0 atIndex:7];
+        [encoder setBuffer:_colorBufferB offset:0 atIndex:8];
+        [encoder setBuffer:_depthBufferB offset:0 atIndex:9];
+        [encoder setBuffer:_attrBufferB offset:0 atIndex:10];
+
+        id<MTLTexture> textures[MaxTextureSlots];
+        for (u32 s = 0; s < MaxTextureSlots; s++)
+            textures[s] = (s < _numTextureSlots && _textureSlots[s] != nil) ? _textureSlots[s] : _dummyTexture;
+        [encoder setTextures:textures withRange:NSMakeRange(0, MaxTextureSlots)];
+
+        [encoder dispatchThreads:layer threadsPerThreadgroup:group];
+        [encoder endEncoding];
+    }
+
+    {
+        // Edge marking and fog, over the drawn polygons.
+        id<MTLComputeCommandEncoder> encoder = [commandBuffer computeCommandEncoder];
+        [encoder setComputePipelineState:_finalPipeline];
+        [encoder setBuffer:_metaUniform offset:0 atIndex:0];
+        [encoder setBuffer:_colorBuffer offset:0 atIndex:1];
+        [encoder setBuffer:_depthBuffer offset:0 atIndex:2];
+        [encoder setBuffer:_attrBuffer offset:0 atIndex:3];
+        [encoder setBuffer:_colorBufferB offset:0 atIndex:4];
+        [encoder setBuffer:_depthBufferB offset:0 atIndex:5];
+        [encoder setBuffer:_attrBufferB offset:0 atIndex:6];
         [encoder dispatchThreads:layer threadsPerThreadgroup:group];
         [encoder endEncoding];
     }
@@ -1303,19 +1440,6 @@ void Rasterizer3D::Render(GPU& gpu, id<MTLTexture> output) noexcept
 
     [commandBuffer commit];
     [commandBuffer waitUntilCompleted];
-
-    {
-        static int n = 0;
-        if ((n++ % 200) == 0)
-        {
-            const u32* colour = (const u32*) _colorBuffer.contents;
-            const u32* depth = (const u32*) _depthBuffer.contents;
-            const u32* attr = (const u32*) _attrBuffer.contents;
-            fprintf(stderr, "[rs] polys %u c0 %08x c1 %08x c2 %08x d0 %08x d1 %08x d2 %08x a0 %08x\n",
-                    _numPolygons, colour[0], colour[1000], colour[30000],
-                    depth[0], depth[1000], depth[30000], attr[30000]);
-        }
-    }
 }
 
 void Rasterizer3D::CompareWithSoftware(SoftRenderer& software) noexcept
@@ -1350,25 +1474,7 @@ void Rasterizer3D::CompareWithSoftware(SoftRenderer& software) noexcept
             fprintf(stderr, "[cmp] same %u diff %u\n", same, diff);
     }
 
-    {
-        // Sample a few pixels: house centre, bush, path, sky.
-        static int n = 0;
-        if ((n++ % 200) == 0)
-        {
-            const u32* depth = (const u32*) _depthBuffer.contents;
-            const u32* attr = (const u32*) _attrBuffer.contents;
-            const int pts[4][2] = {{128,100},{40,130},{128,170},{200,20}};
-            for (int k = 0; k < 4; k++)
-            {
-                const int x = pts[k][0], y = pts[k][1];
-                const u32* ref = software.GetLine(y);
-                fprintf(stderr, "[px] (%d,%d) metal c %08x d %08x a %08x | soft c %08x\n",
-                        x, y, mine[(size_t) y * kScreenWidth + x],
-                        depth[(size_t) y * kScreenWidth + x],
-                        attr[(size_t) y * kScreenWidth + x], ref[x]);
-            }
-        }
-    }
+
 
     {
         // Write both layers out once so they can be looked at side by side:

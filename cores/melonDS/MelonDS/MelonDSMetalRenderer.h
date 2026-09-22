@@ -25,6 +25,8 @@
 #include "GPU3D.h"
 #include "types.h"
 
+#include "MelonDSMetalTexcache.h"
+
 #include <cstdint>
 #include <memory>
 #include <vector>
@@ -38,6 +40,7 @@ namespace MelonDSMetal
 {
 
 using melonDS::s32;
+using melonDS::u8;
 using melonDS::u16;
 using melonDS::u32;
 
@@ -121,6 +124,16 @@ struct RenderPolygon
 
     /// True when the polygon interpolates W for its depth rather than Z.
     u32 WBuffer;
+
+    /// Where the polygon's texture lives for its dispatch: the slot in the
+    /// frame's texture table, how its pixels are combined, and how the texture
+    /// wraps. Polygons carry these themselves so one dispatch draws the whole
+    /// frame in submission order, the way the software rasteriser does.
+    u32 TexSlot;
+    u32 TexMode;
+    u32 TexWrap;
+    u32 TexWidth;
+    u32 TexHeight;
 };
 
 /// Values that are the same for every polygon in a frame.
@@ -160,6 +173,10 @@ public:
     /// Draws the frame's polygons into the 3D texture the compositor reads.
     void Render(melonDS::GPU& gpu, id<MTLTexture> output) noexcept;
 
+    /// Drops the cached textures. The app calls this when the emulation
+    /// resets, through the renderer's own Reset.
+    void Reset() noexcept { _texcache.Reset(); }
+
     /// Temporary comparison: diffs the Metal colour buffer against the
     /// software rasteriser's for the same frame.
     void CompareWithSoftware(melonDS::SoftRenderer& software) noexcept;
@@ -181,6 +198,7 @@ private:
     /// the compositor.
     __strong id<MTLComputePipelineState> _clearPipeline;
     __strong id<MTLComputePipelineState> _rasterisePipeline;
+    __strong id<MTLComputePipelineState> _finalPipeline;
     __strong id<MTLComputePipelineState> _outputPipeline;
 
     /// The 3D layer while it is being drawn, in the DS's own layouts: a colour
@@ -189,6 +207,14 @@ private:
     __strong id<MTLBuffer> _colorBuffer;
     __strong id<MTLBuffer> _depthBuffer;
     __strong id<MTLBuffer> _attrBuffer;
+
+    /// The pixel underneath each pixel of the layer above: when anti-aliasing
+    /// is on, every drawn opaque pixel pushes the one it covers down here, and
+    /// the final pass blends edge pixels with what is underneath them. This is
+    /// melonDS's second line of buffers.
+    __strong id<MTLBuffer> _colorBufferB;
+    __strong id<MTLBuffer> _depthBufferB;
+    __strong id<MTLBuffer> _attrBufferB;
 
     /// The spans of every polygon in the frame, the polygons themselves, and
     /// the values that are the same for all of them.
@@ -212,6 +238,26 @@ private:
     std::vector<SetupIndices> _spanIndices;
     std::vector<RenderPolygon> _polygons;
     std::vector<u32> _linePolyIndicesCPU;
+
+    /// melonDS's texture cache, loading the DS's textures into Metal array
+    /// textures. One dispatch draws the whole frame, so the frame's array
+    /// textures go into a table the shader indexes per polygon; every texture
+    /// the frame uses is also told to the dispatch so it stays alive.
+    TexcacheMetal _texcache;
+
+    /// The frame's texture table: at most one array texture per size the
+    /// frame's polygons use, each in a fixed slot.
+    static constexpr u32 MaxTextureSlots = 64;
+    __strong id<MTLTexture> _textureSlots[MaxTextureSlots];
+    u32 _numTextureSlots = 0;
+    __strong id<MTLArgumentEncoder> _textureEncoder;
+    __strong id<MTLBuffer> _textureTable;
+
+    bool _highLightMode = false;
+
+    /// Bound when a variant uses no texture, so there is always something to
+    /// sample from. It is never actually read.
+    __strong id<MTLTexture> _dummyTexture;
     std::vector<u32> _toonTable;
 
     u32 _numSpans = 0;

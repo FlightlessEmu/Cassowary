@@ -47,6 +47,12 @@ struct MelonDSRenderPolygon
 
     float TextureLayer;
     uint WBuffer;
+
+    uint TexSlot;
+    uint TexMode;
+    uint TexWrap;
+    uint TexWidth;
+    uint TexHeight;
 };
 
 struct MelonDSMetaUniform
@@ -87,6 +93,17 @@ constant uint kXSpanSetup_Linear     = 1U << 0;
 constant uint kXSpanSetup_FillInside = 1U << 1;
 constant uint kXSpanSetup_FillLeft   = 1U << 2;
 constant uint kXSpanSetup_FillRight  = 1U << 3;
+
+/// The rasterise mode, picked per variant on the CPU the way melonDS's own
+/// renderer picks its shader: 0 draws vertex colours, 1 multiplies them with
+/// the texture, 2 pastes an opaque texture over them, 3 and 4 run them through
+/// the toon table, and 5 records only depth for a shadow mask.
+constant uint kRasterNoTexture = 0;
+constant uint kRasterModulate = 1;
+constant uint kRasterDecal = 2;
+constant uint kRasterToon = 3;
+constant uint kRasterHighlight = 4;
+constant uint kRasterShadow = 5;
 
 constant uint kScreenWidth = 256;
 constant uint kScreenHeight = 192;
@@ -188,6 +205,38 @@ inline int MelonDSCalcYFactorX(MelonDSSpanSetupX span, int x)
     }
 
     return 0;
+}
+
+/// The integer part of a 4.4 fixed-point texture coordinate, rounding down the
+/// way the DS samples: an arithmetic shift right, written out because Metal
+/// does not promise one for negative values.
+inline int MelonDSFloorShift4(int t)
+{
+    if (t >= 0)
+        return t >> 4;
+
+    return -(((-t) + 15) >> 4);
+}
+
+/// Wraps a texel coordinate the way the DS does: 0 clamps to the texture, 1
+/// repeats it, 2 mirrors it.
+inline int MelonDSWrapTexel(int t, int size, uint mode)
+{
+    if (mode == 0U)
+        return clamp(t, 0, size - 1);
+
+    if (mode == 1U)
+    {
+        int m = t % size;
+        return m < 0 ? m + size : m;
+    }
+
+    const int span = size * 2;
+    int m = t % span;
+    if (m < 0)
+        m += span;
+
+    return m < size ? m : span - 1 - m;
 }
 
 // MARK: - Blending and depth
@@ -303,6 +352,9 @@ kernel void melonds_3d_clear(
     device uint *colorBuffer [[buffer(1)]],
     device uint *depthBuffer [[buffer(2)]],
     device uint *attrBuffer [[buffer(3)]],
+    device uint *colorBufferB [[buffer(4)]],
+    device uint *depthBufferB [[buffer(5)]],
+    device uint *attrBufferB [[buffer(6)]],
     uint2 pixel [[thread_position_in_grid]])
 {
     if (pixel.x >= kScreenWidth || pixel.y >= kScreenHeight)
@@ -313,6 +365,10 @@ kernel void melonds_3d_clear(
     colorBuffer[addr] = meta.ClearColor;
     depthBuffer[addr] = meta.ClearDepth;
     attrBuffer[addr] = meta.ClearAttr;
+
+    colorBufferB[addr] = 0;
+    depthBufferB[addr] = 0;
+    attrBufferB[addr] = 0;
 }
 
 /// Walks every polygon in submission order and draws the pixels of its spans.
@@ -330,6 +386,10 @@ kernel void melonds_rasterise(
     device uint *attrBuffer [[buffer(5)]],
     device const uint *linePolyOffsets [[buffer(6)]],
     device const uint *linePolyIndices [[buffer(7)]],
+    device uint *colorBufferB [[buffer(8)]],
+    device uint *depthBufferB [[buffer(9)]],
+    device uint *attrBufferB [[buffer(10)]],
+    array<texture2d_array<uint, access::read>, 64> texTables [[texture(0)]],
     uint2 pixel [[thread_position_in_grid]])
 {
     if (pixel.x >= kScreenWidth || pixel.y >= kScreenHeight)
@@ -399,7 +459,7 @@ kernel void melonds_rasterise(
         }
 
         uint z;
-        int vr, vg, vb;
+        int vr, vg, vb, u, v;
 
         if (xspan.X0 == xspan.X1)
         {
@@ -407,6 +467,8 @@ kernel void melonds_rasterise(
             vr = xspan.ColorR0;
             vg = xspan.ColorG0;
             vb = xspan.ColorB0;
+            u = xspan.TexcoordU0;
+            v = xspan.TexcoordV0;
         }
         else
         {
@@ -424,40 +486,109 @@ kernel void melonds_rasterise(
                 vr = MelonDSInterpolateAttrPersp(xspan.ColorR0, xspan.ColorR1, ifactor);
                 vg = MelonDSInterpolateAttrPersp(xspan.ColorG0, xspan.ColorG1, ifactor);
                 vb = MelonDSInterpolateAttrPersp(xspan.ColorB0, xspan.ColorB1, ifactor);
+                if (polygon.TexMode != kRasterNoTexture)
+                {
+                    u = MelonDSInterpolateAttrPersp(xspan.TexcoordU0, xspan.TexcoordU1, ifactor);
+                    v = MelonDSInterpolateAttrPersp(xspan.TexcoordV0, xspan.TexcoordV1, ifactor);
+                }
             }
             else
             {
                 vr = MelonDSInterpolateAttrLinear(xspan.ColorR0, xspan.ColorR1, i, xspan.XRecip, idiff);
                 vg = MelonDSInterpolateAttrLinear(xspan.ColorG0, xspan.ColorG1, i, xspan.XRecip, idiff);
                 vb = MelonDSInterpolateAttrLinear(xspan.ColorB0, xspan.ColorB1, i, xspan.XRecip, idiff);
+                if (polygon.TexMode != kRasterNoTexture)
+                {
+                    u = MelonDSInterpolateAttrLinear(xspan.TexcoordU0, xspan.TexcoordU1, i, xspan.XRecip, idiff);
+                    v = MelonDSInterpolateAttrLinear(xspan.TexcoordV0, xspan.TexcoordV1, i, xspan.XRecip, idiff);
+                }
             }
+        }
+
+        if (polygon.TexMode == kRasterShadow)
+        {
+            // Shadow masks only record depth, the way melonDS's own shadow
+            // variant does.
+            depthBuffer[pixeladdr] = z;
+            continue;
         }
 
         const uint polyalpha = (polygon.Attr >> 16) & 0x1FU;
 
-        // Textures are not drawn yet, so the colour comes from the vertices
-        // alone. The texture cache and the textured variants come next.
-        uint r = uint(vr >> 3);
-        uint g = uint(vg >> 3);
-        uint b = uint(vb >> 3);
+        uint vr6 = uint(vr >> 3);
+        uint vg6 = uint(vg >> 3);
+        uint vb6 = uint(vb >> 3);
+        const uint vr6orig = vr6;
+        uint r = vr6;
+        uint g = vg6;
+        uint b = vb6;
         uint a = polyalpha;
+
+        if (polygon.TexMode == kRasterToon || polygon.TexMode == kRasterHighlight)
+        {
+            if (polygon.TexMode == kRasterHighlight)
+            {
+                vg6 = vr6;
+                vb6 = vr6;
+            }
+
+            const uint tooncolor = meta.ToonTable[(vr6 >> 1) * 4];
+            vr6 = tooncolor & 0xFFU;
+            vg6 = (tooncolor >> 8) & 0xFFU;
+            vb6 = (tooncolor >> 16) & 0xFFU;
+        }
+
+        if (polygon.TexMode != kRasterNoTexture)
+        {
+            // The texture coordinates are fixed point with four fractional
+            // bits. The DS samples its textures nearest, so the texel is
+            // fetched directly, with the wrap mode from the polygon's texture
+            // parameters: 0 clamps, 1 repeats, 2 mirrors.
+            const uint wrapS = polygon.TexWrap % 3;
+            const uint wrapT = polygon.TexWrap / 3;
+            const int tx = MelonDSWrapTexel(MelonDSFloorShift4(u), int(polygon.TexWidth), wrapS);
+            const int ty = MelonDSWrapTexel(MelonDSFloorShift4(v), int(polygon.TexHeight), wrapT);
+            const uint4 texcolor = texTables[polygon.TexSlot].read(uint2(uint(tx), uint(ty)), uint(polygon.TextureLayer));
+
+            if (polygon.TexMode == kRasterDecal)
+            {
+                if (texcolor.a == 31)
+                {
+                    r = texcolor.r;
+                    g = texcolor.g;
+                    b = texcolor.b;
+                }
+                else if (texcolor.a > 0)
+                {
+                    r = (texcolor.r * texcolor.a + vr6 * (31 - texcolor.a)) >> 5;
+                    g = (texcolor.g * texcolor.a + vg6 * (31 - texcolor.a)) >> 5;
+                    b = (texcolor.b * texcolor.a + vb6 * (31 - texcolor.a)) >> 5;
+                }
+                a = polyalpha;
+            }
+            else
+            {
+                r = ((texcolor.r + 1) * (vr6 + 1) - 1) >> 6;
+                g = ((texcolor.g + 1) * (vg6 + 1) - 1) >> 6;
+                b = ((texcolor.b + 1) * (vb6 + 1) - 1) >> 6;
+                a = ((texcolor.a + 1) * (polyalpha + 1) - 1) >> 5;
+            }
+        }
+
+        if (polygon.TexMode == kRasterHighlight)
+        {
+            const uint tooncolor = meta.ToonTable[(vr6orig >> 1) * 4];
+
+            r = min(r + (tooncolor & 0xFFU), 63U);
+            g = min(g + ((tooncolor >> 8) & 0xFFU), 63U);
+            b = min(b + ((tooncolor >> 16) & 0xFFU), 63U);
+        }
 
         if (polyalpha == 0)
             a = 31;
 
         if (a <= meta.AlphaRef)
             continue;
-
-
-        const bool isShadowMask = (polygon.Attr & 0x3F000030U) == 0x00000030U;
-
-        if (isShadowMask)
-        {
-            // Shadow masks only record depth and attributes.
-            depthBuffer[pixeladdr] = z;
-            attrBuffer[pixeladdr] = attr;
-            continue;
-        }
 
         const uint color = r | (g << 8) | (b << 16) | (a << 24);
 
@@ -485,6 +616,16 @@ kernel void melonds_rasterise(
             if (!pass)
                 continue;
 
+            if ((meta.DispCnt & (1U << 4)) != 0U)
+            {
+                // anti-aliasing: push the covered pixel down before drawing
+                // over it, so the final pass can blend edge pixels with what
+                // is underneath them.
+                colorBufferB[pixeladdr] = colorBuffer[pixeladdr];
+                depthBufferB[pixeladdr] = depthBuffer[pixeladdr];
+                attrBufferB[pixeladdr] = attrBuffer[pixeladdr];
+            }
+
             depthBuffer[pixeladdr] = z;
             colorBuffer[pixeladdr] = color;
             attrBuffer[pixeladdr] = polyattr | attr;
@@ -495,8 +636,229 @@ kernel void melonds_rasterise(
             if (!(polygon.Attr & (1U << 11)))
                 blendz = -1;
 
+            const uint entryAttr = attrBuffer[pixeladdr];
             MelonDSPlotTranslucentPixel(meta, colorBuffer, depthBuffer, attrBuffer,
                                         pixeladdr, color, blendz, polyattr, false);
+
+            // blend with the pixel underneath too, if needed
+            if ((entryAttr & 0xFU) != 0U)
+            {
+                MelonDSPlotTranslucentPixel(meta, colorBufferB, depthBufferB, attrBufferB,
+                                            pixeladdr, color, blendz, polyattr, false);
+            }
+        }
+    }
+}
+
+/// melonDS's final pass (ScanlineFinalPass in GPU3D_Soft.cpp): edge marking
+/// paints the edge table colour over pixels whose neighbour belongs to a
+/// polygon nearer to the viewer, fog blends pixels toward the fog colour with
+/// a density read from the fog table by depth, and anti-aliasing blends edge
+/// pixels with the pixel pushed underneath them while they were drawn.
+kernel void melonds_3d_final(
+    constant MelonDSMetaUniform &meta [[buffer(0)]],
+    device uint *colorBuffer [[buffer(1)]],
+    device uint *depthBuffer [[buffer(2)]],
+    device uint *attrBuffer [[buffer(3)]],
+    device uint *colorBufferB [[buffer(4)]],
+    device uint *depthBufferB [[buffer(5)]],
+    device uint *attrBufferB [[buffer(6)]],
+    uint2 pixel [[thread_position_in_grid]])
+{
+    if (pixel.x >= kScreenWidth || pixel.y >= kScreenHeight)
+        return;
+
+    const uint pixeladdr = pixel.y * kScreenWidth + pixel.x;
+
+    if (meta.DispCnt & (1U << 5))
+    {
+        // edge marking, only applied to topmost pixels
+
+        const uint attr = attrBuffer[pixeladdr];
+        if ((attr & 0xFU) != 0U)
+        {
+            const uint polyid = attr >> 24;
+            const uint z = depthBuffer[pixeladdr];
+
+            bool edge = false;
+            if (pixel.x > 0)
+                edge = edge || ((polyid != (attrBuffer[pixeladdr - 1] >> 24)) && (z < depthBuffer[pixeladdr - 1]));
+            if (pixel.x + 1 < kScreenWidth)
+                edge = edge || ((polyid != (attrBuffer[pixeladdr + 1] >> 24)) && (z < depthBuffer[pixeladdr + 1]));
+            if (pixel.y > 0)
+                edge = edge || ((polyid != (attrBuffer[pixeladdr - kScreenWidth] >> 24)) && (z < depthBuffer[pixeladdr - kScreenWidth]));
+            if (pixel.y + 1 < kScreenHeight)
+                edge = edge || ((polyid != (attrBuffer[pixeladdr + kScreenWidth] >> 24)) && (z < depthBuffer[pixeladdr + kScreenWidth]));
+
+            if (edge)
+            {
+                const uint edgecolor = meta.ToonTable[(polyid >> 3) * 4 + 2];
+
+                const uint edgeR = edgecolor & 0xFFU;
+                const uint edgeG = (edgecolor >> 8) & 0xFFU;
+                const uint edgeB = (edgecolor >> 16) & 0xFFU;
+
+                colorBuffer[pixeladdr] = edgeR | (edgeG << 8) | (edgeB << 16) | (colorBuffer[pixeladdr] & 0xFF000000U);
+
+                // break antialiasing coverage (checkme)
+                attrBuffer[pixeladdr] = (attr & 0xFFFFE0FFU) | 0x00001000U;
+            }
+        }
+    }
+
+    if (meta.DispCnt & (1U << 7))
+    {
+        // fog
+
+        const bool fogcolor = (meta.DispCnt & (1U << 6)) == 0U;
+
+        const uint fogR = meta.FogColor & 0xFFU;
+        const uint fogG = (meta.FogColor >> 8) & 0xFFU;
+        const uint fogB = (meta.FogColor >> 16) & 0xFFU;
+        const uint fogA = (meta.FogColor >> 24) & 0xFFU;
+
+        const uint attr = attrBuffer[pixeladdr];
+        if ((attr & (1U << 15)) != 0U)
+        {
+            const uint z = depthBuffer[pixeladdr];
+            uint density;
+            if (z < meta.FogOffset)
+            {
+                density = 0;
+            }
+            else
+            {
+                uint zo = z - meta.FogOffset;
+                zo = (zo >> 2) << meta.FogShift;
+
+                const uint densityid = zo >> 17;
+                if (densityid >= 32)
+                {
+                    density = meta.ToonTable[32 * 4 + 1];
+                }
+                else
+                {
+                    const uint densityfrac = zo & 0x1FFFFU;
+                    density = ((meta.ToonTable[densityid * 4 + 1] * (0x20000U - densityfrac))
+                             + (meta.ToonTable[(densityid + 1) * 4 + 1] * densityfrac)) >> 17;
+                }
+                if (density >= 127)
+                    density = 128;
+            }
+
+            uint srcR = colorBuffer[pixeladdr] & 0x3FU;
+            uint srcG = (colorBuffer[pixeladdr] >> 8) & 0x3FU;
+            uint srcB = (colorBuffer[pixeladdr] >> 16) & 0x3FU;
+            uint srcA = (colorBuffer[pixeladdr] >> 24) & 0x1FU;
+
+            if (fogcolor)
+            {
+                srcR = ((fogR * density) + (srcR * (128 - density))) >> 7;
+                srcG = ((fogG * density) + (srcG * (128 - density))) >> 7;
+                srcB = ((fogB * density) + (srcB * (128 - density))) >> 7;
+            }
+
+            srcA = ((fogA * density) + (srcA * (128 - density))) >> 7;
+
+            colorBuffer[pixeladdr] = srcR | (srcG << 8) | (srcB << 16) | (srcA << 24);
+        }
+
+        // fog for the pixel underneath
+        if ((attr & 0xFU) != 0U)
+        {
+            const uint attrB = attrBufferB[pixeladdr];
+            if ((attrB & (1U << 15)) != 0U)
+            {
+                const uint zB = depthBufferB[pixeladdr];
+                uint densityB;
+                if (zB < meta.FogOffset)
+                {
+                    densityB = 0;
+                }
+                else
+                {
+                    uint zoB = zB - meta.FogOffset;
+                    zoB = (zoB >> 2) << meta.FogShift;
+
+                    const uint densityidB = zoB >> 17;
+                    if (densityidB >= 32)
+                    {
+                        densityB = meta.ToonTable[32 * 4 + 1];
+                    }
+                    else
+                    {
+                        const uint densityfracB = zoB & 0x1FFFFU;
+                        densityB = ((meta.ToonTable[densityidB * 4 + 1] * (0x20000U - densityfracB))
+                                 + (meta.ToonTable[(densityidB + 1) * 4 + 1] * densityfracB)) >> 17;
+                    }
+                    if (densityB >= 127)
+                        densityB = 128;
+                }
+
+                uint srcRB = colorBufferB[pixeladdr] & 0x3FU;
+                uint srcGB = (colorBufferB[pixeladdr] >> 8) & 0x3FU;
+                uint srcBB = (colorBufferB[pixeladdr] >> 16) & 0x3FU;
+                uint srcAB = (colorBufferB[pixeladdr] >> 24) & 0x1FU;
+
+                if (fogcolor)
+                {
+                    srcRB = ((fogR * densityB) + (srcRB * (128 - densityB))) >> 7;
+                    srcGB = ((fogG * densityB) + (srcGB * (128 - densityB))) >> 7;
+                    srcBB = ((fogB * densityB) + (srcBB * (128 - densityB))) >> 7;
+                }
+
+                srcAB = ((fogA * densityB) + (srcAB * (128 - densityB))) >> 7;
+
+                colorBufferB[pixeladdr] = srcRB | (srcGB << 8) | (srcBB << 16) | (srcAB << 24);
+            }
+        }
+    }
+
+    if ((meta.DispCnt & (1U << 4)) != 0U)
+    {
+        // anti-aliasing: blend edge pixels with the pixel underneath them.
+        // The coverage was calculated while the edges were drawn.
+
+        const uint attr = attrBuffer[pixeladdr];
+        if ((attr & 0xFU) != 0U)
+        {
+            uint coverage = (attr >> 8) & 0x1FU;
+            if (coverage != 0x1FU)
+            {
+                if (coverage == 0)
+                {
+                    colorBuffer[pixeladdr] = colorBufferB[pixeladdr];
+                }
+                else
+                {
+                    const uint topcolor = colorBuffer[pixeladdr];
+                    uint topR = topcolor & 0x3FU;
+                    uint topG = (topcolor >> 8) & 0x3FU;
+                    uint topB = (topcolor >> 16) & 0x3FU;
+                    uint topA = (topcolor >> 24) & 0x1FU;
+
+                    const uint botcolor = colorBufferB[pixeladdr];
+                    const uint botR = botcolor & 0x3FU;
+                    const uint botG = (botcolor >> 8) & 0x3FU;
+                    const uint botB = (botcolor >> 16) & 0x3FU;
+                    const uint botA = (botcolor >> 24) & 0x1FU;
+
+                    coverage++;
+
+                    // only blend color if the bottom pixel isn't fully transparent
+                    if (botA > 0)
+                    {
+                        topR = ((topR * coverage) + (botR * (32 - coverage))) >> 5;
+                        topG = ((topG * coverage) + (botG * (32 - coverage))) >> 5;
+                        topB = ((topB * coverage) + (botB * (32 - coverage))) >> 5;
+                    }
+
+                    // alpha is always blended
+                    topA = ((topA * coverage) + (botA * (32 - coverage))) >> 5;
+
+                    colorBuffer[pixeladdr] = topR | (topG << 8) | (topB << 16) | (topA << 24);
+                }
+            }
         }
     }
 }
