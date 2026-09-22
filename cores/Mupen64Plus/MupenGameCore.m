@@ -962,10 +962,7 @@ static const int MupenParallelBufferHeight = 480;
 }
 
 // Copy the plugin's latest frame into the buffer OpenEmu gave us. The plugin
-// renders RGBA; the bitmap path was set up for BGRA. This works one 32-bit
-// word per pixel instead of four byte stores: RGBA bytes [R,G,B,A] read as
-// a little-endian word 0xAABBGGRR, rewritten as 0xFFRRGGBB (BGRA + forced
-// opaque alpha, exactly as the old per-byte loop produced).
+// renders RGBA; the bitmap path was set up for BGRA.
 - (void)copyParallelFrame
 {
     if (!_parallelVideo || !_frameBuffer || _parallelGetFrame == NULL) {
@@ -987,11 +984,13 @@ static const int MupenParallelBufferHeight = 480;
     uint8_t *dst = (uint8_t *)_frameBuffer;
 
     for (int y = 0; y < copyHeight; y++) {
-        const uint32_t *srcRow = (const uint32_t *)(pixels + (size_t)y * (size_t)pitch);
-        uint32_t *dstRow = (uint32_t *)(dst + (size_t)y * (size_t)MupenParallelBufferWidth * 4);
+        const uint8_t *srcRow = pixels + (size_t)y * (size_t)pitch;
+        uint8_t *dstRow = dst + (size_t)y * (size_t)MupenParallelBufferWidth * 4;
         for (int x = 0; x < copyWidth; x++) {
-            uint32_t p = srcRow[x];
-            dstRow[x] = ((p & 0xffu) << 16) | (p & 0xff00u) | ((p >> 16) & 0xffu) | 0xff000000u;
+            dstRow[x * 4 + 0] = srcRow[x * 4 + 2];
+            dstRow[x * 4 + 1] = srcRow[x * 4 + 1];
+            dstRow[x * 4 + 2] = srcRow[x * 4 + 0];
+            dstRow[x * 4 + 3] = 0xFF;
         }
     }
 }
