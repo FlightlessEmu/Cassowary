@@ -74,8 +74,12 @@ struct DeviceIdentity: Hashable {
         // The Apple TV's own name is not exposed to apps, and "Apple TV"
         // twice over on the list would be confusing, so say where it is.
         return "Apple TV"
-#elseif os(macOS) || targetEnvironment(macCatalyst)
+#elseif os(macOS)
         return Host.current().localizedName ?? "This Mac"
+#elseif targetEnvironment(macCatalyst)
+        // Foundation's Host is not available in Mac Catalyst, so the Mac app
+        // running on the Mac says what it is instead.
+        return "This Mac"
 #else
         return UIDevice.current.name
 #endif

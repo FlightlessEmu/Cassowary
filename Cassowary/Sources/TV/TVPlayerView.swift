@@ -51,9 +51,20 @@ struct TVPlayerView: View {
             Color.black.ignoresSafeArea()
 
             if let session, let layer = session.videoLayer {
-                GameLayerView(layer: layer) { bounds in
-                    session.updateDisplayBounds(bounds)
-                }
+                GameLayerView(
+                    layer: layer,
+                    bufferSize: {
+                        let size = session.videoBufferSize
+                        return CGSize(width: CGFloat(size.width), height: CGFloat(size.height))
+                    },
+                    aspectRatio: { session.displayAspectRatio },
+                    // No touch screen on a TV: the remote and a controller
+                    // reach the emulator through the engine's bridge.
+                    onTouch: { _ in },
+                    onResize: { bounds in
+                        session.updateDisplayBounds(bounds)
+                    }
+                )
                 .ignoresSafeArea()
 
                 if isPaused {
