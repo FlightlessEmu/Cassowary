@@ -160,11 +160,18 @@ public:
     /// Draws the frame's polygons into the 3D texture the compositor reads.
     void Render(melonDS::GPU& gpu, id<MTLTexture> output) noexcept;
 
+    /// Temporary comparison: diffs the Metal colour buffer against the
+    /// software rasteriser's for the same frame.
+    void CompareWithSoftware(melonDS::SoftRenderer& software) noexcept;
+
 private:
     /// The largest number of vertical spans a frame can set up, matching
     /// melonDS's own limit.
     static constexpr int MaxYSpanSetups = 6144 * 2;
     static constexpr int MaxPolygons = 2048;
+    /// The largest number of polygon lines a frame can hold, matching
+    /// melonDS's own span-index limit: every line of every polygon gets one.
+    static constexpr u32 MaxSpanIndices = 64 * 2048;
 
     __strong id<MTLDevice> _device;
     __strong id<MTLCommandQueue> _queue;
@@ -191,11 +198,20 @@ private:
     __strong id<MTLBuffer> _renderPolygons;
     __strong id<MTLBuffer> _metaUniform;
 
+    /// Per scanline, the polygons that touch it, in submission order: 193
+    /// offsets (one past the last line, so line y runs [offsets[y],
+    /// offsets[y+1])) into a flat list of polygon indices. The shader walks
+    /// only these instead of the whole frame, which is what keeps a dispatch
+    /// small enough to finish.
+    __strong id<MTLBuffer> _linePolyOffsets;
+    __strong id<MTLBuffer> _linePolyIndices;
+
     /// The CPU-side copies the buffers are filled from.
     std::vector<SpanSetupY> _spans;
     std::vector<SpanSetupX> _xSpans;
     std::vector<SetupIndices> _spanIndices;
     std::vector<RenderPolygon> _polygons;
+    std::vector<u32> _linePolyIndicesCPU;
     std::vector<u32> _toonTable;
 
     u32 _numSpans = 0;
@@ -306,6 +322,10 @@ private:
 
     /// True while the 3D layer comes from the software rasteriser.
     bool _softwareThreeD = true;
+
+    /// Temporary comparison mode (MELONDS_3D=cmp): run the software rasteriser
+    /// on the same frame and diff its colour buffer against the Metal one.
+    bool _compareThreeD = false;
 
     melonDS::u32 _width;
     melonDS::u32 _height;

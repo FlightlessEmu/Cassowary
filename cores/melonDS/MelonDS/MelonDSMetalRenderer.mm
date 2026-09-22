@@ -75,6 +75,9 @@ Renderer::Renderer(id<MTLDevice> device, u32 width, u32 height) noexcept
     // layer empty instead, which is what the port is tested against.
     const char *mode = getenv("MELONDS_3D");
     _softwareThreeD = (mode == nullptr) || (strcmp(mode, "metal") != 0);
+    _compareThreeD = (mode != nullptr) && (strcmp(mode, "cmp") == 0);
+    if (_compareThreeD)
+        _softwareThreeD = false;
 
     if (_device == nil)
     {
@@ -206,7 +209,24 @@ void Renderer::RenderFrame(GPU& gpu)
         if (_rasterizer == nullptr)
             _rasterizer = std::make_unique<Rasterizer3D>(_device, _queue);
 
-        _rasterizer->Render(gpu, _threeDTexture);
+        if (_compareThreeD)
+        {
+            if (_software == nullptr)
+            {
+                _software = std::make_unique<SoftRenderer>();
+                _software->Reset(gpu);
+            }
+
+            // The software rasteriser first, on the same polygon data, then
+            // the Metal one, then diff the two colour buffers word for word.
+            _software->RenderFrame(gpu);
+            _rasterizer->Render(gpu, _threeDTexture);
+            _rasterizer->CompareWithSoftware(*_software);
+        }
+        else
+        {
+            _rasterizer->Render(gpu, _threeDTexture);
+        }
     }
 }
 
@@ -574,6 +594,10 @@ Rasterizer3D::Rasterizer3D(id<MTLDevice> device, id<MTLCommandQueue> queue) noex
                                            options:MTLResourceStorageModeShared];
     _metaUniform = [_device newBufferWithLength:sizeof(MetaUniform)
                                         options:MTLResourceStorageModeShared];
+    _linePolyOffsets = [_device newBufferWithLength:sizeof(u32) * (kScreenHeight + 1)
+                                            options:MTLResourceStorageModeShared];
+    _linePolyIndices = [_device newBufferWithLength:sizeof(u32) * MaxSpanIndices
+                                             options:MTLResourceStorageModeShared];
 
     const NSUInteger layerBytes = kScreenWidth * kScreenHeight * sizeof(u32);
     _colorBuffer = [_device newBufferWithLength:layerBytes options:MTLResourceStorageModeShared];
@@ -582,6 +606,7 @@ Rasterizer3D::Rasterizer3D(id<MTLDevice> device, id<MTLCommandQueue> queue) noex
 
     if (_ySpanSetups == nil || _xSpanSetups == nil || _yspanIndices == nil
         || _renderPolygons == nil || _metaUniform == nil
+        || _linePolyOffsets == nil || _linePolyIndices == nil
         || _colorBuffer == nil || _depthBuffer == nil || _attrBuffer == nil)
     {
         NSLog(@"[melonDS] rasteriser: could not create its buffers");
@@ -592,6 +617,7 @@ Rasterizer3D::Rasterizer3D(id<MTLDevice> device, id<MTLCommandQueue> queue) noex
     _xSpans.resize(kMaxSpanIndices);
     _spanIndices.resize(kMaxSpanIndices);
     _polygons.resize(MaxPolygons);
+    _linePolyIndicesCPU.resize(MaxSpanIndices);
     _toonTable.resize(4 * 34);
 
     _ready = true;
@@ -982,6 +1008,7 @@ void Rasterizer3D::SetupFrame(GPU& gpu) noexcept
 
     u32 numSpans = 0;
     u32 numSpanIndices = 0;
+    u32 numSetupPolygons = 0;
 
     for (u32 i = 0; i < (u32) gpu.GPU3D.RenderNumPolygons; i++)
     {
@@ -989,6 +1016,8 @@ void Rasterizer3D::SetupFrame(GPU& gpu) noexcept
         // frame should not run off the end of the buffers either.
         if (numSpans + 400 > MaxYSpanSetups || numSpanIndices + 200 > kMaxSpanIndices)
             break;
+
+        numSetupPolygons = i + 1;
 
         Polygon* polygon = gpu.GPU3D.RenderPolygonRAM[i];
 
@@ -1140,6 +1169,36 @@ void Rasterizer3D::SetupFrame(GPU& gpu) noexcept
     memcpy(_yspanIndices.contents, _spanIndices.data(), sizeof(SetupIndices) * numSpanIndices);
     memcpy(_renderPolygons.contents, _polygons.data(), sizeof(RenderPolygon) * _numPolygons);
 
+    // Bin the polygons that were set up per scanline, in submission order, so
+    // the shader walks only the polygons that touch its line. Every line of a
+    // polygon got one span index, so the lists hold exactly numSpanIndices
+    // entries between them and always fit.
+    u32 lineOffsets[kScreenHeight + 1] = {};
+    for (u32 i = 0; i < numSetupPolygons; i++)
+    {
+        const s32 y0 = std::max(_polygons[i].YTop, 0);
+        const s32 y1 = std::min(_polygons[i].YBot, (s32) kScreenHeight);
+        for (s32 y = y0; y < y1; y++)
+            lineOffsets[y + 1]++;
+    }
+    for (int y = 0; y < (int) kScreenHeight; y++)
+        lineOffsets[y + 1] += lineOffsets[y];
+
+    // The second pass visits the polygons in the same order, so every line's
+    // list stays in submission order.
+    u32 lineCursors[kScreenHeight] = {};
+    for (u32 i = 0; i < numSetupPolygons; i++)
+    {
+        const s32 y0 = std::max(_polygons[i].YTop, 0);
+        const s32 y1 = std::min(_polygons[i].YBot, (s32) kScreenHeight);
+        for (s32 y = y0; y < y1; y++)
+            _linePolyIndicesCPU[lineOffsets[y] + lineCursors[y]++] = i;
+    }
+
+    memcpy(_linePolyOffsets.contents, lineOffsets, sizeof(lineOffsets));
+    memcpy(_linePolyIndices.contents, _linePolyIndicesCPU.data(),
+           sizeof(u32) * lineOffsets[kScreenHeight]);
+
     MetaUniform meta {};
     meta.DispCnt = gpu.GPU3D.RenderDispCnt;
     meta.NumPolygons = gpu.GPU3D.RenderNumPolygons;
@@ -1227,6 +1286,8 @@ void Rasterizer3D::Render(GPU& gpu, id<MTLTexture> output) noexcept
         [encoder setBuffer:_colorBuffer offset:0 atIndex:3];
         [encoder setBuffer:_depthBuffer offset:0 atIndex:4];
         [encoder setBuffer:_attrBuffer offset:0 atIndex:5];
+        [encoder setBuffer:_linePolyOffsets offset:0 atIndex:6];
+        [encoder setBuffer:_linePolyIndices offset:0 atIndex:7];
         [encoder dispatchThreads:layer threadsPerThreadgroup:group];
         [encoder endEncoding];
     }
@@ -1242,6 +1303,114 @@ void Rasterizer3D::Render(GPU& gpu, id<MTLTexture> output) noexcept
 
     [commandBuffer commit];
     [commandBuffer waitUntilCompleted];
+
+    {
+        static int n = 0;
+        if ((n++ % 200) == 0)
+        {
+            const u32* colour = (const u32*) _colorBuffer.contents;
+            const u32* depth = (const u32*) _depthBuffer.contents;
+            const u32* attr = (const u32*) _attrBuffer.contents;
+            fprintf(stderr, "[rs] polys %u c0 %08x c1 %08x c2 %08x d0 %08x d1 %08x d2 %08x a0 %08x\n",
+                    _numPolygons, colour[0], colour[1000], colour[30000],
+                    depth[0], depth[1000], depth[30000], attr[30000]);
+        }
+    }
+}
+
+void Rasterizer3D::CompareWithSoftware(SoftRenderer& software) noexcept
+{
+    const u32* mine = (const u32*) _colorBuffer.contents;
+
+    u32 same = 0, diff = 0, diffReported = 0;
+    for (int y = 0; y < (int) kScreenHeight; y++)
+    {
+        const u32* ref = software.GetLine(y);
+        for (int x = 0; x < (int) kScreenWidth; x++)
+        {
+            const u32 a = mine[(size_t) y * kScreenWidth + x];
+            const u32 b = ref[x];
+            if (a == b)
+            {
+                same++;
+                continue;
+            }
+            diff++;
+            if (diffReported < 8)
+            {
+                diffReported++;
+                fprintf(stderr, "[cmp] (%d,%d) metal %08x soft %08x\n", x, y, a, b);
+            }
+        }
+    }
+
+    {
+        static int n = 0;
+        if ((n++ % 200) == 0)
+            fprintf(stderr, "[cmp] same %u diff %u\n", same, diff);
+    }
+
+    {
+        // Sample a few pixels: house centre, bush, path, sky.
+        static int n = 0;
+        if ((n++ % 200) == 0)
+        {
+            const u32* depth = (const u32*) _depthBuffer.contents;
+            const u32* attr = (const u32*) _attrBuffer.contents;
+            const int pts[4][2] = {{128,100},{40,130},{128,170},{200,20}};
+            for (int k = 0; k < 4; k++)
+            {
+                const int x = pts[k][0], y = pts[k][1];
+                const u32* ref = software.GetLine(y);
+                fprintf(stderr, "[px] (%d,%d) metal c %08x d %08x a %08x | soft c %08x\n",
+                        x, y, mine[(size_t) y * kScreenWidth + x],
+                        depth[(size_t) y * kScreenWidth + x],
+                        attr[(size_t) y * kScreenWidth + x], ref[x]);
+            }
+        }
+    }
+
+    {
+        // Write both layers out once so they can be looked at side by side:
+        // the Metal colour buffer and the software rasteriser's lines, in the
+        // same DS word layout, as PPMs.
+        static bool written = false;
+        if (!written && _numPolygons > 100)
+        {
+            written = true;
+            FILE* metal = fopen("/tmp/cmp-metal.ppm", "wb");
+            FILE* soft = fopen("/tmp/cmp-soft.ppm", "wb");
+            if (metal != nullptr && soft != nullptr)
+            {
+                fprintf(metal, "P6\n256 192\n255\n");
+                fprintf(soft, "P6\n256 192\n255\n");
+                for (int y = 0; y < (int) kScreenHeight; y++)
+                {
+                    const u32* ref = software.GetLine(y);
+                    for (int x = 0; x < (int) kScreenWidth; x++)
+                    {
+                        const u32 a = mine[(size_t) y * kScreenWidth + x];
+                        const u32 b = ref[x];
+                        const u8 pa[3] = {
+                            (u8) (((a & 0x3F) << 2) | ((a & 0x3F) >> 4)),
+                            (u8) ((((a >> 8) & 0x3F) << 2) | (((a >> 8) & 0x3F) >> 4)),
+                            (u8) ((((a >> 16) & 0x3F) << 2) | (((a >> 16) & 0x3F) >> 4)),
+                        };
+                        const u8 pb[3] = {
+                            (u8) (((b & 0x3F) << 2) | ((b & 0x3F) >> 4)),
+                            (u8) ((((b >> 8) & 0x3F) << 2) | (((b >> 8) & 0x3F) >> 4)),
+                            (u8) ((((b >> 16) & 0x3F) << 2) | (((b >> 16) & 0x3F) >> 4)),
+                        };
+                        fwrite(pa, 1, 3, metal);
+                        fwrite(pb, 1, 3, soft);
+                    }
+                }
+                fclose(metal);
+                fclose(soft);
+                fprintf(stderr, "[cmp] wrote /tmp/cmp-metal.ppm and /tmp/cmp-soft.ppm\n");
+            }
+        }
+    }
 }
 
 } // namespace MelonDSMetal

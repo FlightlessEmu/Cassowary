@@ -328,6 +328,8 @@ kernel void melonds_rasterise(
     device uint *colorBuffer [[buffer(3)]],
     device uint *depthBuffer [[buffer(4)]],
     device uint *attrBuffer [[buffer(5)]],
+    device const uint *linePolyOffsets [[buffer(6)]],
+    device const uint *linePolyIndices [[buffer(7)]],
     uint2 pixel [[thread_position_in_grid]])
 {
     if (pixel.x >= kScreenWidth || pixel.y >= kScreenHeight)
@@ -335,12 +337,15 @@ kernel void melonds_rasterise(
 
     const uint pixeladdr = pixel.y * kScreenWidth + pixel.x;
 
-    for (uint i = 0; i < meta.NumPolygons; i++)
-    {
-        const MelonDSRenderPolygon polygon = polygons[i];
+    // Only the polygons that touch this line, in the order the game submitted
+    // them — which is what the depth test and the translucent blending need.
+    const uint lineStart = linePolyOffsets[pixel.y];
+    const uint lineEnd = linePolyOffsets[pixel.y + 1];
 
-        if (pixel.y < uint(polygon.YTop) || pixel.y >= uint(polygon.YBot))
-            continue;
+    for (uint k = lineStart; k < lineEnd; k++)
+    {
+        const MelonDSRenderPolygon polygon = polygons[linePolyIndices[k]];
+
         if (pixel.x < uint(max(polygon.XMin, 0)) || pixel.x > uint(max(polygon.XMax, 0)))
             continue;
 
