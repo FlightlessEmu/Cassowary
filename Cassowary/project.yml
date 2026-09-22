@@ -122,6 +122,16 @@ targets:
               codesign --force --sign "${EXPANDED_CODE_SIGN_IDENTITY}" "$bundle"
             done
           fi
+          # A stamp inside the bundle, declared as this phase's output, is how
+          # Xcode knows the app changed and signs it again. The phase runs on
+          # every build (see basedOnDependencyAnalysis below): plugins are
+          # staged by copying files into a folder, and a file that changes
+          # inside a plugin does not move any date Xcode watches, so anything
+          # that made the phase skippable would let a rebuilt core go stale.
+          touch "$DEST/.plugins-copied"
+        basedOnDependencyAnalysis: false
+        outputFiles:
+          - $(TARGET_BUILD_DIR)/$(CONTENTS_FOLDER_PATH)/PlugIns/.plugins-copied
     # XcodeGen writes this file from the properties below, so the contents live
     # here rather than in the file itself. Mac Catalyst apps are sandboxed,
     # which gives the app its own Documents folder under ~/Library/Containers;
@@ -244,6 +254,16 @@ targets:
               codesign --force --sign "${EXPANDED_CODE_SIGN_IDENTITY}" "$bundle"
             done
           fi
+          # A stamp inside the bundle, declared as this phase's output, is how
+          # Xcode knows the app changed and signs it again. The phase runs on
+          # every build (see basedOnDependencyAnalysis below): plugins are
+          # staged by copying files into a folder, and a file that changes
+          # inside a plugin does not move any date Xcode watches, so anything
+          # that made the phase skippable would let a rebuilt core go stale.
+          touch "$DEST/.plugins-copied"
+        basedOnDependencyAnalysis: false
+        outputFiles:
+          - $(TARGET_BUILD_DIR)/$(CONTENTS_FOLDER_PATH)/PlugIns/.plugins-copied
     dependencies:
       # Built for tvOS by Scripts/cassowary/build-cassowary.sh, then linked
       # from the TV staging directory.
