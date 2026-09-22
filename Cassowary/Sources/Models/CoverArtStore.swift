@@ -51,6 +51,10 @@ enum CoverArtSetting {
     /// How many images download at once. Enough to fill the grid quickly,
     /// few enough to be polite to a free server.
     static let parallelDownloads = 4
+
+    /// How long a system's file listing is kept before it is read again. The
+    /// server adds art rarely, so a month is soon enough.
+    static let indexRefreshInterval: TimeInterval = 60 * 60 * 24 * 30
 }
 
 /// Downloads and caches cover art for the library.
@@ -212,6 +216,7 @@ final class CoverArtStore: ObservableObject {
             fetching.formUnion(requests.map(\.romURL))
 
             var networkFailed = false
+            var completed = false
             await withTaskGroup(of: CoverArtOutcome.self) { group in
                 for request in requests {
                     group.addTask {
@@ -221,12 +226,17 @@ final class CoverArtStore: ObservableObject {
                 for await outcome in group {
                     apply(outcome)
                     networkFailed = networkFailed || outcome.networkFailed
+                    // A game that got an answer — found, missed, or skipped —
+                    // proves the network works. Only a batch where every game
+                    // failed to reach the server means it is time to stop.
+                    completed = completed || !outcome.networkFailed
                 }
             }
 
-            // Nothing else will work right now: stop, and leave the rest of
-            // the library for the next refresh.
-            if networkFailed {
+            // Nothing reached the server for the whole batch: stop, and leave
+            // the rest of the library for the next refresh. One flaky game no
+            // longer discards every game behind it.
+            if networkFailed && !completed {
                 os_log(.info, log: .default, "Cover art: network unavailable, pausing downloads")
                 queue.removeAll()
                 break
@@ -305,8 +315,9 @@ struct CoverArtOutcome: Sendable {
     let error: String?
     /// True when the game was left alone because it was looked up recently.
     let skipped: Bool
-    /// True when the request never reached the server. The queue stops when
-    /// this happens, rather than working through the whole library offline.
+    /// True when the request never reached the server. The queue pauses only
+    /// when a whole batch fails this way, rather than working through the
+    /// whole library offline.
     let networkFailed: Bool
 
     static func found(romURL: URL, fileURL: URL, source: CoverArtSource) -> CoverArtOutcome {
@@ -334,10 +345,13 @@ struct CoverArtOutcome: Sendable {
 enum CoverArtFetcher {
 
     /// The app's own name in the requests it makes to both services.
-    private static var userAgent: String {
+    static var userAgent: String {
         let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
         return "Cassowary/\(version)"
     }
+
+    /// What the user is told when a request never left the device.
+    private static let unreachableError = "Couldn't reach libretro-thumbnails. Check your connection."
 
     static func fetch(_ request: CoverArtRequest, credentials: ScreenScraperCredentials?) async -> CoverArtOutcome {
         guard let destination = destination(for: request) else {
@@ -362,7 +376,12 @@ enum CoverArtFetcher {
         }
 
         // 1. libretro-thumbnails. Its URLs are guesses, so a miss is expected
-        //    and just means trying the next name.
+        //    and just means trying the next name. A busy server (rate limit,
+        //    outage) is not a miss: stop guessing and fall through to
+        //    ScreenScraper instead. Only a request that never reached the
+        //    server means the device is offline, and ScreenScraper would fail
+        //    too, so that returns right away.
+        var libretroBusy = false
         for url in LibretroThumbnailsClient.candidateURLs(
             romName: romName,
             systemIdentifier: request.systemIdentifier
@@ -375,14 +394,40 @@ enum CoverArtFetcher {
                 return .notFound(romURL: request.romURL)
             case .notFound:
                 continue
-            case .failure:
+            case .serverBusy:
+                libretroBusy = true
+            case .unreachable:
                 return .failed(romURL: request.romURL,
-                               error: "Couldn't reach libretro-thumbnails. Check your connection.",
+                               error: unreachableError,
                                networkFailed: true)
+            }
+            if libretroBusy { break }
+        }
+
+        // 2. The server's own listing, for a name that is not the server's own.
+        //    This downloads the system's file list — a few hundred kilobytes,
+        //    kept for a month — so it runs only after every guess has missed.
+        if !libretroBusy,
+           let url = await LibretroThumbnailIndex.shared.bestMatchURL(
+               for: romName,
+               systemIdentifier: request.systemIdentifier
+           ) {
+            switch await fetchImage(at: url) {
+            case .image(let data):
+                if let file = write(data, to: destination) {
+                    return .found(romURL: request.romURL, fileURL: file, source: .libretro)
+                }
+                return .notFound(romURL: request.romURL)
+            case .unreachable:
+                return .failed(romURL: request.romURL,
+                               error: unreachableError,
+                               networkFailed: true)
+            case .notFound, .serverBusy:
+                break
             }
         }
 
-        // 2. ScreenScraper, when an app key is set up.
+        // 3. ScreenScraper, when an app key is set up.
         if let credentials, credentials.isUsable {
             do {
                 if let url = try await ScreenScraperClient.boxArtURL(
@@ -405,6 +450,16 @@ enum CoverArtFetcher {
             } catch {
                 // A lookup that missed is not a problem to report.
             }
+        }
+
+        // The server was busy rather than missing the game, so this is not a
+        // miss: leave no marker and report it. The game is tried again on the
+        // next refresh instead of being left alone for a week.
+        // networkFailed stays false so the rest of the queue still runs.
+        if libretroBusy {
+            return .failed(romURL: request.romURL,
+                           error: "libretro-thumbnails is busy. Try again later.",
+                           networkFailed: false)
         }
 
         writeMissMarker(for: request)
@@ -453,8 +508,15 @@ enum CoverArtFetcher {
 
     private enum ImageResult {
         case image(Data)
+        /// The guess missed, or the answer was not an image. Try the next
+        /// candidate; a game that simply is not there is not an error.
         case notFound
-        case failure
+        /// The server answered but is rate-limiting or having problems
+        /// (429, 408, 5xx). Not a miss and not the connection: back off.
+        case serverBusy
+        /// The request never reached the server (no connection, DNS, TLS,
+        /// timeout). Nothing else will work right now.
+        case unreachable
     }
 
     private static func fetchImage(at url: URL) async -> ImageResult {
@@ -465,20 +527,28 @@ enum CoverArtFetcher {
 
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
-            guard let http = response as? HTTPURLResponse else { return .failure }
+            guard let http = response as? HTTPURLResponse else { return .unreachable }
             switch http.statusCode {
             case 200:
                 // Trust the bytes over the status: a captive portal or a
                 // server error page answers 200 with HTML.
-                guard UIImage(data: data) != nil else { return .notFound }
+                guard let mime = http.mimeType, mime.hasPrefix("image/"),
+                      UIImage(data: data) != nil else { return .notFound }
                 return .image(data)
-            case 404, 403:
+            case 404, 403, 400:
+                // A bad guess, not a broken connection. 400 covers names the
+                // server cannot serve; the next candidate may still hit.
                 return .notFound
+            case 408, 429, 500, 502, 503, 504:
+                return .serverBusy
             default:
-                return .failure
+                // Any other answer is unexpected but still an answer: treat
+                // the guess as missed rather than crying wolf about the
+                // connection.
+                return .notFound
             }
         } catch {
-            return .failure
+            return .unreachable
         }
     }
 }

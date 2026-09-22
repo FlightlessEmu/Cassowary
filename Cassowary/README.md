@@ -172,6 +172,11 @@ Application Support folder. Each game is looked up on
 needs no account — and then on ScreenScraper, when an app key is set up. A game
 that is not found is left alone for a week before it is tried again.
 
+libretro-thumbnails has no search of its own, so a lookup starts by guessing
+the file name from the ROM's. A ROM named some other way — a scene release,
+a differently tagged dump — is then matched against the server's own file
+listing for that system, which is read once and kept for a month.
+
 The switch, a "Download Missing Artwork" button, and the account fields are in
 **Settings → Cover Art**. Per game, long-press the tile for *Download Cover
 Art* / *Remove Cover Art*.

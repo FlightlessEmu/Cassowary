@@ -38,7 +38,8 @@ import Foundation
 /// name retried with a region tag for the user's locale.
 ///
 /// The server is free and needs no account. It has no search API, so a lookup
-/// is a guess at a URL; the caller confirms it by downloading it.
+/// starts as a guess at a URL; when the guesses miss, `LibretroThumbnailIndex`
+/// reads the server's own listing for the system and picks the closest name.
 enum LibretroThumbnailsClient {
 
     /// Where the mirrored box art lives.
@@ -142,11 +143,14 @@ enum LibretroThumbnailsClient {
         }
         add(cleaned)
 
-        return names.compactMap { name in
-            var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false)
-            components?.path = "/\(folder)/Named_Boxarts/\(normalizedName(name)).png"
-            return components?.url
-        }
+        return names.compactMap { imageURL(folder: folder, name: "\(normalizedName($0)).png") }
+    }
+
+    /// The image URL for one exact file name on the server.
+    static func imageURL(folder: String, name: String) -> URL? {
+        var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false)
+        components?.path = "/\(folder)/Named_Boxarts/\(name)"
+        return components?.url
     }
 
     /// Characters the server replaces with underscores when it stores a name.

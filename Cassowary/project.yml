@@ -129,6 +129,11 @@ targets:
       properties:
         com.apple.security.app-sandbox: true
         com.apple.security.files.user-selected.read-write: true
+        # A sandboxed Mac app may not open a network connection without this.
+        # The iOS side needs no such key, so its absence went unnoticed until
+        # cover art downloads started failing on the Mac with "Check your
+        # connection." — the sandbox refused every request before it left.
+        com.apple.security.network.client: true
         # The Mupen64Plus N64 core runs a JIT (MAP_JIT) for its CPU emulation.
         com.apple.security.cs.allow-jit: true
         # Cores and their helper dylibs are ad-hoc signed in local builds, and
