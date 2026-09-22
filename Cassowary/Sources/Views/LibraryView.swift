@@ -53,6 +53,17 @@ private struct ImportNotice: Identifiable {
     let message: String
 }
 
+/// Files the user has to file by hand: their extension is claimed by more than
+/// one installed system, by none, or hides what is inside — an archive.
+private struct SystemPickerRequest: Identifiable {
+    let id = UUID()
+    let files: [URL]
+    /// What the import did besides this question, so its explanation can
+    /// follow once every file has an answer. `nil` when the sheet is a
+    /// correction to a game already in the library.
+    let summary: ImportSummary?
+}
+
 private enum SortOption: String, CaseIterable, Identifiable {
     case title
     case system
@@ -89,6 +100,7 @@ struct LibraryView: View {
     @State private var showCoverArtSettings = false
     @State private var dropTargeted = false
     @State private var importNotice: ImportNotice?
+    @State private var systemPicker: SystemPickerRequest?
     @State private var showFileImporter = false
 
     /// Whether the systems list is showing beside the games in a wide compact
@@ -138,17 +150,6 @@ struct LibraryView: View {
                 layoutChanged(from: old, to: new)
             }
         }
-        // Games are added by dropping files anywhere on the library, so the
-        // target is the whole window: on the Mac and iPad that includes the
-        // sidebar, and on iPhone it includes the first screen, which is the
-        // sidebar until a system is opened.
-        .contentShape(Rectangle())
-        .onDrop(of: [.fileURL, .item], isTargeted: $dropTargeted, perform: handleDrop)
-        .overlay {
-            if dropTargeted {
-                dropHighlight
-            }
-        }
         .fullScreenCover(item: $playing) { active in
             GameView(game: active.game, core: active.core) {
                 playing = nil
@@ -158,6 +159,26 @@ struct LibraryView: View {
             CorePickerSheet(catalog: catalog, game: request.game, system: request.system) { plugin in
                 pickerRequest = nil
                 playing = ActiveGame(game: request.game, core: plugin)
+            }
+        }
+        .sheet(item: $systemPicker) { request in
+            SystemPickerSheet(
+                files: request.files,
+                systems: catalog.systems,
+                isCorrection: request.summary == nil
+            ) { choices in
+                library.assign(choices)
+                refreshCoverArt()
+                systemPicker = nil
+                if let summary = request.summary {
+                    importNotice = notice(for: summary, addedCount: summary.added.count + choices.count)
+                }
+            } onSkip: {
+                if let summary = request.summary {
+                    library.discard(request.files)
+                    importNotice = notice(for: summary)
+                }
+                systemPicker = nil
             }
         }
         .sheet(isPresented: $showSettings) {
@@ -482,6 +503,16 @@ struct LibraryView: View {
         }
         .navigationTitle(detailTitle(for: target))
         .searchable(text: $searchText, prompt: "Search games")
+        // Games are added by dropping files onto the games themselves. The
+        // sidebar is deliberately not a target, so on the Mac and iPad the
+        // highlight covers the library and nothing else.
+        .contentShape(Rectangle())
+        .onDrop(of: [.fileURL, .item], isTargeted: $dropTargeted, perform: handleDrop)
+        .overlay {
+            if dropTargeted {
+                dropHighlight
+            }
+        }
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button {
@@ -567,6 +598,9 @@ struct LibraryView: View {
                         } else {
                             Button("Download Cover Art") { coverArt.download(for: game) }
                         }
+                        Button("Change System…") {
+                            systemPicker = SystemPickerRequest(files: [game.url], summary: nil)
+                        }
                         Button("Delete", role: .destructive) {
                             delete(game)
                         }
@@ -629,14 +663,32 @@ struct LibraryView: View {
         )
     }
 
+    /// Add files to the library, then either explain what was left out or ask
+    /// which system the files the app could not place belong to.
+    ///
+    /// A file whose extension only one installed system claims — `.gb`, `.n64`
+    /// — is filed as it is copied. An extension several systems claim, or none
+    /// does, and an archive, which could hold anything, wait for an answer.
+    @MainActor
+    @discardableResult
+    private func addGames(_ urls: [URL]) async -> ImportSummary {
+        let summary = await library.add(contentsOf: urls)
+        refreshCoverArt()
+        if summary.needsSystem.isEmpty {
+            importNotice = notice(for: summary)
+        } else {
+            systemPicker = SystemPickerRequest(files: summary.needsSystem, summary: summary)
+        }
+        return summary
+    }
+
     /// Add the files picked from the Files app — or from the open panel that
     /// Mac Catalyst shows for the same button — and explain anything left out.
     private func importPicked(_ result: Result<[URL], Error>) {
         switch result {
         case .success(let urls):
             Task { @MainActor in
-                importNotice = notice(for: await library.add(contentsOf: urls))
-                refreshCoverArt()
+                await addGames(urls)
             }
         case .failure(let error):
             // Closing the picker is not a failure worth reporting.
@@ -692,12 +744,10 @@ struct LibraryView: View {
                     )
                     return
                 }
-                let summary = await library.add(contentsOf: urls)
+                await addGames(urls)
                 // Copies made below for drops that had no file URL are ours to
                 // clear away.
                 try? FileManager.default.removeItem(at: Self.dropStagingDirectory)
-                importNotice = notice(for: summary)
-                refreshCoverArt()
             }
         }
 
@@ -780,7 +830,10 @@ struct LibraryView: View {
 
     /// A drop that adds every file needs no alert — the new games appear in
     /// the grid. Only files that were left out are worth explaining.
-    private func notice(for summary: ImportSummary) -> ImportNotice? {
+    ///
+    /// `addedCount` is passed in when files were added after this summary was
+    /// made: the ones the user was asked which system they belong to.
+    private func notice(for summary: ImportSummary, addedCount: Int? = nil) -> ImportNotice? {
         guard !summary.unsupported.isEmpty
             || !summary.alreadyInLibrary.isEmpty
             || !summary.failed.isEmpty else {
@@ -789,7 +842,7 @@ struct LibraryView: View {
 
         var lines: [String] = []
         if !summary.unsupported.isEmpty {
-            lines.append("Couldn't tell which system these belong to: \(Self.shortList(summary.unsupported)).")
+            lines.append("Not game files: \(Self.shortList(summary.unsupported)).")
         }
         if !summary.alreadyInLibrary.isEmpty {
             lines.append("Already in the library: \(Self.shortList(summary.alreadyInLibrary)).")
@@ -798,7 +851,7 @@ struct LibraryView: View {
             lines.append("Couldn't be copied: \(Self.shortList(summary.failed)).")
         }
 
-        let count = summary.added.count
+        let count = addedCount ?? summary.added.count
         return ImportNotice(
             title: count == 0 ? "Nothing was added" : "Added \(count) game\(count == 1 ? "" : "s")",
             message: lines.joined(separator: "\n")
@@ -817,10 +870,8 @@ struct LibraryView: View {
     /// path. Only called when the flag is passed on the command line.
     private func importFileForTesting(at url: URL) {
         Task { @MainActor in
-            let summary = await library.add(contentsOf: [url])
-            NSLog("[Cassowary] import test: \(summary.added.count) added, \(summary.alreadyInLibrary.count) already in the library, \(summary.unsupported.count) unsupported, \(summary.failed.count) failed")
-            importNotice = notice(for: summary)
-            refreshCoverArt()
+            let summary = await addGames([url])
+            NSLog("[Cassowary] import test: \(summary.added.count) added, \(summary.needsSystem.count) needing a system, \(summary.alreadyInLibrary.count) already in the library, \(summary.unsupported.count) unsupported, \(summary.failed.count) failed")
         }
     }
 
@@ -932,6 +983,71 @@ struct LibraryView: View {
         } else {
             pickerRequest = CorePickerRequest(game: game, system: system)
         }
+    }
+}
+
+/// Asks which system the files the app could not place belong to.
+///
+/// An extension can be claimed by more than one installed system — a `.bin`
+/// could be a Mega Drive game or an Atari 2600 one — an unknown one is not
+/// claimed by any, and an archive could hold anything, so only the person who
+/// added the file can say.
+private struct SystemPickerSheet: View {
+
+    let files: [URL]
+    let systems: [SystemEntry]
+
+    /// Whether this is fixing the system of a game already in the library,
+    /// rather than finishing an import.
+    let isCorrection: Bool
+
+    let onAdd: ([URL: String]) -> Void
+    let onSkip: () -> Void
+
+    @State private var choices: [URL: String] = [:]
+
+    private var allChosen: Bool {
+        files.allSatisfy { choices[$0] != nil }
+    }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    ForEach(files, id: \.self) { file in
+                        Picker(file.lastPathComponent, selection: binding(for: file)) {
+                            Text("Choose a system").tag(String?.none)
+                            ForEach(systems) { system in
+                                Text(system.name).tag(String?.some(system.id))
+                            }
+                        }
+                    }
+                } footer: {
+                    Text(isCorrection
+                         ? "Pick the system this game belongs to."
+                         : "The app couldn't tell which system these belong to. Pick one for each, and they will appear under it.")
+                }
+            }
+            .navigationTitle(isCorrection ? "Change System" : "Which System?")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button(isCorrection ? "Cancel" : "Don't Add", role: .cancel, action: onSkip)
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(isCorrection ? "Done" : "Add") { onAdd(choices) }
+                        .disabled(!allChosen)
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
+    }
+
+    private func binding(for file: URL) -> Binding<String?> {
+        Binding(
+            get: { choices[file] },
+            set: { choices[file] = $0 }
+        )
     }
 }
 

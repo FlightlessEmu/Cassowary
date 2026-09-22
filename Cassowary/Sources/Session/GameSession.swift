@@ -136,9 +136,18 @@ final class GameSession: NSObject {
     /// file and falls back to no filtering when there is not one.
     private static let noShaderURL = URL(fileURLWithPath: "/dev/null")
 
-    convenience init(romURL: URL, core: OECorePlugin? = nil) throws {
-        // Work out which system this ROM belongs to, then which core can run it.
-        let system = try Self.systemPlugin(forROMAt: romURL)
+    convenience init(romURL: URL, core: OECorePlugin? = nil, systemIdentifier: String? = nil) throws {
+        // Work out which system this ROM belongs to, then which core can run
+        // it. The library's answer wins when it has one: a file the user told
+        // the library which system it belongs to does not have to look like it,
+        // and may not have an extension that says anything at all.
+        let system: OESystemPlugin
+        if let systemIdentifier,
+           let plugin = OESystemPlugin.allPlugins.first(where: { $0.systemIdentifier == systemIdentifier }) {
+            system = plugin
+        } else {
+            system = try Self.systemPlugin(forROMAt: romURL)
+        }
 
         // An explicitly picked core wins as long as it actually runs this
         // system; otherwise fall back to the first installed core so a stale

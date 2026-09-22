@@ -433,7 +433,11 @@ struct GameView: View {
         guard session == nil else { return }
 
         do {
-            let session = try GameSession(romURL: game.url, core: core)
+            let session = try GameSession(
+                romURL: game.url,
+                core: core,
+                systemIdentifier: game.system?.identifier
+            )
 
             if let plugin = game.system.flatMap({ system in
                 OESystemPlugin.allPlugins.first { $0.systemIdentifier == system.identifier }
