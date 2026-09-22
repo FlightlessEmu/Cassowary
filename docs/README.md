@@ -32,6 +32,7 @@ with a [template](adr/template.md).
 | [core-audit/vice-core-investigation.md](core-audit/vice-core-investigation.md) | The Commodore 64 / VICE investigation. |
 | [core-audit/vice-local-c64-context.md](core-audit/vice-local-c64-context.md) | Local C64 context. |
 | [core-audit/vice-upstream-research.md](core-audit/vice-upstream-research.md) | VICE upstream research. |
+| [PS1_METAL_PLAN.md](PS1_METAL_PLAN.md) | Bringing up the two PlayStation cores, and where the Metal work goes. |
 
 ## Features
 

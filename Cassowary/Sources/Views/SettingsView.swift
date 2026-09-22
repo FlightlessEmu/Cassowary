@@ -555,6 +555,7 @@ struct AboutView: View {
         "org.openemu.Gambatte": "GPL-2.0-or-later (Gambatte-DMS)",
         "org.openemu.mGBA": "MPL-2.0 (mGBA)",
         "org.openemu.melonDS": "GPL-3.0-or-later (melonDS)",
+        "org.openemu.SwanStation": "GPL-3.0-or-later (SwanStation, a DuckStation fork)",
         "org.openemu.VirtualC64": "GPL-3.0-or-later or MPL-2.0 (VirtualC64)",
         "org.openemu.VecXGL": "GPL-2.0-or-later (vecx / VecXGL)",
         // Non-commercial only: never charge for a build that includes these.
