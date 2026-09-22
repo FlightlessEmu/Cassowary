@@ -67,8 +67,14 @@ private:
   // pushed into a texture when the frame is finished.
   Metal::Texture m_display_pixels_texture;
   std::vector<uint8_t> m_display_pixels_buffer;
+  std::vector<uint8_t> m_display_pixels_wide_buffer;
+  HostDisplayPixelFormat m_display_pixels_format = HostDisplayPixelFormat::Unknown;
   uint32_t m_display_pixels_width = 0;
   uint32_t m_display_pixels_height = 0;
+
+  /// The published texture is always RGBA8, because that is what the app is
+  /// told to expect. The software renderer hands over RGB565, so widen it.
+  void UploadDisplayPixels(const void* buffer, uint32_t pitch);
 };
 
 /// The PlayStation GPU, rendered with Metal.

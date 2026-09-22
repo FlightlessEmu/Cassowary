@@ -165,7 +165,9 @@ std::unique_ptr<HostDisplayTexture> LibretroMetalHostDisplay::CreateTexture(uint
 
 bool LibretroMetalHostDisplay::SupportsDisplayPixelFormat(HostDisplayPixelFormat format) const
 {
-  return (format == HostDisplayPixelFormat::RGBA8 || format == HostDisplayPixelFormat::BGRA8);
+  // RGB565 is what the software renderer hands over; it is widened on upload.
+  return (format == HostDisplayPixelFormat::RGBA8 || format == HostDisplayPixelFormat::BGRA8 ||
+          format == HostDisplayPixelFormat::RGB565);
 }
 
 bool LibretroMetalHostDisplay::BeginSetDisplayPixels(HostDisplayPixelFormat format, uint32_t width, uint32_t height,
@@ -184,20 +186,59 @@ bool LibretroMetalHostDisplay::BeginSetDisplayPixels(HostDisplayPixelFormat form
     m_display_pixels_height = height;
   }
 
+  m_display_pixels_format = format;
   m_display_pixels_buffer.resize(stride * height);
   *out_buffer = m_display_pixels_buffer.data();
   *out_pitch = stride;
 
-  SetDisplayTexture(m_display_pixels_texture.GetHandle(), format, width, height, 0, 0, width, height);
+  SetDisplayTexture(m_display_pixels_texture.GetHandle(), HostDisplayPixelFormat::RGBA8, width, height, 0, 0, width,
+                    height);
   return true;
+}
+
+void LibretroMetalHostDisplay::UploadDisplayPixels(const void* buffer, uint32_t pitch)
+{
+  if (!m_display_pixels_texture.IsValid() || buffer == nullptr)
+    return;
+
+  if (m_display_pixels_format == HostDisplayPixelFormat::RGB565)
+  {
+    const uint32_t width = m_display_pixels_width;
+    const uint32_t height = m_display_pixels_height;
+    m_display_pixels_wide_buffer.resize(width * height * 4);
+
+    const uint8_t* source = static_cast<const uint8_t*>(buffer);
+    uint8_t* destination = m_display_pixels_wide_buffer.data();
+    for (uint32_t y = 0; y < height; y++)
+    {
+      const uint16_t* source_row = reinterpret_cast<const uint16_t*>(source + (y * pitch));
+      uint8_t* destination_row = destination + (y * width * 4);
+      for (uint32_t x = 0; x < width; x++)
+      {
+        const uint16_t pixel = source_row[x];
+        const uint8_t r = static_cast<uint8_t>(((pixel >> 11) & 0x1F) * 255 / 31);
+        const uint8_t g = static_cast<uint8_t>(((pixel >> 5) & 0x3F) * 255 / 63);
+        const uint8_t b = static_cast<uint8_t>((pixel & 0x1F) * 255 / 31);
+        destination_row[x * 4 + 0] = r;
+        destination_row[x * 4 + 1] = g;
+        destination_row[x * 4 + 2] = b;
+        destination_row[x * 4 + 3] = 255;
+      }
+    }
+
+    m_display_pixels_texture.Replace(m_display_pixels_wide_buffer.data());
+    return;
+  }
+
+  m_display_pixels_texture.Replace(buffer);
 }
 
 void LibretroMetalHostDisplay::EndSetDisplayPixels()
 {
-  if (!m_display_pixels_texture.IsValid() || m_display_pixels_buffer.empty())
+  if (m_display_pixels_buffer.empty())
     return;
 
-  m_display_pixels_texture.Replace(m_display_pixels_buffer.data());
+  UploadDisplayPixels(m_display_pixels_buffer.data(), m_display_pixels_width * GetDisplayPixelFormatSize(m_display_pixels_format));
 }
 
 bool LibretroMetalHostDisplay::SetDisplayPixels(HostDisplayPixelFormat format, uint32_t width, uint32_t height,
@@ -213,8 +254,10 @@ bool LibretroMetalHostDisplay::SetDisplayPixels(HostDisplayPixelFormat format, u
     m_display_pixels_height = height;
   }
 
-  m_display_pixels_texture.Replace(buffer);
-  SetDisplayTexture(m_display_pixels_texture.GetHandle(), format, width, height, 0, 0, width, height);
+  m_display_pixels_format = format;
+  UploadDisplayPixels(buffer, pitch);
+  SetDisplayTexture(m_display_pixels_texture.GetHandle(), HostDisplayPixelFormat::RGBA8, width, height, 0, 0, width,
+                    height);
   return true;
 }
 
