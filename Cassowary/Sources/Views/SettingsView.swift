@@ -33,6 +33,7 @@ struct SettingsView: View {
 
     @StateObject private var catalog = CoreCatalog()
     @StateObject private var shaderCatalog = ShaderCatalog()
+    @StateObject private var upscalingOptions = UpscalingOptions()
     @StateObject private var tester = PreviewPressHandler()
     @AppStorage("cassowary.padStyle") private var styleRaw: String = DPadStyle.buttons.rawValue
     @AppStorage("cassowary.buttonTheme") private var themeRaw: String = ButtonTheme.glass.rawValue
@@ -64,6 +65,13 @@ struct SettingsView: View {
         Binding(
             get: { shaderCatalog.globalShaderName },
             set: { shaderCatalog.globalShaderName = $0 }
+        )
+    }
+
+    private func globalUpscalingBinding(_ option: UpscalingOptions.Option) -> Binding<Bool> {
+        Binding(
+            get: { upscalingOptions.isOn(option) },
+            set: { upscalingOptions.setOn($0, for: option) }
         )
     }
 
@@ -161,6 +169,14 @@ struct SettingsView: View {
                             Text(name).tag(name as String?)
                         }
                     }
+                    Picker("MetalFX Upscaling", selection: globalUpscalingBinding(.metalFX)) {
+                        Text("Off").tag(false)
+                        Text("On").tag(true)
+                    }
+                    Picker("Pixel Perfect Scaling", selection: globalUpscalingBinding(.integerScaling)) {
+                        Text("Fill").tag(false)
+                        Text("Pixel Perfect").tag(true)
+                    }
                     Text("Applies to every game unless a system sets its own below. A filter compiles the first time it is used, which takes a moment.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -195,7 +211,7 @@ struct SettingsView: View {
                 Section {
                     ForEach(catalog.systems) { system in
                         NavigationLink {
-                            SystemCoresView(catalog: catalog, shaderCatalog: shaderCatalog, systemID: system.id)
+                            SystemCoresView(catalog: catalog, shaderCatalog: shaderCatalog, upscalingOptions: upscalingOptions, systemID: system.id)
                         } label: {
                             HStack(spacing: 12) {
                                 SystemIconView(system: system, size: 32)
@@ -261,6 +277,7 @@ private struct SystemCoresView: View {
 
     @ObservedObject var catalog: CoreCatalog
     @ObservedObject var shaderCatalog: ShaderCatalog
+    @ObservedObject var upscalingOptions: UpscalingOptions
     let systemID: String
 
     var body: some View {
@@ -301,10 +318,20 @@ private struct SystemCoresView: View {
                                 Text(name).tag(ShaderCatalog.SystemChoice.shader(name))
                             }
                         }
+                        Picker("MetalFX Upscaling", selection: upscalingChoiceBinding(.metalFX, for: system)) {
+                            Text("Use Default").tag(UpscalingOptions.Choice.automatic)
+                            Text("Off").tag(UpscalingOptions.Choice.off)
+                            Text("On").tag(UpscalingOptions.Choice.on)
+                        }
+                        Picker("Pixel Perfect Scaling", selection: upscalingChoiceBinding(.integerScaling, for: system)) {
+                            Text("Use Default").tag(UpscalingOptions.Choice.automatic)
+                            Text("Fill").tag(UpscalingOptions.Choice.off)
+                            Text("Pixel Perfect").tag(UpscalingOptions.Choice.on)
+                        }
                     } header: {
                         Text("Video")
                     } footer: {
-                        Text(shaderSummary(for: system))
+                        Text("\(shaderSummary(for: system)) \(upscalingSummary(for: system))")
                     }
 
                     Section {
@@ -383,6 +410,18 @@ private struct SystemCoresView: View {
         case .none, .shader:
             return name.map { "\($0) is used for this system." } ?? "No filter for this system."
         }
+    }
+
+    private func upscalingChoiceBinding(_ option: UpscalingOptions.Option, for system: SystemEntry) -> Binding<UpscalingOptions.Choice> {
+        Binding(
+            get: { upscalingOptions.choice(for: option, system: system.id) },
+            set: { upscalingOptions.setChoice($0, for: option, system: system.id) }
+        )
+    }
+
+    /// One line explaining what this system will actually do for upscaling.
+    private func upscalingSummary(for system: SystemEntry) -> String {
+        "MetalFX: \(upscalingOptions.summary(.metalFX, forSystem: system.id)) Pixel Perfect: \(upscalingOptions.summary(.integerScaling, forSystem: system.id))"
     }
 }
 

@@ -53,13 +53,9 @@ struct GameView: View {
     @State private var shaderName: String?
     @AppStorage(RumbleHaptics.strengthKey) private var rumbleStrength = RumbleStrength.medium.rawValue
 
-    /// MetalFX spatial upscaling, remembered for every game. It suits the
-    /// screen rather than one system, so one pick covers them all.
-    @AppStorage("cassowary.metalFXUpscaling") private var metalFXUpscaling = false
-
-    /// Whole-number (pixel-perfect) scaling, remembered for every game. Off
-    /// means the picture fills the screen at whatever size fits.
-    @AppStorage("cassowary.integerScaling") private var integerScaling = false
+    /// The two upscaling switches. Each has an app-wide default and can be
+    /// overridden per system, the same as the video filter.
+    @StateObject private var upscalingOptions = UpscalingOptions()
 
     var body: some View {
         ZStack {
@@ -190,13 +186,13 @@ struct GameView: View {
                     }
                     .pickerStyle(.menu)
 
-                    Picker("Upscaling: \(metalFXUpscaling ? "MetalFX Spatial" : "Off")", selection: upscalingBinding) {
+                    Picker("Upscaling: \(metalFXOn ? "MetalFX Spatial" : "Off")", selection: upscalingBinding) {
                         Text("Off").tag(false)
                         Text(metalFXAvailable ? "MetalFX Spatial" : "MetalFX Spatial (Unavailable)").tag(true)
                     }
                     .pickerStyle(.menu)
 
-                    Picker("Scaling: \(integerScaling ? "Pixel Perfect" : "Fill")", selection: integerScalingBinding) {
+                    Picker("Scaling: \(integerScalingOn ? "Pixel Perfect" : "Fill")", selection: integerScalingBinding) {
                         Text("Fill").tag(false)
                         Text("Pixel Perfect").tag(true)
                     }
@@ -312,9 +308,19 @@ struct GameView: View {
 #endif
     }
 
+    /// Whether MetalFX is on for this game's system, after the app-wide default.
+    private var metalFXOn: Bool {
+        upscalingOptions.isEnabled(.metalFX, forSystem: game.system?.identifier)
+    }
+
+    /// Whether pixel-perfect scaling is on for this game's system.
+    private var integerScalingOn: Bool {
+        upscalingOptions.isEnabled(.integerScaling, forSystem: game.system?.identifier)
+    }
+
     /// Switch MetalFX spatial upscaling on the running game.
     ///
-    /// The pick is remembered for every game, and the engine quietly keeps
+    /// The pick is remembered for this system, and the engine quietly keeps
     /// the plain picture where MetalFX cannot run. Picking it on hardware
     /// without MetalFX leaves the setting on Off and says so.
     private func applyMetalFXUpscaling(_ enabled: Bool) {
@@ -323,7 +329,7 @@ struct GameView: View {
             return
         }
 
-        metalFXUpscaling = enabled
+        store(enabled, for: .metalFX)
         session?.setMetalFXUpscalingEnabled(enabled)
         show(notice: enabled ? "MetalFX upscaling on" : "MetalFX upscaling off")
     }
@@ -331,17 +337,17 @@ struct GameView: View {
     /// The upscaling picker's binding.
     private var upscalingBinding: Binding<Bool> {
         Binding(
-            get: { metalFXUpscaling },
+            get: { metalFXOn },
             set: { applyMetalFXUpscaling($0) }
         )
     }
 
     /// Switch whole-number (pixel-perfect) scaling on the running game.
     ///
-    /// The pick is remembered for every game. The engine keeps the picture
+    /// The pick is remembered for this system. The engine keeps the picture
     /// filling the screen when it would not fit a whole number of times.
     private func applyIntegerScaling(_ enabled: Bool) {
-        integerScaling = enabled
+        store(enabled, for: .integerScaling)
         session?.setIntegerScalingEnabled(enabled)
         show(notice: enabled ? "Pixel-perfect scaling on" : "Fill scaling on")
     }
@@ -349,9 +355,19 @@ struct GameView: View {
     /// The scaling picker's binding.
     private var integerScalingBinding: Binding<Bool> {
         Binding(
-            get: { integerScaling },
+            get: { integerScalingOn },
             set: { applyIntegerScaling($0) }
         )
+    }
+
+    /// Remember an upscaling pick for this system, or app-wide when the game
+    /// has no system — the same rule the video filter follows.
+    private func store(_ enabled: Bool, for option: UpscalingOptions.Option) {
+        if let systemID = game.system?.identifier {
+            upscalingOptions.setChoice(enabled ? .on : .off, for: option, system: systemID)
+        } else {
+            upscalingOptions.setOn(enabled, for: option)
+        }
     }
 
     // MARK: - Rumble
@@ -489,8 +505,9 @@ struct GameView: View {
             self.session = session
             session.start {
                 self.applySavedFilter(on: session)
-                session.setMetalFXUpscalingEnabled(self.metalFXUpscaling)
-                session.setIntegerScalingEnabled(self.integerScaling)
+                let systemID = self.game.system?.identifier
+                session.setMetalFXUpscalingEnabled(self.upscalingOptions.isEnabled(.metalFX, forSystem: systemID))
+                session.setIntegerScalingEnabled(self.upscalingOptions.isEnabled(.integerScaling, forSystem: systemID))
             }
 
             runTestHooks(session)

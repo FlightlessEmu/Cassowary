@@ -310,13 +310,21 @@ enlarged by the largest whole number that fits and centred, instead of being
 stretched to any size. It applies to the unfiltered picture and to presets
 whose last pass is sized from the source; when a preset already renders at
 screen size, or the picture would not fit even once, it falls back to the
-normal fill. The choice is remembered per app
-(`cassowary.integerScaling`) and is safe to toggle mid-game.
+normal fill. It is safe to toggle mid-game.
+
+Both upscaling switches now work the same way as the video filter: an
+app-wide default in Settings → Video, a per-system override in Settings →
+[a system] → Video (`Use Default` / `Off` / `On`), and the same three
+pickers in the in-game menu. `UpscalingOptions`
+(`Cassowary/Sources/Models/UpscalingOptions.swift`) mirrors
+`ShaderCatalog`'s storage, so all three video options behave identically.
 
 Files touched: `OpenEmu-Shaders/Source/FilterChain.swift`,
 `OpenEmuKit/Source/OpenEmuHelperApp.swift`,
 `Cassowary/Sources/Session/GameSession.swift`,
-`Cassowary/Sources/Views/GameView.swift`.
+`Cassowary/Sources/Views/GameView.swift`,
+`Cassowary/Sources/Views/SettingsView.swift`,
+`Cassowary/Sources/Models/UpscalingOptions.swift`.
 
 ## 9. How to check it works
 
