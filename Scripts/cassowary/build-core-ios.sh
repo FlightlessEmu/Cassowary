@@ -272,6 +272,13 @@ esac
 OUT="build/cassowary-cores-${PLATFORM}/${CORE}"
 mkdir -p "$OUT"
 
+# Start from a clean object list. Object names carry the source's absolute
+# path, so a checkout that has moved (or a build from a worktree) leaves a
+# second copy of every object behind and the link fails with duplicate
+# symbols. The build is not incremental anyway, so dropping them costs
+# nothing.
+rm -f "$OUT"/*.o
+
 # The project's header search paths arrive as bare paths; turn them into -I
 # flags. Without the flag clang treats them as input files and silently fails
 # to find anything.
