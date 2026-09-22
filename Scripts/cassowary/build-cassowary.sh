@@ -332,29 +332,18 @@ if [[ $APP_ONLY -eq 0 ]]; then
   # differ in case (picodrive → Picodrive) or in full (Potator-Core →
   # Potator), so both are listed. Extend this list when a new core is ported.
   #
-  # tvOS gets a short list. Every core has to compile against the tvOS SDK and
-  # then actually run on an Apple TV, so a core is added here only once it has
-  # been tried; one that is missing is simply not staged, and the library says
-  # "No core on this Apple TV" for its systems.
-  case "$MODE" in
-    tvos|tvos-sim)
-      CORES=(
-        Gambatte:Gambatte
-        mGBA:mGBA
-      )
-      ;;
-    *)
-      CORES=(
-        4DO:4DO Atari800:Atari800 Bliss:Bliss blueMSX:blueMSX BSNES:BSNES
-        CrabEmu:CrabEmu FCEU:FCEU Gambatte:Gambatte GenesisPlus:GenesisPlus
-        JollyCV:JollyCV MAME:MAME Mednafen:Mednafen melonDS:melonDS mGBA:mGBA
-        Mupen64Plus:Mupen64Plus Nestopia:Nestopia O2EM:O2EM picodrive:Picodrive
-        PokeMini:PokeMini Potator-Core:Potator ProSystem:ProSystem SNES9x:SNES9x
-        Stella:Stella VecXGL:VecXGL VirtualC64:VirtualC64
-        VirtualJaguar:VirtualJaguar
-      )
-      ;;
-  esac
+  # tvOS attempts every core too. A core that does not compile against the
+  # tvOS SDK is skipped with a warning and is simply not staged, and the
+  # library says "No core on this Apple TV" for its systems.
+  CORES=(
+    4DO:4DO Atari800:Atari800 Bliss:Bliss blueMSX:blueMSX BSNES:BSNES
+    CrabEmu:CrabEmu FCEU:FCEU Gambatte:Gambatte GenesisPlus:GenesisPlus
+    JollyCV:JollyCV MAME:MAME Mednafen:Mednafen melonDS:melonDS mGBA:mGBA
+    Mupen64Plus:Mupen64Plus Nestopia:Nestopia O2EM:O2EM picodrive:Picodrive
+    PokeMini:PokeMini Potator-Core:Potator ProSystem:ProSystem SNES9x:SNES9x
+    Stella:Stella VecXGL:VecXGL VirtualC64:VirtualC64
+    VirtualJaguar:VirtualJaguar
+  )
 
   case "$MODE" in
     simulator) CORE_MODE_FLAG="" ;;

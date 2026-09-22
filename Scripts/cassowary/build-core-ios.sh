@@ -606,6 +606,8 @@ if [[ "$CORE" == Mupen64Plus && "$PLATFORM" != tvos && "$PLATFORM" != tvos-sim ]
   case "$PLATFORM" in
     simulator) MUPEN_PLUGIN_PLATFORM="simulator" ;;
     catalyst)  MUPEN_PLUGIN_PLATFORM="catalyst" ;;
+    tvos)      MUPEN_PLUGIN_PLATFORM="tvos" ;;
+    tvos-sim)  MUPEN_PLUGIN_PLATFORM="tvos-sim" ;;
     *)         MUPEN_PLUGIN_PLATFORM="macos" ;;
   esac
   MUPEN_PLUGIN_SRC="${MUPEN_PARALLEL_PLUGIN_DIR:-$PWD/build/spike/parallel-plugin/build-$MUPEN_PLUGIN_PLATFORM}"
