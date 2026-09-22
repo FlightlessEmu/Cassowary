@@ -115,9 +115,10 @@ what proves the engine runs on tvOS. Copying games and saves from a phone is
 the next phase; the plan is in
 [`docs/apple-tv-library-host-plan.md`](../docs/apple-tv-library-host-plan.md).
 
-Only the cores listed for tvOS in `build-cassowary.sh` are built for it. A
-core joins that list once it has actually been run on an Apple TV, so a
-missing core shows up as "No core on this Apple TV" rather than a crash.
+Every core is attempted for tvOS now, the same list as the phone's. A core
+that does not compile against the tvOS SDK is skipped with a warning and is
+simply not staged, and the library says "No core on this Apple TV" for its
+systems. All 26 cores build for a real Apple TV and for the TV Simulator.
 
 On a real Apple TV the build signs like a phone build does (`--tvos`), and the
 app is installed from Xcode's **Devices** window or with `devicectl`.
