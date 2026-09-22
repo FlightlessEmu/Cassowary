@@ -1917,7 +1917,10 @@ void Rasterizer3D::CompareWithSoftware(GPU& gpu, SoftRenderer& software) noexcep
                     u32 sg = (color >> 4) & 0x3E; if (sg) sg++;
                     u32 sb = (color >> 9) & 0x3E; if (sb) sb++;
 
-                    fprintf(stderr, "[probe] slot %d: poly %u software texel %08x (r %u g %u b %u a %u)"
+                    fprintf(stderr, "[probe] slot %d: poly %u pixel before %08x after %08x%s\n",
+                        slot, r[0], r[17], r[18], r[17] == r[18] ? "  (nothing written)" : "  (written)");
+
+                fprintf(stderr, "[probe] slot %d: poly %u software texel %08x (r %u g %u b %u a %u)"
                             " texparam %08x pal %u size %ux%u\n",
                             slot, p, sr | (sg << 8) | (sb << 16) | (alpha << 24),
                             sr, sg, sb, alpha, _polyTexParam[p], _polyTexPalette[p],

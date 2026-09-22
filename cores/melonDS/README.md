@@ -191,21 +191,25 @@ something more specific than "the coordinates differ":
   texture, using the software rasteriser's own decode.
 
 Three polygons cover that pixel — 55, 73 and 117, all the same material, in
-that submission order — and the search says the software's colour can only come
-from the *first* of them. So the software rasteriser's last writer is a
-different polygon from the Metal one's, and the difference is in which polygon
-wins rather than in the fetch.
+that submission order. The probe records the pixel's value before and after
+each of their writes, and that settles it: polygon 117's write starts from
+`1f152e38`, which is *exactly* the software rasteriser's final colour. The
+Metal rasteriser's state before that write already matches the software; the
+software simply does not perform the write.
 
-The probe reports the whole set now, in submission order, with each polygon's
-span, whether the span covers the pixel, and whether any texel of its texture
-could produce the software's colour. That is the tool to finish this with. The
-remaining candidates for why the later polygons lose in the software are the
-depth test (a step of Z can flip it, which is why the Y-direction Z
-interpolation now follows the software rasteriser's higher-precision version)
-and the edge fill rules, which the software rasteriser relaxes for translucent
-polygons with blending enabled — `l_filledge`/`r_filledge` in `RenderScanline`
-— where this port still follows the compute renderer's
-`FillLeft`/`FillRight`/`FillInside` flags.
+That is the translucent skip rule, not a texture problem. melonDS's
+`PlotTranslucentPixel` refuses a translucent write whose polygon ID matches
+what is already in the pixel's attributes. Polygon 117 is only skipped if the
+pixel already holds a *translucent* write from the same material; if the write
+underneath was opaque, the IDs differ and the write goes ahead. So the
+difference is one step further back: whether an earlier polygon of the same
+material was drawn opaquely or translucently, which comes down to its texel's
+alpha, which comes back to the texture coordinates.
+
+The probe is the tool to follow that chain: it reports, in submission order,
+every polygon whose span covers the pixel, whether the span covers it, whether
+any texel of its texture could produce the software's colour, and the pixel
+before and after each write.
 
 Until step 3 lands, the 3D layer comes from the software rasteriser (see
 above), and with it the Metal picture is pixel-for-pixel identical to the
