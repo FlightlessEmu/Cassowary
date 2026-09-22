@@ -15,6 +15,32 @@ GPU_HW_ShaderGen::GPU_HW_ShaderGen(HostDisplay::RenderAPI render_api, uint32_t r
 
 GPU_HW_ShaderGen::~GPU_HW_ShaderGen() = default;
 
+void GPU_HW_ShaderGen::WriteVRAMTextureResourceMacros(std::stringstream& ss, bool multisampled)
+{
+  // MSL has no globals: the file-scope helpers in these shaders are handed the
+  // entry point's VRAM texture, and its type differs with multisampling (MSAA
+  // textures are read rather than sampled, so they carry no sampler). The
+  // macros are empty on the other dialects, where the helpers reach the
+  // texture directly.
+  if (!IsMetal())
+  {
+    ss << "#define METAL_VRAM_TEXTURE_PARAM\n";
+    ss << "#define METAL_VRAM_TEXTURE_ARG\n";
+    return;
+  }
+
+  if (multisampled)
+  {
+    ss << "#define METAL_VRAM_TEXTURE_PARAM , texture2d_ms<float> samp0\n";
+    ss << "#define METAL_VRAM_TEXTURE_ARG , samp0\n";
+  }
+  else
+  {
+    ss << "#define METAL_VRAM_TEXTURE_PARAM , texture2d<float> samp0, sampler samp0_ss\n";
+    ss << "#define METAL_VRAM_TEXTURE_ARG , samp0, samp0_ss\n";
+  }
+}
+
 void GPU_HW_ShaderGen::WriteCommonFunctions(std::stringstream& ss, bool batch_uniform_buffer)
 {
   DefineMacro(ss, "MULTISAMPLING", UsingMSAA());
@@ -264,7 +290,7 @@ void GPU_HW_ShaderGen::WriteBatchTextureFilter(std::stringstream& ss, GPUTexture
   {
     DefineMacro(ss, "BINALPHA", texture_filter == GPUTextureFilter::BilinearBinAlpha);
     ss << R"(
-void FilteredSampleFromVRAM(uint4 texpage, float2 coords, float4 uv_limits,
+void FilteredSampleFromVRAM(uint4 texpage, float2 coords, float4 uv_limits METAL_UBO_PARAM METAL_VRAM_TEXTURE_PARAM,
                             out float4 texcol, out float ialpha)
 {
   // Compute the coordinates of the four texels we will be interpolating between.
@@ -275,10 +301,10 @@ void FilteredSampleFromVRAM(uint4 texpage, float2 coords, float4 uv_limits,
                         float4(0.0, 0.0, 0.0, 0.0));
 
   // Load four texels.
-  float4 s00 = SampleFromVRAM(texpage, clamp(fcoords.xy, uv_limits.xy, uv_limits.zw));
-  float4 s10 = SampleFromVRAM(texpage, clamp(fcoords.zy, uv_limits.xy, uv_limits.zw));
-  float4 s01 = SampleFromVRAM(texpage, clamp(fcoords.xw, uv_limits.xy, uv_limits.zw));
-  float4 s11 = SampleFromVRAM(texpage, clamp(fcoords.zw, uv_limits.xy, uv_limits.zw));
+  float4 s00 = SampleFromVRAM(texpage, clamp(fcoords.xy, uv_limits.xy, uv_limits.zw) METAL_UBO_ARG METAL_VRAM_TEXTURE_ARG);
+  float4 s10 = SampleFromVRAM(texpage, clamp(fcoords.zy, uv_limits.xy, uv_limits.zw) METAL_UBO_ARG METAL_VRAM_TEXTURE_ARG);
+  float4 s01 = SampleFromVRAM(texpage, clamp(fcoords.xw, uv_limits.xy, uv_limits.zw) METAL_UBO_ARG METAL_VRAM_TEXTURE_ARG);
+  float4 s11 = SampleFromVRAM(texpage, clamp(fcoords.zw, uv_limits.xy, uv_limits.zw) METAL_UBO_ARG METAL_VRAM_TEXTURE_ARG);
 
   // Compute alpha from how many texels aren't pixel color 0000h.
   float a00 = float(VECTOR_NEQ(s00, TRANSPARENT_PIXEL_COLOR));
@@ -352,7 +378,7 @@ float4 resampler(float4 x)
    return res;
 }
 
-void FilteredSampleFromVRAM(uint4 texpage, float2 coords, float4 uv_limits,
+void FilteredSampleFromVRAM(uint4 texpage, float2 coords, float4 uv_limits METAL_UBO_PARAM METAL_VRAM_TEXTURE_PARAM,
                             out float4 texcol, out float ialpha)
 {
     float4 weights[4];
@@ -373,7 +399,7 @@ void FilteredSampleFromVRAM(uint4 texpage, float2 coords, float4 uv_limits,
     dy = dy;
     tc = tc;
 
-#define sample_texel(coords) SampleFromVRAM(texpage, clamp((coords), uv_limits.xy, uv_limits.zw))
+#define sample_texel(coords) SampleFromVRAM(texpage, clamp((coords), uv_limits.xy, uv_limits.zw) METAL_UBO_ARG METAL_VRAM_TEXTURE_ARG)
 
     float4 c00 = sample_texel(tc    -dx    -dy);
     float a00 = float(VECTOR_NEQ(c00, TRANSPARENT_PIXEL_COLOR));
@@ -496,9 +522,9 @@ float get_left_ratio(float2 center, float2 origin, float2 direction, float2 scal
   return smoothstep(-sqrt(2.0)/2.0, sqrt(2.0)/2.0, v);
 }
 
-#define P(coord, xoffs, yoffs) SampleFromVRAM(texpage, clamp(coords + float2((xoffs), (yoffs)), uv_limits.xy, uv_limits.zw))
+#define P(coord, xoffs, yoffs) SampleFromVRAM(texpage, clamp(coords + float2((xoffs), (yoffs)), uv_limits.xy, uv_limits.zw) METAL_UBO_ARG METAL_VRAM_TEXTURE_ARG)
 
-void FilteredSampleFromVRAM(uint4 texpage, float2 coords, float4 uv_limits,
+void FilteredSampleFromVRAM(uint4 texpage, float2 coords, float4 uv_limits METAL_UBO_PARAM METAL_VRAM_TEXTURE_PARAM,
                             out float4 texcol, out float ialpha)
 {
   //---------------------------------------
@@ -847,6 +873,7 @@ std::string GPU_HW_ShaderGen::GenerateBatchFragmentShader(GPU_HW::BatchRenderMod
   WriteBatchUniformBuffer(ss);
   WriteCommonFunctions(ss, true);
   DeclareTexture(ss, "samp0", 0);
+  WriteVRAMTextureResourceMacros(ss, false);
 
   if (m_glsl)
     ss << "CONSTANT int[16] s_dither_values = int[16]( ";
@@ -864,7 +891,7 @@ std::string GPU_HW_ShaderGen::GenerateBatchFragmentShader(GPU_HW::BatchRenderMod
     ss << "};\n";
 
   ss << R"(
-uint3 ApplyDithering(uint2 coord, uint3 icol)
+uint3 ApplyDithering(uint2 coord, uint3 icol METAL_UBO_PARAM)
 {
   uint2 fc;
   if (u_scaled_dithering != 0u)
@@ -882,31 +909,31 @@ uint3 ApplyDithering(uint2 coord, uint3 icol)
 #if TEXTURED
 CONSTANT float4 TRANSPARENT_PIXEL_COLOR = float4(0.0, 0.0, 0.0, 0.0);
 
-uint2 ApplyTextureWindow(uint2 coords)
+uint2 ApplyTextureWindow(uint2 coords METAL_UBO_PARAM)
 {
   uint x = (uint(coords.x) & u_texture_window_and.x) | u_texture_window_or.x;
   uint y = (uint(coords.y) & u_texture_window_and.y) | u_texture_window_or.y;
   return uint2(x, y);
 }
 
-uint2 ApplyUpscaledTextureWindow(uint2 coords)
+uint2 ApplyUpscaledTextureWindow(uint2 coords METAL_UBO_PARAM)
 {
   uint2 native_coords = coords / uint2(RESOLUTION_SCALE, RESOLUTION_SCALE);
   uint2 coords_offset = coords % uint2(RESOLUTION_SCALE, RESOLUTION_SCALE);
-  return (ApplyTextureWindow(native_coords) * uint2(RESOLUTION_SCALE, RESOLUTION_SCALE)) + coords_offset;
+  return (ApplyTextureWindow(native_coords METAL_UBO_ARG) * uint2(RESOLUTION_SCALE, RESOLUTION_SCALE)) + coords_offset;
 }
 
-uint2 FloatToIntegerCoords(float2 coords)
+uint2 FloatToIntegerCoords(float2 coords METAL_UBO_PARAM)
 {
   // With the vertex offset applied at 1x resolution scale, we want to round the texture coordinates.
   // Floor them otherwise, as it currently breaks when upscaling as the vertex offset is not applied.
   return uint2((RESOLUTION_SCALE == 1u) ? roundEven(coords) : floor(coords));
 }
 
-float4 SampleFromVRAM(uint4 texpage, float2 coords)
+float4 SampleFromVRAM(uint4 texpage, float2 coords METAL_UBO_PARAM METAL_VRAM_TEXTURE_PARAM)
 {
   #if PALETTE
-    uint2 icoord = ApplyTextureWindow(FloatToIntegerCoords(coords));
+    uint2 icoord = ApplyTextureWindow(FloatToIntegerCoords(coords METAL_UBO_ARG) METAL_UBO_ARG);
     uint2 index_coord = icoord;
     #if PALETTE_4_BIT
       index_coord.x /= 4u;
@@ -935,7 +962,7 @@ float4 SampleFromVRAM(uint4 texpage, float2 coords)
     return SAMPLE_TEXTURE(samp0, float2(palette_icoord) * RCP_VRAM_SIZE);
   #else
     // Direct texturing. Render-to-texture effects. Use upscaled coordinates.
-    uint2 icoord = ApplyUpscaledTextureWindow(FloatToIntegerCoords(coords));    
+    uint2 icoord = ApplyUpscaledTextureWindow(FloatToIntegerCoords(coords METAL_UBO_ARG) METAL_UBO_ARG);    
     uint2 direct_icoord = uint2(texpage.x + icoord.x, fixYCoord(texpage.y + icoord.y));
     return SAMPLE_TEXTURE(samp0, float2(direct_icoord) * RCP_VRAM_SIZE);
   #endif
@@ -1028,7 +1055,7 @@ float4 SampleFromVRAM(uint4 texpage, float2 coords)
         uv_limits *= float(RESOLUTION_SCALE);
         uv_limits.zw += float(RESOLUTION_SCALE - 1u);
       #endif
-      FilteredSampleFromVRAM(v_texpage, coords, uv_limits, texcol, ialpha);
+      FilteredSampleFromVRAM(v_texpage, coords, uv_limits METAL_UBO_ARG METAL_VRAM_TEXTURE_ARG, texcol, ialpha);
       if (ialpha < 0.5)
         discard;
     #else
@@ -1046,11 +1073,11 @@ float4 SampleFromVRAM(uint4 texpage, float2 coords)
           uv_limits *= float(RESOLUTION_SCALE);
           uv_limits.zw += float(RESOLUTION_SCALE - 1u);
         #endif
-        texcol = SampleFromVRAM(v_texpage, clamp(coords, uv_limits.xy, uv_limits.zw));
+        texcol = SampleFromVRAM(v_texpage, clamp(coords, uv_limits.xy, uv_limits.zw) METAL_UBO_ARG METAL_VRAM_TEXTURE_ARG);
       }
       else
       {
-        texcol = SampleFromVRAM(v_texpage, coords);
+        texcol = SampleFromVRAM(v_texpage, coords METAL_UBO_ARG METAL_VRAM_TEXTURE_ARG);
       }
       if (VECTOR_EQ(texcol, TRANSPARENT_PIXEL_COLOR))
         discard;
@@ -1072,7 +1099,7 @@ float4 SampleFromVRAM(uint4 texpage, float2 coords)
       #if !RAW_TEXTURE
         icolor = (icolor * vertcol) >> 7;
         if (u_dithering != 0u)
-          icolor = ApplyDithering(uint2(v_pos.xy), icolor);
+          icolor = ApplyDithering(uint2(v_pos.xy), icolor METAL_UBO_ARG);
         else
           icolor = min(icolor, uint3(255u, 255u, 255u));
       #endif
@@ -1083,7 +1110,7 @@ float4 SampleFromVRAM(uint4 texpage, float2 coords)
       #if !RAW_TEXTURE
         icolor = (icolor * vertcol) >> 4;
         if (u_dithering != 0u)
-          icolor = ApplyDithering(uint2(v_pos.xy), icolor);
+          icolor = ApplyDithering(uint2(v_pos.xy), icolor METAL_UBO_ARG);
         else
           icolor = min(icolor >> 3, uint3(31u, 31u, 31u));
       #endif
@@ -1099,7 +1126,7 @@ float4 SampleFromVRAM(uint4 texpage, float2 coords)
 
     if (u_dithering != 0u)
     {
-      icolor = ApplyDithering(uint2(v_pos.xy), icolor);
+      icolor = ApplyDithering(uint2(v_pos.xy), icolor METAL_UBO_ARG);
     }
     else
     {
@@ -1276,6 +1303,7 @@ std::string GPU_HW_ShaderGen::GenerateDisplayFragmentShader(bool depth_24bit,
   WriteCommonFunctions(ss, true);
 
   DeclareTexture(ss, "samp0", 0, UsingMSAA());
+  WriteVRAMTextureResourceMacros(ss, UsingMSAA());
 
   ss << R"(
 float3 RGBToYUV(float3 rgb)
@@ -1292,7 +1320,7 @@ float3 YUVToRGB(float3 yuv)
                 dot(yuv, float3(1.0f, 2.03211f, 0.0f)));
 }
 
-float4 LoadVRAM(int2 coords)
+float4 LoadVRAM(int2 coords METAL_VRAM_TEXTURE_PARAM)
 {
 #if MULTISAMPLING
   float4 value = LOAD_TEXTURE_MS(samp0, coords, 0u);
@@ -1305,15 +1333,15 @@ float4 LoadVRAM(int2 coords)
 #endif
 }
 
-float3 SampleVRAM24(uint2 icoords)
+float3 SampleVRAM24(uint2 icoords METAL_UBO_PARAM METAL_VRAM_TEXTURE_PARAM)
 {
   // load adjacent 16-bit texels
   uint2 clamp_size = uint2(1024, 512);
 
   // relative to start of scanout
   uint2 vram_coords = u_vram_offset + uint2((icoords.x * 3u) / 2u, icoords.y);
-  uint s0 = RGBA8ToRGBA5551(LoadVRAM(int2((vram_coords % clamp_size) * RESOLUTION_SCALE)));
-  uint s1 = RGBA8ToRGBA5551(LoadVRAM(int2(((vram_coords + uint2(1, 0)) % clamp_size) * RESOLUTION_SCALE)));
+  uint s0 = RGBA8ToRGBA5551(LoadVRAM(int2((vram_coords % clamp_size) * RESOLUTION_SCALE) METAL_VRAM_TEXTURE_ARG));
+  uint s1 = RGBA8ToRGBA5551(LoadVRAM(int2(((vram_coords + uint2(1, 0)) % clamp_size) * RESOLUTION_SCALE) METAL_VRAM_TEXTURE_ARG));
     
   // select which part of the combined 16-bit texels we are currently shading
   uint s1s0 = ((s1 << 16) | s0) >> ((icoords.x & 1u) * 8u);
@@ -1323,27 +1351,27 @@ float3 SampleVRAM24(uint2 icoords)
                 float((s1s0 >> 16u) & 0xFFu) / 255.0);
 }
 
-float3 SampleVRAMAverage2x2(uint2 icoords)
+float3 SampleVRAMAverage2x2(uint2 icoords METAL_UBO_PARAM METAL_VRAM_TEXTURE_PARAM)
 {
-  float3 value = SampleVRAM24(icoords);
-  value += SampleVRAM24(icoords + uint2(0, 1));
-  value += SampleVRAM24(icoords + uint2(1, 0));
-  value += SampleVRAM24(icoords + uint2(1, 1));
+  float3 value = SampleVRAM24(icoords METAL_UBO_ARG METAL_VRAM_TEXTURE_ARG);
+  value += SampleVRAM24(icoords + uint2(0, 1) METAL_UBO_ARG METAL_VRAM_TEXTURE_ARG);
+  value += SampleVRAM24(icoords + uint2(1, 0) METAL_UBO_ARG METAL_VRAM_TEXTURE_ARG);
+  value += SampleVRAM24(icoords + uint2(1, 1) METAL_UBO_ARG METAL_VRAM_TEXTURE_ARG);
   return value * 0.25;
 }
 
-float3 SampleVRAM24Smoothed(uint2 icoords)
+float3 SampleVRAM24Smoothed(uint2 icoords METAL_UBO_PARAM METAL_VRAM_TEXTURE_PARAM)
 {
   int2 base = int2(icoords) - 1;
   uint2 low = uint2(max(base & ~1, int2(0, 0)));
   uint2 high = low + 2u;
   float2 coeff = vec2(base & 1) * 0.5 + 0.25;
 
-  float3 p = SampleVRAM24(icoords);
-  float3 p00 = SampleVRAMAverage2x2(low);
-  float3 p01 = SampleVRAMAverage2x2(uint2(low.x, high.y));
-  float3 p10 = SampleVRAMAverage2x2(uint2(high.x, low.y));
-  float3 p11 = SampleVRAMAverage2x2(high);
+  float3 p = SampleVRAM24(icoords METAL_UBO_ARG METAL_VRAM_TEXTURE_ARG);
+  float3 p00 = SampleVRAMAverage2x2(low METAL_UBO_ARG METAL_VRAM_TEXTURE_ARG);
+  float3 p01 = SampleVRAMAverage2x2(uint2(low.x, high.y) METAL_UBO_ARG METAL_VRAM_TEXTURE_ARG);
+  float3 p10 = SampleVRAMAverage2x2(uint2(high.x, low.y) METAL_UBO_ARG METAL_VRAM_TEXTURE_ARG);
+  float3 p11 = SampleVRAMAverage2x2(high METAL_UBO_ARG METAL_VRAM_TEXTURE_ARG);
 
   float3 s = lerp(lerp(p00, p10, coeff.x),
                   lerp(p01, p11, coeff.x),
@@ -1373,12 +1401,12 @@ float3 SampleVRAM24Smoothed(uint2 icoords)
 
   #if DEPTH_24BIT
     #if SMOOTH_CHROMA
-      o_col0 = float4(SampleVRAM24Smoothed(icoords), 1.0);
+      o_col0 = float4(SampleVRAM24Smoothed(icoords METAL_UBO_ARG METAL_VRAM_TEXTURE_ARG), 1.0);
     #else
-      o_col0 = float4(SampleVRAM24(icoords), 1.0);
+      o_col0 = float4(SampleVRAM24(icoords METAL_UBO_ARG METAL_VRAM_TEXTURE_ARG), 1.0);
     #endif    
   #else
-    o_col0 = float4(LoadVRAM(int2((icoords + u_vram_offset) % VRAM_SIZE)).rgb, 1.0);
+    o_col0 = float4(LoadVRAM(int2((icoords + u_vram_offset) % VRAM_SIZE) METAL_VRAM_TEXTURE_ARG).rgb, 1.0);
   #endif
 }
 )";
@@ -1417,9 +1445,10 @@ std::string GPU_HW_ShaderGen::GenerateVRAMReadFragmentShader()
   WriteCommonFunctions(ss, true);
 
   DeclareTexture(ss, "samp0", 0, UsingMSAA());
+  WriteVRAMTextureResourceMacros(ss, UsingMSAA());
 
   ss << R"(
-float4 LoadVRAM(int2 coords)
+float4 LoadVRAM(int2 coords METAL_VRAM_TEXTURE_PARAM)
 {
 #if MULTISAMPLING
   float4 value = LOAD_TEXTURE_MS(samp0, coords, 0u);
@@ -1432,10 +1461,10 @@ float4 LoadVRAM(int2 coords)
 #endif
 }
 
-uint SampleVRAM(uint2 coords)
+uint SampleVRAM(uint2 coords METAL_UBO_PARAM METAL_VRAM_TEXTURE_PARAM)
 {
   if (RESOLUTION_SCALE == 1u)
-    return RGBA8ToRGBA5551(LoadVRAM(int2(coords)));
+    return RGBA8ToRGBA5551(LoadVRAM(int2(coords) METAL_VRAM_TEXTURE_ARG));
 
   // Box filter for downsampling.
   float4 value = float4(0.0, 0.0, 0.0, 0.0);
@@ -1443,7 +1472,7 @@ uint SampleVRAM(uint2 coords)
   for (uint offset_x = 0u; offset_x < RESOLUTION_SCALE; offset_x++)
   {
     for (uint offset_y = 0u; offset_y < RESOLUTION_SCALE; offset_y++)
-      value += LoadVRAM(int2(base_coords + uint2(offset_x, offset_y)));
+      value += LoadVRAM(int2(base_coords + uint2(offset_x, offset_y)) METAL_VRAM_TEXTURE_ARG);
   }
   value /= float(RESOLUTION_SCALE * RESOLUTION_SCALE);
   return RGBA8ToRGBA5551(value);
@@ -1464,8 +1493,8 @@ uint SampleVRAM(uint2 coords)
   sample_coords += u_base_coords;
 
   // We're encoding as 32-bit, so the output width is halved and we pack two 16-bit pixels in one 32-bit pixel.
-  uint left = SampleVRAM(sample_coords);
-  uint right = SampleVRAM(uint2(sample_coords.x + 1u, sample_coords.y));
+  uint left = SampleVRAM(sample_coords METAL_UBO_ARG METAL_VRAM_TEXTURE_ARG);
+  uint right = SampleVRAM(uint2(sample_coords.x + 1u, sample_coords.y) METAL_UBO_ARG METAL_VRAM_TEXTURE_ARG);
 
   o_col0 = float4(float(left & 0xFFu), float((left >> 8) & 0xFFu),
                   float(right & 0xFFu), float((right >> 8) & 0xFFu))
@@ -1667,6 +1696,7 @@ std::string GPU_HW_ShaderGen::GenerateVRAMUpdateDepthFragmentShader()
   WriteHeader(ss);
   WriteCommonFunctions(ss);
   DeclareTexture(ss, "samp0", 0, UsingMSAA());
+  WriteVRAMTextureResourceMacros(ss, UsingMSAA());
   DeclareFragmentEntryPoint(ss, 0, 1, {}, true, 0, true, false, false, UsingMSAA());
 
   ss << R"(

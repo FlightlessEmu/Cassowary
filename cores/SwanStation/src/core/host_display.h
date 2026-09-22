@@ -41,7 +41,11 @@ public:
     D3D12,
     Vulkan,
     OpenGL,
-    OpenGLES
+    OpenGLES,
+    // The app's own renderer. Unlike the others there is no libretro hardware
+    // context behind it: the core renders with Metal directly and the engine
+    // draws the resulting texture.
+    Metal
   };
 
   virtual ~HostDisplay();

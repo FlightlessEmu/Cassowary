@@ -4,8 +4,19 @@
 #include <cstring>
 #include <glad.h>
 
+/// The names the Metal backend looks the two entry points up by. The Metal
+/// shader cache compiles one library per shader, so the names only have to be
+/// stable, not unique.
+const char* const METAL_VERTEX_FUNCTION_NAME = "swanstation_vertex";
+const char* const METAL_FRAGMENT_FUNCTION_NAME = "swanstation_fragment";
+
 ShaderGen::ShaderGen(HostDisplay::RenderAPI render_api, bool supports_dual_source_blend)
-  : m_render_api(render_api), m_glsl(render_api != HostDisplay::RenderAPI::D3D11 && render_api != HostDisplay::RenderAPI::D3D12),
+  : m_render_api(render_api),
+    // Metal Shading Language is C++-based rather than GLSL-based, so like HLSL
+    // it takes the non-GLSL branches; the Metal-specific parts are handled
+    // explicitly below.
+    m_glsl(render_api != HostDisplay::RenderAPI::D3D11 && render_api != HostDisplay::RenderAPI::D3D12 &&
+           render_api != HostDisplay::RenderAPI::Metal),
     m_supports_dual_source_blend(supports_dual_source_blend), m_use_glsl_interface_blocks(false)
 {
   if (m_glsl)
@@ -100,9 +111,75 @@ void ShaderGen::SetGLSLVersionString()
   m_glsl_version_string = buf;
 }
 
+void ShaderGen::ResetMetalResources()
+{
+  m_metal_uniform_buffer_declared = false;
+  m_metal_textures.clear();
+  m_metal_texture_buffers.clear();
+}
+
+std::string ShaderGen::FinalizeMetalShader(std::string shader)
+{
+  // The generators emit the entry point declaration and then the body as a
+  // complete block, and stop there. In MSL the entry point returns the struct
+  // the body filled in, so the statement and the closing brace are appended
+  // here rather than repeated in every generator.
+  shader += "  return out;\n}\n";
+  return shader;
+}
+
+void ShaderGen::WriteMetalResourceParameters(std::stringstream& ss) const
+{
+  if (m_metal_uniform_buffer_declared)
+    ss << ", constant UBOBlock& ubo [[buffer(" << METAL_UNIFORM_BUFFER_INDEX << ")]]";
+
+  for (const MetalTextureResource& texture : m_metal_textures)
+  {
+    if (texture.multisampled)
+    {
+      // Multisampled textures are read, never sampled: no sampler parameter.
+      ss << ", texture2d_ms<float> " << texture.name << " [[texture(" << texture.index << ")]]";
+    }
+    else
+    {
+      ss << ", texture2d<float> " << texture.name << " [[texture(" << texture.index << ")]]";
+      ss << ", sampler " << texture.name << "_ss [[sampler(" << texture.index << ")]]";
+    }
+  }
+
+  for (const MetalTextureBufferResource& buffer : m_metal_texture_buffers)
+  {
+    // The GL and HLSL dialects bind the VRAM data as a buffer texture and read
+    // it as a vector (the body uses .r). Metal has no buffer textures on every
+    // device it has to run on, so this is a plain buffer, and the reader macro
+    // wraps it back up into a vector.
+    ss << ", device const uint* " << buffer.name << " [[buffer(" << (METAL_TEXTURE_BUFFER_INDEX + buffer.index)
+       << ")]]";
+  }
+}
+
+/// The body names uniform members directly; MSL wants them off a parameter.
+static const char* MemberName(const char* declaration)
+{
+  const char* name = declaration;
+  for (const char* p = declaration; *p != '\0'; p++)
+  {
+    if (*p == ' ' || *p == '\t')
+      name = p + 1;
+  }
+  return name;
+}
+
 void ShaderGen::WriteHeader(std::stringstream& ss)
 {
-  if (m_render_api == HostDisplay::RenderAPI::OpenGL || m_render_api == HostDisplay::RenderAPI::OpenGLES)
+  if (IsMetal())
+  {
+    ss << "#include <metal_stdlib>\n";
+    ss << "#include <simd/simd.h>\n";
+    ss << "using namespace metal;\n\n";
+    ResetMetalResources();
+  }
+  else if (m_render_api == HostDisplay::RenderAPI::OpenGL || m_render_api == HostDisplay::RenderAPI::OpenGLES)
     ss << m_glsl_version_string << "\n\n";
   else if (m_render_api == HostDisplay::RenderAPI::Vulkan)
     ss << "#version 450 core\n\n";
@@ -150,6 +227,7 @@ void ShaderGen::WriteHeader(std::stringstream& ss)
   DefineMacro(ss, "API_D3D11", m_render_api == HostDisplay::RenderAPI::D3D11);
   DefineMacro(ss, "API_D3D12", m_render_api == HostDisplay::RenderAPI::D3D12);
   DefineMacro(ss, "API_VULKAN", m_render_api == HostDisplay::RenderAPI::Vulkan);
+  DefineMacro(ss, "API_METAL", IsMetal());
 
   if (m_render_api == HostDisplay::RenderAPI::OpenGLES)
   {
@@ -169,6 +247,8 @@ void ShaderGen::WriteHeader(std::stringstream& ss)
   if (m_glsl)
   {
     ss << "#define GLSL 1\n";
+    ss << "#define METAL_UBO_PARAM\n";
+    ss << "#define METAL_UBO_ARG\n";
     ss << "#define float2 vec2\n";
     ss << "#define float3 vec3\n";
     ss << "#define float4 vec4\n";
@@ -213,9 +293,63 @@ void ShaderGen::WriteHeader(std::stringstream& ss)
     ss << "float4 saturate(float4 value) { return clamp(value, float4(0.0, 0.0, 0.0, 0.0), float4(1.0, 1.0, 1.0, "
           "1.0)); }\n";
   }
+  else if (IsMetal())
+  {
+    // MSL is C++-based, so it takes HLSL-shaped code with a handful of
+    // spellings of its own. The bodies are written in the shared dialect, and
+    // these macros are what translates them.
+    ss << "#define METAL 1\n";
+    // The shader bodies are shared between the dialects, and their file-scope
+    // helpers have to be handed the entry point's resources on Metal, where
+    // there are no globals. Empty elsewhere.
+    ss << "#define METAL_UBO_PARAM , constant UBOBlock& ubo\n";
+    ss << "#define METAL_UBO_ARG , ubo\n";
+    ss << "#define vec2 float2\n";
+    ss << "#define vec3 float3\n";
+    ss << "#define vec4 float4\n";
+    ss << "#define ivec2 int2\n";
+    ss << "#define ivec3 int3\n";
+    ss << "#define ivec4 int4\n";
+    ss << "#define uivec2 uint2\n";
+    ss << "#define uivec3 uint3\n";
+    ss << "#define uivec4 uint4\n";
+    ss << "#define mat2 float2x2\n";
+    ss << "#define mat3 float3x3\n";
+    ss << "#define mat4 float4x4\n";
+    ss << "#define mul(x, y) ((x) * (y))\n";
+    ss << "#define lerp mix\n";
+    ss << "#define frac fract\n";
+    ss << "#define roundEven rint\n";
+    ss << "#define CONSTANT constant\n";
+    ss << "#define GLOBAL\n";
+    ss << "#define FOR_UNROLL for\n";
+    ss << "#define FOR_LOOP for\n";
+    ss << "#define IF_BRANCH if\n";
+    ss << "#define IF_FLATTEN if\n";
+    ss << "#define VECTOR_EQ(a, b) (all((a) == (b)))\n";
+    ss << "#define VECTOR_NEQ(a, b) (any((a) != (b)))\n";
+    ss << "#define VECTOR_COMP_EQ(a, b) ((a) == (b))\n";
+    ss << "#define VECTOR_COMP_NEQ(a, b) ((a) != (b))\n";
+    ss << "#define SAMPLE_TEXTURE(name, coords) name.sample(name##_ss, coords)\n";
+    ss << "#define SAMPLE_TEXTURE_OFFSET(name, coords, offset) name.sample(name##_ss, coords, offset)\n";
+    ss << "#define SAMPLE_TEXTURE_LEVEL(name, coords, lvl) name.sample(name##_ss, coords, level(lvl))\n";
+    ss << "#define SAMPLE_TEXTURE_LEVEL_OFFSET(name, coords, lvl, offset) "
+          "name.sample(name##_ss, coords, level(lvl), offset)\n";
+    // Reads are explicit in MSL: the coordinates are unsigned and the level is
+    // the last argument rather than a separate call.
+    ss << "#define LOAD_TEXTURE(name, coords, mip) name.read(uint2(coords), uint(mip))\n";
+    ss << "#define LOAD_TEXTURE_MS(name, coords, sample) name.read(uint2(coords), uint(sample))\n";
+    ss << "#define LOAD_TEXTURE_OFFSET(name, coords, mip, offset) name.read(uint2(coords) + uint2(offset), uint(mip))\n";
+    ss << "#define LOAD_TEXTURE_BUFFER(name, index) uint4(name[index], 0u, 0u, 0u)\n";
+    ss << "#define BEGIN_ARRAY(type, size) {\n";
+    ss << "#define END_ARRAY }\n";
+    ss << "#define discard discard_fragment()\n";
+  }
   else
   {
     ss << "#define HLSL 1\n";
+    ss << "#define METAL_UBO_PARAM\n";
+    ss << "#define METAL_UBO_ARG\n";
     ss << "#define roundEven round\n";
     ss << "#define mix lerp\n";
     ss << "#define fract frac\n";
@@ -282,6 +416,28 @@ void ShaderGen::WriteUniformBufferDeclaration(std::stringstream& ss, bool push_c
 void ShaderGen::DeclareUniformBuffer(std::stringstream& ss, const std::initializer_list<const char*>& members,
                                      bool push_constant_on_vulkan)
 {
+  if (IsMetal())
+  {
+    // MSL has no global uniform blocks: the members become a struct passed to
+    // the entry point as a parameter. The bodies name members directly, the way
+    // the other two dialects let them, so each member gets an alias onto the
+    // parameter. The parameter itself is declared by the entry point.
+    ss << "struct UBOBlock\n{\n";
+    for (const char* member : members)
+      ss << member << ";\n";
+    ss << "};\n\n";
+
+    for (const char* member : members)
+    {
+      const char* name = MemberName(member);
+      ss << "#define " << name << " ubo." << name << "\n";
+    }
+
+    m_metal_uniform_buffer_declared = true;
+    ss << "\n";
+    return;
+  }
+
   WriteUniformBufferDeclaration(ss, push_constant_on_vulkan);
 
   ss << "{\n";
@@ -292,6 +448,13 @@ void ShaderGen::DeclareUniformBuffer(std::stringstream& ss, const std::initializ
 
 void ShaderGen::DeclareTexture(std::stringstream& ss, const char* name, uint32_t index, bool multisampled /* = false */)
 {
+  if (IsMetal())
+  {
+    // Declared as an entry point parameter instead; see WriteMetalResourceParameters.
+    m_metal_textures.push_back({name, index, multisampled});
+    return;
+  }
+
   if (m_glsl)
   {
     if (IsVulkan())
@@ -310,6 +473,15 @@ void ShaderGen::DeclareTexture(std::stringstream& ss, const char* name, uint32_t
 
 void ShaderGen::DeclareTextureBuffer(std::stringstream& ss, const char* name, uint32_t index, bool is_int, bool is_unsigned)
 {
+  if (IsMetal())
+  {
+    // Declared as an entry point parameter instead; see WriteMetalResourceParameters.
+    // (is_int / is_unsigned are the GLSL/HLSL spellings of the element type,
+    // and the reader macro wraps the value back into a vector either way.)
+    m_metal_texture_buffers.push_back({name, index});
+    return;
+  }
+
   if (m_glsl)
   {
     if (IsVulkan())
@@ -329,6 +501,13 @@ void ShaderGen::DeclareTextureBuffer(std::stringstream& ss, const char* name, ui
 const char* ShaderGen::GetInterpolationQualifier(bool interface_block, bool centroid_interpolation,
                                                  bool sample_interpolation, bool is_out) const
 {
+  if (IsMetal())
+  {
+    // MSL spells interpolation as an attribute on the struct member, which the
+    // entry point writers below emit directly.
+    return "";
+  }
+
   if (m_glsl && interface_block && (!IsVulkan() && !GLAD_GL_ARB_shading_language_420pack))
   {
     return (sample_interpolation ? (is_out ? "sample out " : "sample in ") :
@@ -340,12 +519,95 @@ const char* ShaderGen::GetInterpolationQualifier(bool interface_block, bool cent
   }
 }
 
+/// MSL carries interpolation on the struct member rather than next to the type.
+/// The generators pass their qualifiers as GLSL/HLSL spellings ("nointerpolation"
+/// and nothing), and the MSAA/SSAA flags come in separately.
+static void WriteMetalMemberInterpolation(std::stringstream& ss, const char* qualifiers, bool centroid, bool sample)
+{
+  if (qualifiers && std::strcmp(qualifiers, "nointerpolation") == 0)
+    ss << " [[flat]]";
+  else if (sample)
+    ss << " [[sample_perspective]]";
+  else if (centroid)
+    ss << " [[centroid_perspective]]";
+}
+
 void ShaderGen::DeclareVertexEntryPoint(
   std::stringstream& ss, const std::initializer_list<const char*>& attributes, uint32_t num_color_outputs,
   uint32_t num_texcoord_outputs, const std::initializer_list<std::pair<const char*, const char*>>& additional_outputs,
   bool declare_vertex_id /* = false */, const char* output_block_suffix /* = "" */, bool msaa /* = false */,
   bool ssaa /* = false */, bool noperspective_color /* = false */)
 {
+  if (IsMetal())
+  {
+    const bool has_inputs = (attributes.size() > 0);
+
+    if (has_inputs)
+    {
+      ss << "struct VertexInput\n{\n";
+      uint32_t attribute_counter = 0;
+      for (const char* attribute : attributes)
+      {
+        ss << "  " << attribute << " [[attribute(" << attribute_counter << ")]];\n";
+        attribute_counter++;
+      }
+      ss << "};\n\n";
+    }
+
+    // The fragment side declares its inputs in the same order: Metal matches
+    // them by location, not by name.
+    ss << "struct VertexOutput\n{\n";
+    ss << "  float4 v_pos [[position]];\n";
+
+    uint32_t location = 0;
+    for (uint32_t i = 0; i < num_color_outputs; i++)
+    {
+      ss << "  float4 v_col" << i << " [[user(locn" << location++ << ")]]";
+      if (noperspective_color)
+        ss << " [[center_no_perspective]]";
+      ss << ";\n";
+    }
+
+    for (uint32_t i = 0; i < num_texcoord_outputs; i++)
+      ss << "  float2 v_tex" << i << " [[user(locn" << location++ << ")]];\n";
+
+    for (const auto& [qualifiers, declaration] : additional_outputs)
+    {
+      ss << "  " << declaration;
+      WriteMetalMemberInterpolation(ss, qualifiers, msaa, ssaa);
+      ss << " [[user(locn" << location++ << ")]];\n";
+    }
+
+    ss << "};\n\n";
+
+    ss << "vertex VertexOutput " << METAL_VERTEX_FUNCTION_NAME << "(";
+    if (has_inputs)
+      ss << "VertexInput in [[stage_in]]";
+
+    if (declare_vertex_id)
+      ss << (has_inputs ? ", " : "") << "uint v_id [[vertex_id]]";
+
+    WriteMetalResourceParameters(ss);
+    ss << ")\n{\n  VertexOutput out;\n";
+
+    if (has_inputs)
+    {
+      for (const char* attribute : attributes)
+        ss << "  #define " << MemberName(attribute) << " in." << MemberName(attribute) << "\n";
+    }
+
+    ss << "  #define v_pos out.v_pos\n";
+    for (uint32_t i = 0; i < num_color_outputs; i++)
+      ss << "  #define v_col" << i << " out.v_col" << i << "\n";
+    for (uint32_t i = 0; i < num_texcoord_outputs; i++)
+      ss << "  #define v_tex" << i << " out.v_tex" << i << "\n";
+    for (const auto& [qualifiers, declaration] : additional_outputs)
+      ss << "  #define " << MemberName(declaration) << " out." << MemberName(declaration) << "\n";
+
+    ss << "\n";
+    return;
+  }
+
   if (m_glsl)
   {
     if (m_use_glsl_binding_layout)
@@ -455,6 +717,75 @@ void ShaderGen::DeclareFragmentEntryPoint(
   bool msaa /* = false */, bool ssaa /* = false */, bool declare_sample_id /* = false */,
   bool noperspective_color /* = false */)
 {
+  if (IsMetal())
+  {
+    // Mirrors DeclareVertexEntryPoint: same members, same locations.
+    ss << "struct FragmentInput\n{\n";
+    if (declare_fragcoord)
+      ss << "  float4 v_pos [[position]];\n";
+    if (declare_sample_id)
+      ss << "  uint f_sample_index [[sample_id]];\n";
+
+    uint32_t location = 0;
+    for (uint32_t i = 0; i < num_color_inputs; i++)
+    {
+      ss << "  float4 v_col" << i << " [[user(locn" << location++ << ")]]";
+      if (noperspective_color)
+        ss << " [[center_no_perspective]]";
+      ss << ";\n";
+    }
+
+    for (uint32_t i = 0; i < num_texcoord_inputs; i++)
+      ss << "  float2 v_tex" << i << " [[user(locn" << location++ << ")]];\n";
+
+    for (const auto& [qualifiers, declaration] : additional_inputs)
+    {
+      ss << "  " << declaration;
+      WriteMetalMemberInterpolation(ss, qualifiers, msaa, ssaa);
+      ss << " [[user(locn" << location++ << ")]];\n";
+    }
+
+    ss << "};\n\n";
+
+    ss << "struct FragmentOutput\n{\n";
+    for (uint32_t i = 0; i < num_color_outputs; i++)
+    {
+      // Dual source blending writes two colours into one attachment, which MSL
+      // spells with an index on the colour attribute.
+      if (m_supports_dual_source_blend)
+        ss << "  float4 o_col" << i << " [[color(0), index(" << i << ")]];\n";
+      else
+        ss << "  float4 o_col" << i << " [[color(" << i << ")]];\n";
+    }
+    if (depth_output)
+      ss << "  float o_depth [[depth(any)]];\n";
+    ss << "};\n\n";
+
+    ss << "fragment FragmentOutput " << METAL_FRAGMENT_FUNCTION_NAME << "(FragmentInput in [[stage_in]]";
+    WriteMetalResourceParameters(ss);
+    ss << ")\n{\n  FragmentOutput out;\n";
+
+    if (declare_fragcoord)
+      ss << "  #define v_pos in.v_pos\n";
+    if (declare_sample_id)
+      ss << "  #define f_sample_index in.f_sample_index\n";
+
+    for (uint32_t i = 0; i < num_color_inputs; i++)
+      ss << "  #define v_col" << i << " in.v_col" << i << "\n";
+    for (uint32_t i = 0; i < num_texcoord_inputs; i++)
+      ss << "  #define v_tex" << i << " in.v_tex" << i << "\n";
+    for (const auto& [qualifiers, declaration] : additional_inputs)
+      ss << "  #define " << MemberName(declaration) << " in." << MemberName(declaration) << "\n";
+
+    for (uint32_t i = 0; i < num_color_outputs; i++)
+      ss << "  #define o_col" << i << " out.o_col" << i << "\n";
+    if (depth_output)
+      ss << "  #define o_depth out.o_depth\n";
+
+    ss << "\n";
+    return;
+  }
+
   if (m_glsl)
   {
     if (m_use_glsl_interface_blocks)

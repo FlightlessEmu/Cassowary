@@ -33,6 +33,11 @@ private:
   void WriteCommonFunctions(std::stringstream& ss, bool batch_uniform_buffer = false);
   void WriteBatchUniformBuffer(std::stringstream& ss);
 
+  // Emit the macros that hand the VRAM texture to the shader's file-scope
+  // helpers. Only Metal needs them (there are no globals there), and the
+  // texture's type depends on whether it is multisampled.
+  void WriteVRAMTextureResourceMacros(std::stringstream& ss, bool multisampled);
+
   // Emit the #define aliases that route RESOLUTION_SCALE / VRAM_SIZE /
   // RCP_VRAM_SIZE through u_resolution_scale in the shader's currently-
   // in-scope cbuffer. Used by both WriteBatchUniformBuffer (where the
