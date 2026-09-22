@@ -1003,16 +1003,16 @@ void Rasterizer3D::SetupYSpan(RenderPolygon* rp, SpanSetupY* span, Polygon* poly
 
     if (xMajor)
     {
-        if (side)
-        {
-            span->I0 = span->X0 - 1;
-            span->I1 = span->X1 - 1;
-        }
-        else
-        {
-            span->I0 = span->X0;
-            span->I1 = span->X1;
-        }
+        // melonDS's software rasteriser interpolates an edge that runs mostly
+        // horizontally along Y as well, offsetting the range by one pixel when
+        // the slope runs the other way. Its compute renderer switches the
+        // interpolation parameter to X instead, which gives slightly different
+        // span endpoints and so shifts the texture coordinates. The software
+        // renderer is the one to match here.
+        const s32 interpoffset = (side != negative) ? 1 : 0;
+
+        span->I0 = span->Y0 - interpoffset;
+        span->I1 = span->Y1 - interpoffset;
 
         // used for calculating AA coverage
         span->XCovIncr = (ylen << 10) / xlen;
@@ -1136,7 +1136,7 @@ void Rasterizer3D::SetupXSpan(SpanSetupX* xspan, const SpanSetupY& spanLIn, cons
     }
     else
     {
-        const s32 i = (spanL.Increment > 0x40000 ? xl : y) - spanL.I0;
+        const s32 i = y - spanL.I0;
         const s32 ifactor = CalcYFactorY(spanL, i);
         const s32 idiff = spanL.I1 - spanL.I0;
 
@@ -1178,7 +1178,7 @@ void Rasterizer3D::SetupXSpan(SpanSetupX* xspan, const SpanSetupY& spanLIn, cons
     }
     else
     {
-        const s32 i = (spanR.Increment > 0x40000 ? xr : y) - spanR.I0;
+        const s32 i = y - spanR.I0;
         const s32 ifactor = CalcYFactorY(spanR, i);
         const s32 idiff = spanR.I1 - spanR.I0;
 

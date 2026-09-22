@@ -167,14 +167,22 @@ What the harness has established so far:
   the probe pixels the software rasteriser samples a different texel of a
   texture that is decoded correctly.
 
-The place to look next is the span endpoints for edges that run mostly
-horizontally (the X-major edges). melonDS's software rasteriser interpolates
-those along Y with a one-pixel offset (`interpoffset` in `Slope::Setup`), while
-its compute renderer — which this port follows — switches the interpolation
-parameter to X and shifts the range by one. The two give slightly different
-endpoints for the span, which is what shifts the texture coordinates. Porting
-the software rasteriser's `Slope`/`Interpolator` for the span endpoints, or
-narrowing the difference to the X-major case, is the next step.
+One of those differences is now fixed. For edges that run mostly horizontally
+(the X-major edges) melonDS's software rasteriser interpolates along Y with a
+one-pixel offset (`interpoffset` in `Slope::Setup`), while its compute renderer
+— which this port followed — switches the interpolation parameter to X and
+shifts the range by one. The two give slightly different span endpoints, which
+shifts the texture coordinates. The span setup now follows the software
+rasteriser for those edges, and one of the two test frames went from 6,994
+differing pixels to 4,511.
+
+What is left is one solid rectangle of a surface, about 2,800 pixels, where the
+two rasterisers sample different texels of a texture that is decoded
+correctly, and the polygon is translucent in the Metal one and opaque in the
+software one. That is the shape a texture-coordinate difference makes, so the
+next step is the same: keep narrowing the span endpoints, this time by porting
+the software rasteriser's `Slope`/`Interpolator` outright and comparing the
+endpoints directly rather than one rule at a time.
 
 Until step 3 lands, the 3D layer comes from the software rasteriser (see
 above), and with it the Metal picture is pixel-for-pixel identical to the
