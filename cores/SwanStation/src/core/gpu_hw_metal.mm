@@ -24,7 +24,18 @@ static id<MTLDevice> s_metal_device = nil;
 namespace MetalDevice {
 void SetDevice(void* device)
 {
-  s_metal_device = (__bridge id<MTLDevice>)device;
+  id<MTLDevice> handed_over = (__bridge id<MTLDevice>)device;
+  if (handed_over == nil)
+    return;
+
+  // The renderer may already have taken the system's default device, which is
+  // the same one on the devices this runs on. Textures belong to a device, so
+  // a different one here would need everything rebuilt - say so rather than
+  // quietly render to something the app cannot see.
+  if (s_metal_device != nil && s_metal_device != handed_over)
+    Log_WarningPrintf("The app handed over a different Metal device than the one in use.");
+
+  s_metal_device = handed_over;
 }
 
 void* GetDevice()
@@ -96,7 +107,16 @@ bool LibretroMetalHostDisplay::CreateRenderDevice(const WindowInfo& wi, std::str
   m_device = s_metal_device;
   if (m_device == nil)
   {
-    Log_ErrorPrintf("No Metal device has been given to the core.");
+    // The app hands its device over while it is setting up the game view,
+    // which is after the core has already loaded the disc and booted the GPU.
+    // There is one GPU on the devices this runs on, so ask the system for it
+    // and let the app's handover confirm the same one later.
+    m_device = MTLCreateSystemDefaultDevice();
+  }
+
+  if (m_device == nil)
+  {
+    Log_ErrorPrintf("No Metal device is available.");
     return false;
   }
 
@@ -134,6 +154,8 @@ bool LibretroMetalHostDisplay::ChangeRenderWindow(const WindowInfo& new_wi)
 
 bool LibretroMetalHostDisplay::CreateResources()
 {
+  // Nothing has been rendered yet, so nothing is published.
+  ClearDisplayTexture();
   return true;
 }
 
@@ -285,6 +307,7 @@ void GPU_HW_Metal::DestroyResources()
   m_queue = nil;
   m_shader_cache.Clear();
   m_pipelines.clear();
+  m_depth_stencil_states.clear();
   m_batch_fragment_sources.clear();
   m_batch_vertex_sources[0].clear();
   m_batch_vertex_sources[1].clear();
@@ -309,9 +332,10 @@ bool GPU_HW_Metal::Initialize(HostDisplay* host_display)
   if (!GPU_HW::Initialize(host_display))
     return false;
 
+  s_metal_device = static_cast<LibretroMetalHostDisplay*>(host_display)->GetDevice();
   if (s_metal_device == nil)
   {
-    Log_ErrorPrintf("No Metal device has been given to the core.");
+    Log_ErrorPrintf("No Metal device is available.");
     return false;
   }
 
@@ -437,8 +461,8 @@ void GPU_HW_Metal::Reset(bool clear_vram)
     m_vram_texture.Replace(zero.data());
     m_vram_read_texture.Replace(zero.data());
 
-    std::vector<float> depth(VRAM_WIDTH * VRAM_HEIGHT, 0.0f);
-    m_vram_depth_texture.Replace(depth.data());
+    // The depth buffer is GPU-only, so it is cleared with a pass.
+    ClearDepthBuffer();
   }
 }
 
@@ -493,6 +517,7 @@ void GPU_HW_Metal::UpdateSettings()
   {
     EndRenderPass();
     m_pipelines.clear();
+    m_depth_stencil_states.clear();
     m_shader_cache.Clear();
     CreateShaderGen();
   }
@@ -630,6 +655,35 @@ id<MTLRenderPipelineState> GPU_HW_Metal::GetOrCreatePipeline(const PipelineKey& 
   id<MTLRenderPipelineState> pipeline = CreatePipeline(key);
   m_pipelines.emplace(hash, pipeline);
   return pipeline;
+}
+
+id<MTLDepthStencilState> GPU_HW_Metal::GetDepthStencilState(uint32_t depth_key)
+{
+  const auto it = m_depth_stencil_states.find(depth_key);
+  if (it != m_depth_stencil_states.end())
+    return it->second;
+
+  @autoreleasepool
+  {
+    MTLDepthStencilDescriptor* desc = [[MTLDepthStencilDescriptor alloc] init];
+    desc.depthWriteEnabled = YES;
+    switch (depth_key)
+    {
+      case 2:
+        desc.depthCompareFunction = MTLCompareFunctionLessEqual;
+        break;
+      case 3:
+        desc.depthCompareFunction = MTLCompareFunctionGreaterEqual;
+        break;
+      default:
+        desc.depthCompareFunction = MTLCompareFunctionAlways;
+        break;
+    }
+
+    id<MTLDepthStencilState> state = [s_metal_device newDepthStencilStateWithDescriptor:desc];
+    m_depth_stencil_states.emplace(depth_key, state);
+    return state;
+  }
 }
 
 id<MTLRenderPipelineState> GPU_HW_Metal::CreatePipeline(const PipelineKey& key)
@@ -820,6 +874,26 @@ const std::string& GPU_HW_Metal::GetFragmentSource(uint32_t kind)
   }
 }
 
+void GPU_HW_Metal::SetVRAMViewportAndScissor()
+{
+  id<MTLRenderCommandEncoder> encoder = m_encoder;
+  if (encoder == nil)
+    return;
+
+  [encoder setViewport:MTLViewport{0.0, 0.0, static_cast<double>(m_vram_texture.GetWidth()),
+                                   static_cast<double>(m_vram_texture.GetHeight()), 0.0, 1.0}];
+
+  if (m_has_scissor)
+  {
+    [encoder setScissorRect:MTLScissorRect{m_current_scissor[0], m_current_scissor[1], m_current_scissor[2],
+                                           m_current_scissor[3]}];
+  }
+  else
+  {
+    [encoder setScissorRect:MTLScissorRect{0, 0, m_vram_texture.GetWidth(), m_vram_texture.GetHeight()}];
+  }
+}
+
 // --- drawing helpers -------------------------------------------------------
 
 void GPU_HW_Metal::UploadUniforms(const void* data, uint32_t size)
@@ -868,7 +942,12 @@ void GPU_HW_Metal::DrawBatchVertices(BatchRenderMode render_mode, uint32_t base_
                            (m_batch.dithering ? 2u : 0u) | (m_batch.interlacing ? 1u : 0u);
 
   PipelineKey key;
-  key.vertex_source = (m_batch.texture_mode != GPUTextureMode::Disabled) ? VS_BATCH_TEXTURED : VS_BATCH_UNTEXTURED;
+  // Always the textured vertex shader: the batch fragment shader declares the
+  // texture-page and UV-limit varyings whatever the texture mode, and Metal
+  // rejects a pipeline whose fragment inputs the vertex shader does not write.
+  // The vertex data carries those fields either way, and the fragment shader
+  // ignores them when there is no texture.
+  key.vertex_source = VS_BATCH_TEXTURED;
   key.fragment_source = FS_BATCH + variant;
   key.depth = m_batch.use_depth_buffer ? 2u : (m_batch.check_mask_before_draw ? 3u : 1u);
   key.blend = UseAlphaBlending(m_batch.transparency_mode, render_mode) ?
@@ -885,14 +964,11 @@ void GPU_HW_Metal::DrawBatchVertices(BatchRenderMode render_mode, uint32_t base_
   [encoder setFragmentBuffer:m_uniform_stream_buffer->GetBuffer() offset:m_uniform_buffer_offset atIndex:1];
   [encoder setFragmentTexture:m_vram_texture.GetTexture() atIndex:0];
   [encoder setFragmentSamplerState:m_nearest_sampler atIndex:0];
-
-  if (m_has_scissor)
-  {
-    [encoder setScissorRect:MTLScissorRect{m_current_scissor[0], m_current_scissor[1], m_current_scissor[2],
-                                           m_current_scissor[3]}];
-  }
+  [encoder setDepthStencilState:GetDepthStencilState(key.depth)];
+  SetVRAMViewportAndScissor();
 
   [encoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:m_batch_base_vertex vertexCount:num_vertices];
+  m_batch_draws++;
 }
 
 void GPU_HW_Metal::SetScissorFromDrawingArea()
@@ -1064,6 +1140,20 @@ void GPU_HW_Metal::UpdateDisplay()
   // The app draws this frame after the emulation thread returns, so the work
   // has to be finished before then.
   EndFrame();
+
+  if (!m_logged_first_frame)
+  {
+    m_logged_first_frame = true;
+    EndFrame();
+
+    uint8_t centre[4] = {};
+    [m_vram_texture.GetTexture() getBytes:centre
+                              bytesPerRow:4
+                               fromRegion:MTLRegionMake2D(VRAM_WIDTH / 2, VRAM_HEIGHT / 2, 1, 1)
+                              mipmapLevel:0];
+    Log_InfoPrintf("First frame: display %ux%u, %u batch draws, vram centre %02x%02x%02x%02x", display_width,
+                   display_height, m_batch_draws, centre[0], centre[1], centre[2], centre[3]);
+  }
 }
 
 // --- VRAM ------------------------------------------------------------------
@@ -1158,13 +1248,13 @@ void GPU_HW_Metal::FillVRAM(uint32_t x, uint32_t y, uint32_t width, uint32_t hei
   if (encoder == nil)
     return;
 
-  [encoder setScissorRect:MTLScissorRect{m_current_scissor[0], m_current_scissor[1], m_current_scissor[2],
-                                         m_current_scissor[3]}];
+  SetVRAMViewportAndScissor();
 
   id<MTLRenderPipelineState> pipeline = GetOrCreatePipeline(key);
   if (pipeline != nil)
   {
     [encoder setRenderPipelineState:pipeline];
+    [encoder setDepthStencilState:GetDepthStencilState(key.depth)];
     [encoder setFragmentBuffer:m_uniform_stream_buffer->GetBuffer() offset:m_uniform_buffer_offset atIndex:1];
     [encoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:3];
   }
@@ -1218,13 +1308,13 @@ void GPU_HW_Metal::UpdateVRAM(uint32_t x, uint32_t y, uint32_t width, uint32_t h
   if (encoder == nil)
     return;
 
-  [encoder setScissorRect:MTLScissorRect{m_current_scissor[0], m_current_scissor[1], m_current_scissor[2],
-                                         m_current_scissor[3]}];
+  SetVRAMViewportAndScissor();
 
   id<MTLRenderPipelineState> pipeline = GetOrCreatePipeline(key);
   if (pipeline != nil)
   {
     [encoder setRenderPipelineState:pipeline];
+    [encoder setDepthStencilState:GetDepthStencilState(key.depth)];
     [encoder setFragmentBuffer:m_uniform_stream_buffer->GetBuffer() offset:m_uniform_buffer_offset atIndex:1];
     [encoder setFragmentBuffer:m_texture_stream_buffer->GetBuffer() offset:m_texture_buffer_offset atIndex:2];
     [encoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:3];
@@ -1275,6 +1365,7 @@ void GPU_HW_Metal::CopyVRAM(uint32_t src_x, uint32_t src_y, uint32_t dst_x, uint
   if (pipeline != nil)
   {
     [encoder setRenderPipelineState:pipeline];
+    [encoder setDepthStencilState:GetDepthStencilState(key.depth)];
     [encoder setFragmentBuffer:m_uniform_stream_buffer->GetBuffer() offset:m_uniform_buffer_offset atIndex:1];
     [encoder setFragmentTexture:m_vram_read_texture.GetTexture() atIndex:0];
     [encoder setFragmentSamplerState:m_nearest_sampler atIndex:0];
@@ -1332,9 +1423,7 @@ void GPU_HW_Metal::UpdateDepthBufferFromMaskBit()
   if (encoder == nil)
     return;
 
-  [encoder setViewport:MTLViewport{0.0, 0.0, static_cast<double>(m_vram_texture.GetWidth()),
-                                   static_cast<double>(m_vram_texture.GetHeight()), 0.0, 1.0}];
-  [encoder setScissorRect:MTLScissorRect{0, 0, m_vram_texture.GetWidth(), m_vram_texture.GetHeight()}];
+  SetVRAMViewportAndScissor();
 
   PipelineKey key;
   key.vertex_source = VS_SCREEN_QUAD;
@@ -1345,6 +1434,7 @@ void GPU_HW_Metal::UpdateDepthBufferFromMaskBit()
   if (pipeline != nil)
   {
     [encoder setRenderPipelineState:pipeline];
+    [encoder setDepthStencilState:GetDepthStencilState(key.depth)];
     [encoder setFragmentTexture:m_vram_read_texture.GetTexture() atIndex:0];
     [encoder setFragmentSamplerState:m_nearest_sampler atIndex:0];
     [encoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:3];

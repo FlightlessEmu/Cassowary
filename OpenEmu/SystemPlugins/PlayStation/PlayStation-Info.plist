@@ -246,6 +246,9 @@
 		<string>ccd</string>
 		<string>m3u</string>
 		<string>pbp</string>
+		<string>bin</string>
+		<string>img</string>
+		<string>iso</string>
 	</array>
 	<key>OEGenericControlNamesKey</key>
 	<array>

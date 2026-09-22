@@ -179,12 +179,19 @@ private:
   void FlushAndWait();
 
   id<MTLRenderPipelineState> GetOrCreatePipeline(const PipelineKey& key);
+  /// The depth state for a pipeline's depth key. Metal keeps depth testing off
+  /// until a state says otherwise, and the PlayStation's mask-bit ordering
+  /// depends on it.
+  id<MTLDepthStencilState> GetDepthStencilState(uint32_t depth_key);
   id<MTLRenderPipelineState> CreatePipeline(const PipelineKey& key);
   const std::string& GetVertexSource(uint32_t kind);
   const std::string& GetFragmentSource(uint32_t kind);
 
   void DownsampleFramebufferBoxFilter(Metal::Texture& source, uint32_t left, uint32_t top, uint32_t width,
                                       uint32_t height);
+  /// Puts the viewport and scissor back to the whole VRAM. The copy pass sets
+  /// its own viewport, and every other VRAM draw has to undo that.
+  void SetVRAMViewportAndScissor();
   void UploadUniforms(const void* data, uint32_t size);
 
   Metal::Texture m_vram_texture;
@@ -203,6 +210,7 @@ private:
 
   id<MTLSamplerState> m_nearest_sampler = nil;
   id<MTLSamplerState> m_linear_sampler = nil;
+  std::unordered_map<uint32_t, id<MTLDepthStencilState>> m_depth_stencil_states;
 
   id<MTLCommandQueue> m_queue = nil;
   id<MTLCommandBuffer> m_command_buffer = nil;
@@ -229,6 +237,8 @@ private:
   uint32_t m_current_scissor[4] = {0, 0, 0, 0};
   bool m_has_scissor = false;
   bool m_warned_about_replacements = false;
+  uint32_t m_batch_draws = 0;
+  bool m_logged_first_frame = false;
 };
 
 #endif // __OBJC__

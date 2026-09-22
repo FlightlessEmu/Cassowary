@@ -2050,11 +2050,12 @@ bool HostInterface::RequestHardwareRendererContext()
 #endif
 
     case GPURenderer::HardwareMetal:
-      // There is nothing to ask the frontend for. Marking the context valid
-      // routes the caller to SwitchToHardwareRenderer, which builds the
-      // display directly; see the Metal case there.
+      // There is nothing to ask the frontend for, and so no context_reset
+      // callback to wait for: the display is built here, the way the other
+      // renderers build it when their callback arrives.
       m_hw_render_callback_valid = true;
       m_hw_render_callback.context_type = RETRO_HW_CONTEXT_NONE;
+      SwitchToHardwareRenderer();
       break;
 
 #ifndef SWANSTATION_NO_HW_RENDER_APIS

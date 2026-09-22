@@ -46,6 +46,7 @@ public:
   ALWAYS_INLINE uint32_t GetHeight() const { return m_height; }
   ALWAYS_INLINE uint32_t GetSamples() const { return m_samples; }
   ALWAYS_INLINE MTLPixelFormat GetFormat() const { return m_format; }
+  ALWAYS_INLINE bool IsCpuAccessible() const { return m_cpu_accessible; }
 
 private:
   id<MTLTexture> m_texture = nil;
@@ -53,6 +54,7 @@ private:
   uint32_t m_height = 0;
   uint32_t m_samples = 1;
   MTLPixelFormat m_format = MTLPixelFormatInvalid;
+  bool m_cpu_accessible = true;
 };
 
 } // namespace Metal

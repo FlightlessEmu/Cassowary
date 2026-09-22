@@ -185,6 +185,16 @@ final class GameLibrary: ObservableObject {
             options: [.skipsHiddenFiles]
         )) ?? []
 
+        // A disc image that a .cue beside it points at is not a game of its
+        // own: the .cue is the entry point, and listing the image too would
+        // offer the same disc twice.
+        let descriptorNames = Set(
+            found
+                .filter { $0.pathExtension.lowercased() == "cue" }
+                .map { $0.deletingPathExtension().lastPathComponent.lowercased() }
+        )
+        let discImageExtensions: Set<String> = ["bin", "img", "iso"]
+
         games = found
             .compactMap { url -> Game? in
                 guard let system = Self.system(
@@ -193,6 +203,13 @@ final class GameLibrary: ObservableObject {
                     byExtension: byExtension,
                     byIdentifier: byIdentifier
                 ) else { return nil }
+
+                let fileExtension = url.pathExtension.lowercased()
+                if discImageExtensions.contains(fileExtension),
+                   descriptorNames.contains(url.deletingPathExtension().lastPathComponent.lowercased()) {
+                    return nil
+                }
+
                 return Game(url: url, system: system)
             }
             .sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }

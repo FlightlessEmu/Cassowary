@@ -24,6 +24,7 @@
 
 #include "SwanStationLibretroBridge.h"
 
+#include "common/log.h"
 #include "core/host_display.h"
 #include "core/host_interface.h"
 #include "core/metal_device.h"
@@ -81,6 +82,17 @@ unsigned s_frame_pitch = 0;
 struct retro_system_av_info s_av_info = {};
 bool s_have_av_info = false;
 
+/// The core's own log, which does not go through the libretro callback. Info
+/// is the level that shows the boot sequence, which is what this is for.
+void CoreLogCallback(void* user_param, const char* channel_name, const char* function_name, LogLevel level,
+                     const char* message)
+{
+  if (level > LogLevel::Info)
+    return;
+
+  std::fprintf(stderr, "[%s] %s\n", channel_name ? channel_name : "core", message);
+}
+
 void LogCallback(enum retro_log_level level, const char* fmt, ...)
 {
   // Only the two levels that say something went wrong; the core is chatty at
@@ -132,6 +144,24 @@ bool EnvironCallback(unsigned cmd, void* data)
     case RETRO_ENVIRONMENT_GET_LOG_INTERFACE:
       static_cast<retro_log_callback*>(data)->log = LogCallback;
       return true;
+
+    case RETRO_ENVIRONMENT_GET_VARIABLE:
+    {
+      // The core asks which renderer to use before it boots the GPU. There is
+      // one that works here, and the app decides whether to use it. Every
+      // other option is left unanswered so the core keeps its own defaults.
+      auto* variable = static_cast<retro_variable*>(data);
+      if (!variable || !variable->key)
+        return false;
+
+      if (s_metal_renderer_enabled && std::strcmp(variable->key, "swanstation_GPU_Renderer") == 0)
+      {
+        variable->value = "Metal";
+        return true;
+      }
+
+      return false;
+    }
 
     case RETRO_ENVIRONMENT_GET_INPUT_BITMASKS:
       // Answer no, so the core asks for each button by id. Bitmasks would need
@@ -236,6 +266,9 @@ bool Initialize()
   s_frame_width = s_frame_height = s_frame_pitch = 0;
   s_have_av_info = false;
 
+  Log::SetFilterLevel(LogLevel::Info);
+  Log::RegisterCallback(CoreLogCallback, nullptr);
+
   retro_set_environment(&EnvironCallback);
   retro_set_video_refresh(&VideoRefreshCallback);
   retro_set_audio_sample(&AudioSampleCallback);
@@ -272,7 +305,10 @@ void SetMetalDevice(void* device)
 void* DisplayTextureHandle()
 {
   HostDisplay* display = g_host_interface ? g_host_interface->GetDisplay() : nullptr;
-  return display ? const_cast<void*>(display->GetDisplayTextureHandle()) : nullptr;
+  if (!display || display->GetRenderAPI() != HostDisplay::RenderAPI::Metal)
+    return nullptr;
+
+  return const_cast<void*>(display->GetDisplayTextureHandle());
 }
 
 bool DisplaySize(unsigned* width, unsigned* height)

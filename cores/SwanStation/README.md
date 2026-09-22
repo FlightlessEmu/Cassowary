@@ -59,6 +59,21 @@ modes, dithering, interlacing, multisampling, the VRAM passes and the
 downsample — was compiled with `xcrun metal` before any of this was run on a
 GPU.
 
+### Known bug: the picture is partly corrupted
+
+Run against Crash Bandicoot (USA) on an iPhone simulator, the game boots, the
+BIOS hands over to the disc, and the title screen renders through Metal: the
+logo, the character and the background all draw. Large rectangular regions of
+the frame come out as flat wrong colours, though.
+
+What has been ruled out so far: the shaders (all 70 variants compile, and the
+generated stage-in/out structs line up), the uniform buffer layouts (they match
+the C++ structs field for field), the vertex data (the geometry is right), and
+a stale viewport leaking out of the VRAM copy pass (that was a real bug and is
+fixed). The remaining suspects are the VRAM write path (the shader that reads
+the uploaded pixels back out of a buffer) and the texture-page / palette
+lookups in the batch fragment shader.
+
 What is deliberately not there yet:
 
 - **Multisampling.** The renderer caps itself at one sample. It needs

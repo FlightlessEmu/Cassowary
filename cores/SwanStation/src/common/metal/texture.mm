@@ -12,7 +12,7 @@ Texture::Texture() = default;
 
 Texture::Texture(Texture&& moved) noexcept
   : m_texture(moved.m_texture), m_width(moved.m_width), m_height(moved.m_height), m_samples(moved.m_samples),
-    m_format(moved.m_format)
+    m_format(moved.m_format), m_cpu_accessible(moved.m_cpu_accessible)
 {
   moved.m_texture = nil;
   moved.m_width = 0;
@@ -36,6 +36,7 @@ Texture& Texture::operator=(Texture&& moved) noexcept
     m_height = moved.m_height;
     m_samples = moved.m_samples;
     m_format = moved.m_format;
+    m_cpu_accessible = moved.m_cpu_accessible;
     moved.m_texture = nil;
     moved.m_width = 0;
     moved.m_height = 0;
@@ -63,10 +64,12 @@ bool Texture::Create(id<MTLDevice> device, uint32_t width, uint32_t height, uint
     desc.sampleCount = (samples > 1) ? samples : 1;
     desc.mipmapLevelCount = 1;
     desc.arrayLength = 1;
-    // Everything is readable by the CPU: the VRAM texture is uploaded to and
-    // read back from, and the display texture is handed to the engine, which
-    // samples it from its own command queue.
-    desc.storageMode = MTLStorageModeShared;
+    // Colour textures are readable by the CPU: VRAM is uploaded to and read
+    // back from, and the display texture is handed to the engine, which
+    // samples it from its own command queue. Depth textures cannot be shared
+    // on every device, and nothing here reads one back, so they are private.
+    m_cpu_accessible = (format != MTLPixelFormatDepth32Float && format != MTLPixelFormatDepth16Unorm);
+    desc.storageMode = m_cpu_accessible ? MTLStorageModeShared : MTLStorageModePrivate;
     desc.usage = MTLTextureUsageShaderRead;
     if (render_target)
       desc.usage |= MTLTextureUsageRenderTarget;
@@ -80,7 +83,7 @@ bool Texture::Create(id<MTLDevice> device, uint32_t width, uint32_t height, uint
     m_samples = (samples > 1) ? samples : 1;
     m_format = format;
 
-    if (data)
+    if (data && m_cpu_accessible)
       Replace(data);
   }
 
@@ -89,7 +92,7 @@ bool Texture::Create(id<MTLDevice> device, uint32_t width, uint32_t height, uint
 
 void Texture::Replace(const void* data)
 {
-  if (m_texture == nil || data == nullptr)
+  if (m_texture == nil || data == nullptr || !m_cpu_accessible)
     return;
 
   const uint32_t bytes_per_row = m_width * 4;
@@ -101,7 +104,7 @@ void Texture::Replace(const void* data)
 
 void Texture::Upload(uint32_t x, uint32_t y, uint32_t width, uint32_t height, const void* data)
 {
-  if (m_texture == nil || data == nullptr || width == 0 || height == 0)
+  if (m_texture == nil || data == nullptr || width == 0 || height == 0 || !m_cpu_accessible)
     return;
 
   const uint32_t bytes_per_row = width * 4;
@@ -113,7 +116,7 @@ void Texture::Upload(uint32_t x, uint32_t y, uint32_t width, uint32_t height, co
 
 void Texture::Download(void* data) const
 {
-  if (m_texture == nil || data == nullptr)
+  if (m_texture == nil || data == nullptr || !m_cpu_accessible)
     return;
 
   const uint32_t bytes_per_row = m_width * 4;
@@ -124,6 +127,7 @@ void Texture::Download(void* data) const
 void Texture::Destroy()
 {
   m_texture = nil;
+  m_cpu_accessible = true;
   m_width = 0;
   m_height = 0;
   m_samples = 1;
