@@ -67,11 +67,23 @@
  * reentrant (e.g. dynamic_linker -> new_recompile_block). */
 #include <pthread.h>
 /* iOS and Mac Catalyst mark pthread_jit_write_protect_np unavailable, so the
- * build defines MUPEN_NO_JIT_WRITE_PROTECT there and the toggle becomes a
- * no-op. MAP_JIT pages start out writable, so the JIT still runs; it just
- * keeps RWX instead of flipping between RW and RX. */
+ * build defines MUPEN_NO_JIT_WRITE_PROTECT there. The symbol still exists at
+ * runtime in the Simulator (it is a Mac process), and the JIT cannot write
+ * its pages without it: on current Apple systems MAP_JIT memory is executable
+ * and only becomes writable while the calling thread has toggled itself into
+ * write mode. Look the symbol up dynamically and fall back to a no-op on a
+ * device, where the dynarec is never used. */
 #if defined(MUPEN_NO_JIT_WRITE_PROTECT)
-#define MUPEN_JIT_PROTECT(x) ((void)0)
+#include <dlfcn.h>
+static int (*mupen_jit_write_protect)(int);
+static void mupen_jit_protect(int enabled)
+{
+  if (mupen_jit_write_protect == NULL)
+    mupen_jit_write_protect = (int (*)(int))dlsym(RTLD_DEFAULT, "pthread_jit_write_protect_np");
+  if (mupen_jit_write_protect != NULL)
+    mupen_jit_write_protect(enabled);
+}
+#define MUPEN_JIT_PROTECT(x) mupen_jit_protect(x)
 #else
 #define MUPEN_JIT_PROTECT(x) pthread_jit_write_protect_np(x)
 #endif

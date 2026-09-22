@@ -42,10 +42,21 @@
 #define ATTR_FMT(fmtpos, attrpos)
 #endif
 
-static jmp_buf CPU_state;
+static _Thread_local jmp_buf CPU_state;
+static _Thread_local volatile sig_atomic_t rsp_recovering;
+
 static void seg_av_handler(int signal_code)
 {
-    longjmp(CPU_state, signal_code);
+    /* Only the thread that is running the RSP can recover by jumping back
+     * into it. A fault anywhere else, or one after the RSP run has finished,
+     * has to keep its default action: the handler is process-wide, and
+     * longjmp-ing into another thread's stack corrupts it (the boot probe
+     * used to freeze the main thread this way). */
+    if (rsp_recovering)
+        longjmp(CPU_state, signal_code);
+
+    signal(signal_code, SIG_DFL);
+    raise(signal_code);
 }
 static void ISA_op_illegal(int signal_code)
 {
@@ -471,7 +482,14 @@ EXPORT unsigned int CALL DoRspCycles(unsigned int cycles)
     for (i = 0; i < NUMBER_OF_SCALAR_REGISTERS; i++)
         MFC0_count[i] = 0;
 #endif
-    run_task();
+    /* The RSP can read outside the RDRAM it was handed (the boot probe does
+     * it on purpose, and a stray address should end the task rather than
+     * kill the process). Recover into this frame, on this thread, instead of
+     * jumping to wherever the last setjmp happened to be. */
+    rsp_recovering = 1;
+    if (setjmp(CPU_state) == 0)
+        run_task();
+    rsp_recovering = 0;
 
 /*
  * An optional EMMS when compiling with Intel SIMD or MMX support.
@@ -568,12 +586,14 @@ EXPORT void CALL InitiateRSP(RSP_INFO Rsp_Info, pu32 CycleCount)
     signal(SIGILL, ISA_op_illegal);
 #ifndef _WIN32
     signal(SIGSEGV, seg_av_handler);
+    rsp_recovering = 1;
     for (SR[ra] = 0; SR[ra] < 0x80000000ul; SR[ra] += 0x200000) {
         recovered_from_exception = setjmp(CPU_state);
         if (recovered_from_exception)
             break;
         SR[at] += DRAM[SR[ra]];
     }
+    rsp_recovering = 0;
     for (SR[at] = 0; SR[at] < 31; SR[at]++) {
         SR[ra] = (SR[ra] & ~1) >> 1;
         if (SR[ra] == 0)

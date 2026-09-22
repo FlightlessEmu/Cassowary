@@ -74,6 +74,9 @@ NSString *MupenControlNames[] = {
     uint8_t _padData[4][OEN64ButtonCount];
     int8_t _xAxis[4];
     int8_t _yAxis[4];
+    // Which players' Rumble Paks are shaking, so the same state is not
+    // reported to the app twice.
+    BOOL _rumble[4];
     NSUInteger _frameCounter;
     double _sampleRate;
     BOOL _initializing;
@@ -429,9 +432,37 @@ static void *dlopen_myself()
     return dlopen(info.dli_fname, 0);
 }
 
-static void MupenGetKeys(int Control, BUTTONS *Keys)
+// The Rumble Pak is driven through a raw pak write: 0x23 0x01, a
+// JCMD_PAK_WRITE at 0xc000, then 0x20 motor bytes that are all 0x01 while the
+// pak shakes and all 0x00 when it stops. The app turns that into haptics.
+static void MupenControllerCommand(int Control, unsigned char *Command)
 {
     GET_CURRENT_OR_RETURN();
+
+    // The core calls this with (-1, NULL) when PIF RAM processing finishes and
+    // after a savestate load. There is no pak command to read in that case.
+    if (Control < 0 || Command == NULL)
+        return;
+
+    if (Command[0] == 0x23 && Command[1] == 0x01)
+    {
+        BOOL on = NO;
+
+        for (int i = 5; i < 0x25; i++)
+        {
+            if (Command[i] != 0)
+            {
+                on = YES;
+                break;
+            }
+        }
+
+        [current setRumble:on forPlayer:(NSUInteger)Control];
+    }
+}
+
+static void MupenGetKeys(int Control, BUTTONS *Keys)
+{    GET_CURRENT_OR_RETURN();
 
     Keys->R_DPAD = current->_padData[Control][OEN64ButtonDPadRight];
     Keys->L_DPAD = current->_padData[Control][OEN64ButtonDPadLeft];
@@ -447,14 +478,29 @@ static void MupenGetKeys(int Control, BUTTONS *Keys)
     Keys->U_CBUTTON = current->_padData[Control][OEN64ButtonCUp];
     Keys->R_TRIG = current->_padData[Control][OEN64ButtonR];
     Keys->L_TRIG = current->_padData[Control][OEN64ButtonL];
-    Keys->X_AXIS = current->_xAxis[Control];
-    Keys->Y_AXIS = current->_yAxis[Control];
+
+    // The d-pad is digital and most games steer with the stick, so a d-pad
+    // direction pushes the stick as well. A game reading the d-pad still sees
+    // it, and one that only reads the stick — Mario Kart 64's steering, for
+    // one — answers the arrow keys and the on-screen d-pad. The sign matches
+    // didMoveN64JoystickDirection: up and right are positive.
+    int stickX = current->_xAxis[Control];
+    int stickY = current->_yAxis[Control];
+    if (current->_padData[Control][OEN64ButtonDPadRight]) stickX += 80;
+    if (current->_padData[Control][OEN64ButtonDPadLeft])  stickX -= 80;
+    if (current->_padData[Control][OEN64ButtonDPadUp])    stickY += 80;
+    if (current->_padData[Control][OEN64ButtonDPadDown])  stickY -= 80;
+
+    Keys->X_AXIS = (int8_t)MAX(-128, MIN(127, stickX));
+    Keys->Y_AXIS = (int8_t)MAX(-128, MIN(127, stickY));
 }
 
 static void MupenInitiateControllers (CONTROL_INFO ControlInfo)
 {
     ControlInfo.Controls[0].Present = 1;
-    ControlInfo.Controls[0].Plugin = PLUGIN_MEMPAK;
+    // Player one carries a Rumble Pak. The app plays its motor as haptics,
+    // and nothing persists a Controller Pak today, so the slot is free.
+    ControlInfo.Controls[0].Plugin = PLUGIN_RUMBLE_PAK;
     ControlInfo.Controls[1].Present = 1;
     ControlInfo.Controls[1].Plugin = PLUGIN_MEMPAK;
     ControlInfo.Controls[2].Present = 1;
@@ -546,19 +592,17 @@ static void MupenSetAudioSpeed(int percent)
     ConfigSetParameter(config, "SharedDataPath", M64TYPE_STRING, dataURL.fileSystemRepresentation);
     ConfigSaveSection("Core");
 
-    // The ARM64 dynarec needs a JIT, which iOS does not allow. Upstream
-    // master has native Apple Silicon support (MAP_JIT, sys_icache_invalidate,
-    // Mach-O linkage — see new_dynarec.c and linkage_arm64.S), so the
-    // simulator, which runs as a Mac process, can use it. On a real device
-    // fall back to the cached interpreter: it is the fastest mode that does
-    // not need executable memory (the pure interpreter decodes every
-    // instruction on every pass).
+    // The ARM64 dynarec needs a JIT (the Simulator and Mac Catalyst have
+    // one; iOS devices do not). Upstream master's darwin-arm64 backend still
+    // stores to an untranslated N64 address a few seconds into a game
+    // (0x800f694a, seen under lldb), so the cached interpreter is the
+    // default everywhere for now. It is still much faster than the pure
+    // interpreter. Set CASSOWARY_N64_DYNAREC=1 to try the dynarec.
     m64p_handle section;
-#if TARGET_OS_SIMULATOR
-    int ival = EMUMODE_DYNAREC;
-#else
     int ival = EMUMODE_INTERPRETER;
-#endif
+    const char *dynarec = getenv("CASSOWARY_N64_DYNAREC");
+    if (dynarec != NULL && dynarec[0] != '0')
+        ival = EMUMODE_DYNAREC;
 
     ConfigOpenSection("Core", &section);
     ConfigSetParameter(section, "R4300Emulator", M64TYPE_INT, &ival);
@@ -626,6 +670,14 @@ static void MupenSetAudioSpeed(int percent)
 {
     NSBundle *coreBundle = [NSBundle bundleForClass:[self class]];
 
+#if TARGET_OS_SIMULATOR
+    // The Simulator's Metal device cannot wrap a host pointer in an MTLBuffer,
+    // and MoltenVK traps when paraLLEl-RDP tries VK_EXT_external_memory_host.
+    // The plugin's device-memory fallback copies RDRAM instead, which is
+    // slower but works. Real devices and the Mac keep the fast path.
+    setenv("PARALLEL_RDP_ALLOW_EXTERNAL_HOST", "0", 1);
+#endif
+
     m64p_dynlib_handle core_handle = dlopen_myself();
 
     __block m64p_dynlib_handle gfxHandle = NULL;
@@ -686,6 +738,7 @@ static void MupenSetAudioSpeed(int percent)
     // Load Input
     input.getKeys = MupenGetKeys;
     input.initiateControllers = MupenInitiateControllers;
+    input.controllerCommand = MupenControllerCommand;
     plugin_start(M64PLUGIN_INPUT);
 
     // Load RSP
@@ -914,7 +967,8 @@ static const int MupenParallelBufferHeight = 480;
 }
 
 // Copy the plugin's latest frame into the buffer OpenEmu gave us. The plugin
-// renders RGBA; the bitmap path was set up for BGRA.
+// renders RGBA; the bitmap path was set up for BGRA, so the channels are
+// swapped while copying.
 - (void)copyParallelFrame
 {
     if (!_parallelVideo || !_frameBuffer || _parallelGetFrame == NULL) {
@@ -1126,6 +1180,19 @@ static const int MupenParallelBufferHeight = 480;
 {
     player -= 1;
     _padData[player][button] = 0;
+}
+
+/// Tell the app the Rumble Pak started or stopped. Players are numbered from
+/// one on the way out, which is what the binding stack uses.
+- (void)setRumble:(BOOL)on forPlayer:(NSUInteger)player
+{
+    if (player > 3 || _rumble[player] == on)
+        return;
+
+    _rumble[player] = on;
+
+    if ([self.delegate respondsToSelector:@selector(gameCore:didChangeRumble:forPlayer:)])
+        [self.delegate gameCore:self didChangeRumble:on forPlayer:player + 1];
 }
 
 #pragma mark - Cheats

@@ -602,6 +602,16 @@ if [[ "$CORE" == Mupen64Plus && "$PLATFORM" != tvos && "$PLATFORM" != tvos-sim ]
     cp -f "$MUPEN_PLUGIN_SRC/mupen64plus-video-parallel.dylib" "$PLUGIN_DIR/PlugIns/"
     cp -f "$MUPEN_PLUGIN_SRC/mupen64plus-rsp-cxd4.dylib" "$PLUGIN_DIR/PlugIns/"
     cp -f "$MUPEN_PLUGIN_SRC/libMoltenVK.dylib" "$PLUGIN_DIR/PlugIns/"
+    # MoltenVK ships unsigned in the xcframework, and dyld refuses to load an
+    # unsigned dylib in the Simulator ("could not load the Vulkan loader").
+    # The Simulator and Catalyst builds are ad-hoc signed, so the nested
+    # dylibs get the same treatment. Device builds are signed by Xcode, which
+    # needs the real identity; leave those alone.
+    if [[ "$PLATFORM" != device ]]; then
+      for lib in "$PLUGIN_DIR/PlugIns/"*.dylib; do
+        codesign --force --sign - "$lib" 2>/dev/null || true
+      done
+    fi
     print -- "staged the paraLLEl-RDP video and RSP plugins"
   else
     print -u2 -- "warning: no paraLLEl-RDP plugins at $MUPEN_PLUGIN_SRC"
