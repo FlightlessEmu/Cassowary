@@ -30,9 +30,12 @@ import OpenEmuKit
 ///
 /// The engine gives every connected controller the system's
 /// `Controller-Mappings.plist` defaults as device bindings, and the responder
-/// resolves the controller's events through those same bindings. Each row
-/// shows the control bound to a button and lights up while that control is
-/// held, so a remap can be tried without starting a game.
+/// resolves the controller's events through those same bindings. Players come
+/// from the same stack: the first pad to connect is player 1, the next player
+/// 2, and so on. With more than one pad connected a picker chooses whose
+/// bindings the rows show. Each row shows the control bound to a button and
+/// lights up while that control is held, so a remap can be tried without
+/// starting a game.
 struct ControllerBindingsView: View {
 
     let systemID: String
@@ -41,8 +44,13 @@ struct ControllerBindingsView: View {
     @State private var layout: ControllerLayout?
     @State private var controller: OESystemController?
     @State private var systemBindings: OESystemBindings?
-    @State private var device: OEDeviceHandler?
-    @State private var player: OEDevicePlayerBindings?
+
+    /// Every connected pad, in the player order the bindings stack gave them.
+    @State private var pads: [ControllerPad] = []
+
+    /// The player whose pad the rows describe.
+    @State private var selectedPlayer: UInt?
+
     @State private var recording: ControllerButton?
     @State private var loadMessage: String?
 
@@ -50,11 +58,11 @@ struct ControllerBindingsView: View {
     /// this is what tells SwiftUI the row text has changed.
     @State private var revision = 0
 
-    /// Whether the missing-association heal below has run for the current
-    /// device. The heal re-posts the device-add notification, which comes
-    /// straight back into this screen's own observer — without the flag the
-    /// screen would re-enter itself until the stack blows.
-    @State private var didHealAssociation = false
+    /// The pads the missing-association heal below has already run for. The
+    /// heal re-posts the device-add notification, which comes straight back
+    /// into this screen's own observer — without this the screen would
+    /// re-enter itself until the stack blows.
+    @State private var healedDevices: Set<ObjectIdentifier> = []
 
     /// The control identifier bound to each button, for the live highlight.
     @State private var controlIdentifiers: [String: String] = [:]
@@ -65,24 +73,34 @@ struct ControllerBindingsView: View {
 
     @StateObject private var input = ControllerInputMonitor()
 
+    /// The pad the rows describe: the picked player's, or the first pad when
+    /// nothing is picked yet.
+    private var selectedPad: ControllerPad? {
+        if let selectedPlayer, let pad = pads.first(where: { $0.playerNumber == selectedPlayer }) {
+            return pad
+        }
+        return pads.first
+    }
+
+    private var player: OEDevicePlayerBindings? { selectedPad?.bindings }
+    private var device: OEDeviceHandler? { selectedPad?.device }
+
     var body: some View {
         Group {
-            if let layout, let player, let device {
+            if let layout, let pad = selectedPad {
                 List {
                     Section {
-                        HStack(spacing: 12) {
-                            Image(systemName: "gamecontroller.fill")
-                                .font(.system(size: 22))
-                                .foregroundStyle(.secondary)
-                                .frame(width: 32)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(device.product.isEmpty ? "Controller" : device.product)
-                                Text(deviceName(device, player: player))
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
+                        // One pad needs no picker: it is the only thing the
+                        // rows can describe.
+                        if pads.count > 1 {
+                            Picker("Controller", selection: $selectedPlayer) {
+                                ForEach(pads) { pad in
+                                    Text(pad.label).tag(Optional(pad.playerNumber))
+                                }
                             }
+                        } else {
+                            padHeader(pad)
                         }
-                        .padding(.vertical, 2)
                     }
 
                     ForEach(Array(layout.groups.enumerated()), id: \.offset) { _, group in
@@ -120,6 +138,9 @@ struct ControllerBindingsView: View {
         .task {
             startWatching()
             load()
+        }
+        .onChange(of: selectedPlayer) { _, _ in
+            syncMonitor()
         }
         .onDisappear {
             input.stop()
@@ -168,8 +189,21 @@ struct ControllerBindingsView: View {
             .animation(.easeOut(duration: 0.09), value: pressed)
     }
 
-    private func deviceName(_ device: OEDeviceHandler, player: OEDevicePlayerBindings) -> String {
-        player.playerNumber > 1 ? "Player \(player.playerNumber)" : "Player 1"
+    /// The one connected pad: its name and the player the bindings stack gave it.
+    private func padHeader(_ pad: ControllerPad) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: "gamecontroller.fill")
+                .font(.system(size: 22))
+                .foregroundStyle(.secondary)
+                .frame(width: 32)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(pad.name)
+                Text(pad.playerLabel)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.vertical, 2)
     }
 
     /// Whether the button's control is held right now.
@@ -250,7 +284,8 @@ struct ControllerBindingsView: View {
         refreshDevice()
     }
 
-    /// Pick the controller the rows describe, and start listening to it.
+    /// Pick the pads the rows can describe, and start listening to the picked
+    /// one.
     private func refreshDevice() {
         // iOS has no IOKit, and Catalyst's sandbox blocks it: the bridge is
         // what turns GameController's controllers into the devices the
@@ -260,48 +295,69 @@ struct ControllerBindingsView: View {
         let handlers = OEDeviceManager.shared.controllerDeviceHandlers
         NSLog("[Cassowary] bindings refresh for %@: %lu device handlers", systemID, UInt(handlers.count))
 
-        let handler = handlers.first
-        if handler !== device {
-            device = handler
-            didHealAssociation = false
-            recording = nil
-            input.stop()
-            if let handler {
-                input.start(handler: handler)
-            }
+        // The bindings object can miss a pad: it was bridged before this
+        // system's bindings existed, and no later add reached it. A pad with
+        // no bindings has no player, so it cannot be listed. Run the same
+        // association a device add would, then read again. The post is
+        // synchronous and this screen observes it too, so `healedDevices`
+        // keeps the re-entrant pass from posting again; by the time the outer
+        // post returns every observer has run and the association resolves.
+        healedDevices.formIntersection(Set(handlers.map { ObjectIdentifier($0) }))
+        let unassociated = handlers.filter { handler in
+            guard systemBindings?.player(for: handler) == 0 else { return false }
+            return !healedDevices.contains(ObjectIdentifier(handler))
         }
-
-        loadPlayer()
-    }
-
-    private func loadPlayer() {
-        guard let systemBindings, let device else {
-            NSLog("[Cassowary] bindings player for %@: no device", systemID)
-            player = nil
-            controlIdentifiers = [:]
-            return
-        }
-
-        player = systemBindings.devicePlayerBindings(for: device)
-            ?? systemBindings.devicePlayerBindings(forPlayer: 1)
-
-        if player == nil, !didHealAssociation {
-            // The bindings object missed this device: it was registered after
-            // the pad was bridged and no later add reached it. Run the same
-            // association a device add would, then read again. The post is
-            // synchronous and this screen observes it too, so the flag keeps
-            // the re-entrant pass from posting again; by the time the outer
-            // post returns every observer has run and the player resolves.
-            didHealAssociation = true
-            NSLog("[Cassowary] bindings player for %@: healing missing association", systemID)
+        if let handler = unassociated.first {
+            healedDevices.insert(ObjectIdentifier(handler))
+            NSLog("[Cassowary] bindings refresh for %@: healing missing association", systemID)
             NotificationCenter.default.post(
                 name: .OEDeviceManagerDidAddDeviceHandler,
                 object: nil,
-                userInfo: [OEDeviceManagerDeviceHandlerUserInfoKey: device])
-            player = systemBindings.devicePlayerBindings(for: device)
-                ?? systemBindings.devicePlayerBindings(forPlayer: 1)
+                userInfo: [OEDeviceManagerDeviceHandlerUserInfoKey: handler])
         }
 
+        pads = connectedPads()
+
+        // Keep the picked player while its pad is around; otherwise fall back
+        // to the first pad, which is all there was before the picker existed.
+        if !pads.contains(where: { $0.playerNumber == selectedPlayer }) {
+            selectedPlayer = pads.first?.playerNumber
+        }
+
+        syncMonitor()
+    }
+
+    /// The connected pads, in the player order the bindings stack gave them.
+    private func connectedPads() -> [ControllerPad] {
+        guard let systemBindings else { return [] }
+
+        return OEDeviceManager.shared.controllerDeviceHandlers
+            .compactMap { handler in
+                // 0 means the bindings object has no player for this pad.
+                let playerNumber = systemBindings.player(for: handler)
+                guard playerNumber > 0 else { return nil }
+                return ControllerPad(
+                    playerNumber: playerNumber,
+                    device: handler,
+                    bindings: systemBindings.devicePlayerBindings(for: handler))
+            }
+            .sorted { $0.playerNumber < $1.playerNumber }
+    }
+
+    /// Point the live highlight at the picked pad, and let the old one go.
+    private func syncMonitor() {
+        guard let pad = selectedPad else {
+            input.stop()
+            return
+        }
+
+        if input.handler !== pad.device {
+            recording = nil
+            input.stop()
+            input.start(handler: pad.device)
+        }
+
+        // The controls are named per pad, so the highlight map follows the pick.
         refreshControlIdentifiers()
     }
 
@@ -391,6 +447,28 @@ struct ControllerBindingsView: View {
         revision += 1
         refreshControlIdentifiers()
     }
+}
+
+/// One connected pad, with the player the bindings stack gave it.
+///
+/// Players come from the stack, not from this screen: the first pad to connect
+/// is player 1, the next player 2, and a pad keeps its player for as long as it
+/// stays connected.
+private struct ControllerPad: Identifiable {
+
+    let playerNumber: UInt
+    let device: OEDeviceHandler
+    let bindings: OEDevicePlayerBindings
+
+    var id: UInt { playerNumber }
+
+    /// The name GameController reports for the pad.
+    var name: String { device.product.isEmpty ? "Controller" : device.product }
+
+    var playerLabel: String { "Player \(playerNumber)" }
+
+    /// "Player 2 — DualSense Wireless Controller", for the picker.
+    var label: String { "\(playerLabel) — \(name)" }
 }
 
 /// Records the next controller press for one button.
