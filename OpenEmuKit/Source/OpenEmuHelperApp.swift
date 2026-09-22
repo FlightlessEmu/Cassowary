@@ -589,6 +589,15 @@ extension OSLog {
         _metalFXUpscalingEnabled = enabled
     }
     
+    /// Enlarge the picture by whole numbers only, so its pixels land on the
+    /// screen's pixel grid. The filter chain falls back to filling the screen
+    /// when the picture would not fit even once.
+    public func setIntegerScalingEnabled(_ enabled: Bool) {
+        gameCore.perform {
+            self._filterChain.integerScaleEnabled = enabled
+        }
+    }
+    
     public func setShaderURL(_ url: URL, parameters: [String: NSNumber]?, completionHandler block: @escaping (Error?) -> Void) {
         gameCore.perform {
             do {

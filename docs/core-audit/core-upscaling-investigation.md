@@ -280,7 +280,45 @@ small per-core setting. This is the first change that lives in a core.
 MetalFX stays as-is (opt-in, device-gated). Auto-enabling it is optional polish,
 not a phase.
 
-## 8. How to check it works
+## 8. What this branch implements
+
+**Phase 1 — classic pixel scalers as presets (no core changes).**
+Eight new `.slangp` presets under `Cassowary/Resources/Shaders/`, each a folder
+the existing picker reads automatically:
+
+| Preset | What it does |
+|---|---|
+| `Scale2x`, `Scale3x` | Andrea Mazzoleni's scale2x/3x, then a bicubic stretch |
+| `2xSaI`, `Super 2xSaI` | Derek Liauw Kie Fa's edge-directed 2x scalers |
+| `Super Eagle` | the SuperEagle 2x scaler |
+| `HQ2x`, `HQ3x`, `HQ4x` | Maxim Stepin's hq2x/3x/4x with their LUTs |
+
+Shared shaders and look-up tables live in `Cassowary/Resources/Shaders/Common/`.
+That folder has no `.slangp`, so `OEShaderStore` skips it as a preset while the
+folder reference still copies it into the app.
+
+Every bundled preset — the 19 that were already there plus these 8 — was
+compile-checked with the `oeshaders compile` tool (`OpenEmu-Shaders/oeshaders`)
+before commit; all 27 pass the glslang → SPIR-V → Metal translation the app
+performs at runtime.
+
+**Phase 2 — pixel-perfect (integer) scaling.**
+A new "Scaling" picker in `GameView` (Fill / Pixel Perfect) drives a new
+`integerScaleEnabled` flag on `FilterChain`
+(`OpenEmu-Shaders/Source/FilterChain.swift`). When on, the final picture is
+enlarged by the largest whole number that fits and centred, instead of being
+stretched to any size. It applies to the unfiltered picture and to presets
+whose last pass is sized from the source; when a preset already renders at
+screen size, or the picture would not fit even once, it falls back to the
+normal fill. The choice is remembered per app
+(`cassowary.integerScaling`) and is safe to toggle mid-game.
+
+Files touched: `OpenEmu-Shaders/Source/FilterChain.swift`,
+`OpenEmuKit/Source/OpenEmuHelperApp.swift`,
+`Cassowary/Sources/Session/GameSession.swift`,
+`Cassowary/Sources/Views/GameView.swift`.
+
+## 9. How to check it works
 
 - Presets: `./Scripts/cassowary/build-cassowary.sh`, then
   `./Scripts/cassowary/run-cassowary.sh`; pick the new filter in-game and
@@ -294,7 +332,7 @@ not a phase.
 
 ---
 
-## 9. Open questions
+## 10. Open questions
 
 - Should the shipped set include a per-system recommended filter (e.g. stretch
   vs xBRZ), or stay fully manual as today?

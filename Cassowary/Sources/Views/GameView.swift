@@ -57,6 +57,10 @@ struct GameView: View {
     /// screen rather than one system, so one pick covers them all.
     @AppStorage("cassowary.metalFXUpscaling") private var metalFXUpscaling = false
 
+    /// Whole-number (pixel-perfect) scaling, remembered for every game. Off
+    /// means the picture fills the screen at whatever size fits.
+    @AppStorage("cassowary.integerScaling") private var integerScaling = false
+
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
@@ -192,6 +196,12 @@ struct GameView: View {
                     }
                     .pickerStyle(.menu)
 
+                    Picker("Scaling: \(integerScaling ? "Pixel Perfect" : "Fill")", selection: integerScalingBinding) {
+                        Text("Fill").tag(false)
+                        Text("Pixel Perfect").tag(true)
+                    }
+                    .pickerStyle(.menu)
+
                     Picker("Rumble: \(rumbleTitle)", selection: rumbleBinding) {
                         ForEach(RumbleStrength.allCases) { strength in
                             Text(strength.title).tag(strength)
@@ -323,6 +333,24 @@ struct GameView: View {
         Binding(
             get: { metalFXUpscaling },
             set: { applyMetalFXUpscaling($0) }
+        )
+    }
+
+    /// Switch whole-number (pixel-perfect) scaling on the running game.
+    ///
+    /// The pick is remembered for every game. The engine keeps the picture
+    /// filling the screen when it would not fit a whole number of times.
+    private func applyIntegerScaling(_ enabled: Bool) {
+        integerScaling = enabled
+        session?.setIntegerScalingEnabled(enabled)
+        show(notice: enabled ? "Pixel-perfect scaling on" : "Fill scaling on")
+    }
+
+    /// The scaling picker's binding.
+    private var integerScalingBinding: Binding<Bool> {
+        Binding(
+            get: { integerScaling },
+            set: { applyIntegerScaling($0) }
         )
     }
 
@@ -462,6 +490,7 @@ struct GameView: View {
             session.start {
                 self.applySavedFilter(on: session)
                 session.setMetalFXUpscalingEnabled(self.metalFXUpscaling)
+                session.setIntegerScalingEnabled(self.integerScaling)
             }
 
             runTestHooks(session)

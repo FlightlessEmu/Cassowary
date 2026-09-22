@@ -391,8 +391,80 @@ public final class FilterChain {
         return outRect.integral
     }
     
+    /// The largest whole-number multiple of `base` that fits in `size`, centred.
+    /// Nil when the base is unknown or does not fit even once, which lets the
+    /// caller fall back to the normal fill.
+    private static func integerScaleRect(base: CGSize, size: CGSize) -> CGRect? {
+        guard base.width >= 1, base.height >= 1,
+              size.width >= base.width, size.height >= base.height else { return nil }
+
+        let scale = floor(min(size.width / base.width, size.height / base.height))
+        guard scale >= 1 else { return nil }
+
+        let scaled = CGSize(width: (base.width * scale).rounded(),
+                            height: (base.height * scale).rounded())
+        return CGRect(origin: .init(x: ((size.width - scaled.width) / 2).rounded(),
+                                    y: ((size.height - scaled.height) / 2).rounded()),
+                      size: scaled)
+    }
+
+    /// The pixel size of the picture integer scaling should enlarge: the core's
+    /// own frame when there is no shader, or a shader's output when its last
+    /// pass is sized from the source. Zero when the size cannot be known up
+    /// front — a viewport-sized pass in the middle of the chain — so the caller
+    /// falls back to the normal fill.
+    private func finalPictureSize() -> CGSize {
+        guard hasShader, passCount > 0 else { return sourceRect.size }
+
+        var size = sourceRect.size
+        for i in 0..<passCount {
+            let p = pass[i]
+            let isLast = i == lastPassIndex
+
+            guard p.isScaled, let scaleX = p.scaleX, let scaleY = p.scaleY else {
+                // A pass with no scale keeps the size it was handed, and the
+                // last pass draws straight at the viewport size.
+                if isLast { return size }
+                continue
+            }
+
+            let xIsViewport: Bool
+            if case .viewport = scaleX { xIsViewport = true } else { xIsViewport = false }
+            let yIsViewport: Bool
+            if case .viewport = scaleY { yIsViewport = true } else { yIsViewport = false }
+
+            if isLast {
+                // A viewport-sized last pass is the picture the user sees, so
+                // the size to enlarge is the one it was handed.
+                if xIsViewport && yIsViewport { return size }
+                // Screen-sized on one axis only: nothing whole to scale.
+                if xIsViewport || yIsViewport { return .zero }
+            } else if xIsViewport || yIsViewport {
+                // Everything after this pass follows the viewport, which is
+                // what we are trying to choose.
+                return .zero
+            }
+
+            switch scaleX {
+            case .source(let scale):  size.width *= scale
+            case .absolute(let width): size.width = CGFloat(width)
+            case .viewport:           break
+            }
+            switch scaleY {
+            case .source(let scale):   size.height *= scale
+            case .absolute(let height): size.height = CGFloat(height)
+            case .viewport:            break
+            }
+        }
+        return size
+    }
+
     private func resize() {
-        let bounds = Self.fitAspectRectIntoRect(aspectSize: aspectSize, size: drawableSize)
+        var bounds = Self.fitAspectRectIntoRect(aspectSize: aspectSize, size: drawableSize)
+        if integerScaleEnabled,
+           let rect = Self.integerScaleRect(base: finalPictureSize(), size: drawableSize) {
+            bounds = rect
+        }
         if outputBounds == bounds {
             return
         }
@@ -425,6 +497,17 @@ public final class FilterChain {
     
     public var drawableSize: CGSize = .zero {
         didSet {
+            resize()
+        }
+    }
+    
+    /// Enlarge the picture by whole numbers only, so its pixels land on the
+    /// screen's pixel grid instead of being stretched to an arbitrary size.
+    /// Off by default: the picture fills the screen at any size. When the
+    /// picture would not fit even once, the normal fill is used.
+    public var integerScaleEnabled = false {
+        didSet {
+            guard integerScaleEnabled != oldValue else { return }
             resize()
         }
     }
@@ -841,6 +924,7 @@ public final class FilterChain {
     /// Remove the active shader and go back to unfiltered output.
     public func clearShader() {
         freeShaderResources()
+        resize()
     }
 
     public func setCompiledShader(_ container: CompiledShaderContainer) throws {
@@ -1037,6 +1121,10 @@ public final class FilterChain {
         hasShader = true
         renderTargetsNeedResize = true
         historyNeedsInit = true
+
+        // The picture the final pass samples may now be a different size, so
+        // integer scaling has to choose its output bounds again.
+        resize()
     }
     
     private func loadLuts(_ cc: CompiledShaderContainer) {

@@ -424,6 +424,13 @@ final class GameSession: NSObject {
         helper.setMetalFXUpscalingEnabled(enabled)
     }
 
+    /// Enlarge the picture by whole numbers only, so its pixels land on the
+    /// screen's pixel grid. The engine falls back to filling the screen when
+    /// the picture would not fit even once, so this is always safe to call.
+    func setIntegerScalingEnabled(_ enabled: Bool) {
+        helper.setIntegerScalingEnabled(enabled)
+    }
+
     // MARK: - Save states
 
     /// Where save states for a game live.
