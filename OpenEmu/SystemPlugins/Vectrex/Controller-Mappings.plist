@@ -216,13 +216,13 @@
 		<key>OEVectrexAnalogRight</key>
 		<string>OEControllerGCExtendedGamepadProfileDPadRight</string>
 		<key>OEVectrexButton3</key>
-		<string>OEControllerGCExtendedGamepadProfileButtonB</string>
+		<string>OEControllerGCExtendedGamepadProfileButtonX</string>
 		<key>OEVectrexButton2</key>
-		<string>OEControllerGCExtendedGamepadProfileButtonA</string>
+		<string>OEControllerGCExtendedGamepadProfileButtonB</string>
 		<key>OEVectrexButton4</key>
 		<string>OEControllerGCExtendedGamepadProfileButtonY</string>
 		<key>OEVectrexButton1</key>
-		<string>OEControllerGCExtendedGamepadProfileButtonX</string>
+		<string>OEControllerGCExtendedGamepadProfileButtonA</string>
 	</dict>
 	<key>OEControllerNintendoSwitchProController</key>
 	<dict>

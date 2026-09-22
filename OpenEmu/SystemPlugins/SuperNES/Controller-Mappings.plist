@@ -320,13 +320,13 @@
 		<key>OESNESButtonRight</key>
 		<string>OEControllerGCExtendedGamepadProfileDPadRight</string>
 		<key>OESNESButtonA</key>
-		<string>OEControllerGCExtendedGamepadProfileButtonB</string>
-		<key>OESNESButtonB</key>
 		<string>OEControllerGCExtendedGamepadProfileButtonA</string>
+		<key>OESNESButtonB</key>
+		<string>OEControllerGCExtendedGamepadProfileButtonB</string>
 		<key>OESNESButtonX</key>
-		<string>OEControllerGCExtendedGamepadProfileButtonY</string>
-		<key>OESNESButtonY</key>
 		<string>OEControllerGCExtendedGamepadProfileButtonX</string>
+		<key>OESNESButtonY</key>
+		<string>OEControllerGCExtendedGamepadProfileButtonY</string>
 		<key>OESNESButtonTriggerLeft</key>
 		<string>OEControllerGCExtendedGamepadProfileButtonL1</string>
 		<key>OESNESButtonTriggerRight</key>

@@ -378,11 +378,11 @@
 		<key>OEGCButtonB</key>
 		<string>OEControllerGCExtendedGamepadProfileButtonB</string>
 		<key>OEGCButtonX</key>
-		<string>OEControllerGCExtendedGamepadProfileButtonA</string>
-		<key>OEGCButtonA</key>
-		<string>OEControllerGCExtendedGamepadProfileButtonY</string>
-		<key>OEGCButtonY</key>
 		<string>OEControllerGCExtendedGamepadProfileButtonX</string>
+		<key>OEGCButtonA</key>
+		<string>OEControllerGCExtendedGamepadProfileButtonA</string>
+		<key>OEGCButtonY</key>
+		<string>OEControllerGCExtendedGamepadProfileButtonY</string>
 		<key>OEGCButtonL</key>
 		<string>OEControllerGCExtendedGamepadProfileButtonL2</string>
 		<key>OEGCButtonR</key>

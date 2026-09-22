@@ -263,9 +263,9 @@
 		<key>OE7800ButtonRight</key>
 		<string>OEControllerGCExtendedGamepadProfileDPadRight</string>
 		<key>OE7800ButtonFire2</key>
-		<string>OEControllerGCExtendedGamepadProfileButtonA</string>
+		<string>OEControllerGCExtendedGamepadProfileButtonB</string>
 		<key>OE7800ButtonFire1</key>
-		<string>OEControllerGCExtendedGamepadProfileButtonX</string>
+		<string>OEControllerGCExtendedGamepadProfileButtonA</string>
 		<key>OE7800ButtonSelect</key>
 		<string>OEControllerGCExtendedGamepadProfileButtonHome</string>
 		<key>OE7800ButtonPause</key>

@@ -341,13 +341,13 @@
 		<key>OESegaCDButtonRight</key>
 		<string>OEControllerGCExtendedGamepadProfileDPadRight</string>
 		<key>OESegaCDButtonA</key>
-		<string>OEControllerGCExtendedGamepadProfileButtonX</string>
-		<key>OESegaCDButtonB</key>
-		<string>OEControllerGCExtendedGamepadProfileButtonY</string>
-		<key>OESegaCDButtonC</key>
-		<string>OEControllerGCExtendedGamepadProfileButtonB</string>
-		<key>OESegaCDButtonX</key>
 		<string>OEControllerGCExtendedGamepadProfileButtonA</string>
+		<key>OESegaCDButtonB</key>
+		<string>OEControllerGCExtendedGamepadProfileButtonB</string>
+		<key>OESegaCDButtonC</key>
+		<string>OEControllerGCExtendedGamepadProfileButtonX</string>
+		<key>OESegaCDButtonX</key>
+		<string>OEControllerGCExtendedGamepadProfileButtonY</string>
 		<key>OESegaCDButtonY</key>
 		<string>OEControllerGCExtendedGamepadProfileButtonL1</string>
 		<key>OESegaCDButtonZ</key>

@@ -338,13 +338,13 @@
 		<key>OEArcadeButtonRight</key>
 		<string>OEControllerGCExtendedGamepadProfileDPadRight</string>
 		<key>OEArcadeButton1</key>
-		<string>OEControllerGCExtendedGamepadProfileButtonX</string>
-		<key>OEArcadeButton2</key>
-		<string>OEControllerGCExtendedGamepadProfileButtonY</string>
-		<key>OEArcadeButton3</key>
 		<string>OEControllerGCExtendedGamepadProfileButtonA</string>
-		<key>OEArcadeButton4</key>
+		<key>OEArcadeButton2</key>
 		<string>OEControllerGCExtendedGamepadProfileButtonB</string>
+		<key>OEArcadeButton3</key>
+		<string>OEControllerGCExtendedGamepadProfileButtonX</string>
+		<key>OEArcadeButton4</key>
+		<string>OEControllerGCExtendedGamepadProfileButtonY</string>
 		<key>OEArcadeButton5</key>
 		<string>OEControllerGCExtendedGamepadProfileButtonR1</string>
 		<key>OEArcadeButton6</key>

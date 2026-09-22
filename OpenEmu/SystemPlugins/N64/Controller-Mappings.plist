@@ -346,7 +346,7 @@
 		<key>OEN64ButtonA</key>
 		<string>OEControllerGCExtendedGamepadProfileButtonA</string>
 		<key>OEN64ButtonB</key>
-		<string>OEControllerGCExtendedGamepadProfileButtonX</string>
+		<string>OEControllerGCExtendedGamepadProfileButtonB</string>
 		<key>OEN64ButtonL</key>
 		<string>OEControllerGCExtendedGamepadProfileButtonL1</string>
 		<key>OEN64ButtonR</key>

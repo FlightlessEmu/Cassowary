@@ -343,11 +343,11 @@
 		<key>OEPCFXButton3</key>
 		<string>OEControllerGCExtendedGamepadProfileButtonX</string>
 		<key>OEPCFXButton2</key>
-		<string>OEControllerGCExtendedGamepadProfileButtonY</string>
-		<key>OEPCFXButton1</key>
 		<string>OEControllerGCExtendedGamepadProfileButtonB</string>
-		<key>OEPCFXButton4</key>
+		<key>OEPCFXButton1</key>
 		<string>OEControllerGCExtendedGamepadProfileButtonA</string>
+		<key>OEPCFXButton4</key>
+		<string>OEControllerGCExtendedGamepadProfileButtonY</string>
 		<key>OEPCFXButton5</key>
 		<string>OEControllerGCExtendedGamepadProfileButtonL1</string>
 		<key>OEPCFXButton6</key>

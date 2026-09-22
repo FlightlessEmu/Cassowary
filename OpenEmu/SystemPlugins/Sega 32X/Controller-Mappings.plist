@@ -341,13 +341,13 @@
 		<key>OESega32XButtonRight</key>
 		<string>OEControllerGCExtendedGamepadProfileDPadRight</string>
 		<key>OESega32XButtonA</key>
-		<string>OEControllerGCExtendedGamepadProfileButtonX</string>
-		<key>OESega32XButtonB</key>
-		<string>OEControllerGCExtendedGamepadProfileButtonY</string>
-		<key>OESega32XButtonC</key>
-		<string>OEControllerGCExtendedGamepadProfileButtonB</string>
-		<key>OESega32XButtonX</key>
 		<string>OEControllerGCExtendedGamepadProfileButtonA</string>
+		<key>OESega32XButtonB</key>
+		<string>OEControllerGCExtendedGamepadProfileButtonB</string>
+		<key>OESega32XButtonC</key>
+		<string>OEControllerGCExtendedGamepadProfileButtonX</string>
+		<key>OESega32XButtonX</key>
+		<string>OEControllerGCExtendedGamepadProfileButtonY</string>
 		<key>OESega32XButtonY</key>
 		<string>OEControllerGCExtendedGamepadProfileButtonL1</string>
 		<key>OESega32XButtonZ</key>

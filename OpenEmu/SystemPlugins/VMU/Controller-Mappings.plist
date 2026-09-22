@@ -235,9 +235,9 @@
 		<key>OEVMUButtonRight</key>
 		<string>OEControllerGCExtendedGamepadProfileDPadRight</string>
 		<key>OEVMUButtonB</key>
-		<string>OEControllerGCExtendedGamepadProfileButtonA</string>
+		<string>OEControllerGCExtendedGamepadProfileButtonB</string>
 		<key>OEVMUButtonA</key>
-		<string>OEControllerGCExtendedGamepadProfileButtonX</string>
+		<string>OEControllerGCExtendedGamepadProfileButtonA</string>
 		<key>OEVMUButtonSleep</key>
 		<string>OEControllerGCExtendedGamepadProfileButtonHome</string>
 		<key>OEVMUButtonMode</key>

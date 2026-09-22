@@ -235,9 +235,9 @@
 		<key>OEWSButtonX2</key>
 		<string>OEControllerGCExtendedGamepadProfileDPadRight</string>
 		<key>OEWSButtonB</key>
-		<string>OEControllerGCExtendedGamepadProfileButtonA</string>
+		<string>OEControllerGCExtendedGamepadProfileButtonB</string>
 		<key>OEWSButtonA</key>
-		<string>OEControllerGCExtendedGamepadProfileButtonX</string>
+		<string>OEControllerGCExtendedGamepadProfileButtonA</string>
 		<key>OEWSButtonStart</key>
 		<string>OEControllerGCExtendedGamepadProfileButtonHome</string>
 		<key>OEWSButtonSound</key>
