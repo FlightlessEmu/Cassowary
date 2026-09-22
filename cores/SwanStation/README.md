@@ -59,20 +59,31 @@ modes, dithering, interlacing, multisampling, the VRAM passes and the
 downsample — was compiled with `xcrun metal` before any of this was run on a
 GPU.
 
-### Known bug: the picture is partly corrupted
+### Comparing the Metal renderer against the software one
 
-Run against Crash Bandicoot (USA) on an iPhone simulator, the game boots, the
-BIOS hands over to the disc, and the title screen renders through Metal: the
-logo, the character and the background all draw. Large rectangular regions of
-the frame come out as flat wrong colours, though.
+`Scripts/cassowary/dump-psx-frame.py` boots a disc in this core on the Mac -
+no app, no simulator - and writes the frame out as a PPM. Run it twice, once
+with `--software`, and the two pictures of the same moment can be compared with
+`Scripts/cassowary/compare-psx-frames.py`, which reports how many pixels differ
+and writes a picture of the differences. The build is incremental, so a change
+to the renderer is a few seconds to try rather than an app build and a
+simulator install.
 
-What has been ruled out so far: the shaders (all 70 variants compile, and the
-generated stage-in/out structs line up), the uniform buffer layouts (they match
-the C++ structs field for field), the vertex data (the geometry is right), and
-a stale viewport leaking out of the VRAM copy pass (that was a real bug and is
-fixed). The remaining suspects are the VRAM write path (the shader that reads
-the uploaded pixels back out of a buffer) and the texture-page / palette
-lookups in the batch fragment shader.
+Two things to know about the comparison. The two runs are not in step: the
+disc reader is paced by real time, so the same frame count lands at slightly
+different points. Dumping a run of consecutive frames from each
+(`--series N`) and matching them by content lines them up. And the software
+renderer hands over RGB565 while the hardware one works in RGBA8, so a few
+levels of rounding difference are expected everywhere.
+
+Where it stands: on the Crash Bandicoot title screen (512x224, frame 3000) the
+two renderers agree exactly, pixel for pixel. On the main menu the same disc
+differs by about a mean of 20 per channel, and the difference picture puts it
+on the logo and the character - the brightly lit, textured parts - while the
+background art and the menu text match. Forcing blending off does not change
+it, so the next things to look at are the texture upload path for the writes
+that are still done with the shader (wrapped writes, and anything above 1x
+resolution) and the vertex colour the batch shader multiplies by.
 
 What is deliberately not there yet:
 

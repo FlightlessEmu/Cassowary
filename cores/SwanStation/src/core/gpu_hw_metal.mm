@@ -1050,8 +1050,11 @@ void GPU_HW_Metal::UpdateDisplay()
                                        m_crtc_state.display_vram_width, m_crtc_state.display_vram_height,
                                        GetDisplayAspectRatio());
 
+  const InterlacedRenderMode interlaced = GetInterlacedRenderMode();
+  const uint32_t height_div2 = (interlaced == InterlacedRenderMode::SeparateFields) ? 1u : 0u;
+
   const uint32_t display_width = m_crtc_state.display_vram_width;
-  const uint32_t display_height = m_crtc_state.display_vram_height;
+  const uint32_t display_height = m_crtc_state.display_vram_height >> height_div2;
   if (display_width == 0 || display_height == 0)
   {
     EndFrame();
@@ -1077,13 +1080,12 @@ void GPU_HW_Metal::UpdateDisplay()
   }
 
   const bool depth_24bit = m_GPUSTAT.display_area_color_depth_24;
-  const InterlacedRenderMode interlaced = GetInterlacedRenderMode();
 
   // The display shader samples whatever holds the 1x image: the VRAM texture
   // directly, or the downsampled copy when the internal resolution is higher
   // than the screen's.
   Metal::Texture* source_texture = &m_vram_texture;
-  uint32_t source_resolution_scale = depth_24bit ? 1u : m_resolution_scale;
+  uint32_t source_resolution_scale = m_resolution_scale;
   if (IsUsingDownsampling())
   {
     DownsampleFramebufferBoxFilter(m_vram_texture, m_crtc_state.display_vram_left * m_resolution_scale,
@@ -1094,6 +1096,15 @@ void GPU_HW_Metal::UpdateDisplay()
     source_resolution_scale = 1;
   }
 
+  // The same values the other back ends push, with the y flipped the other way
+  // round because Metal's textures start at the top. The shader takes the
+  // source origin from the CRTC's X, then crops the difference between that
+  // and where the display actually starts; u_resolution_scale stays the
+  // session's scale, since the shader's RESOLUTION_SCALE has always been the
+  // scale of the texture it samples.
+  const uint32_t field_offset =
+    (interlaced != InterlacedRenderMode::None) ? GetInterlacedDisplayField() : 0;
+
   struct Uniforms
   {
     uint32_t u_vram_offset[2];
@@ -1101,11 +1112,9 @@ void GPU_HW_Metal::UpdateDisplay()
     uint32_t u_field_offset;
     uint32_t u_resolution_scale;
     uint32_t u_pad0;
-  } uniforms = {{m_crtc_state.display_vram_left, m_crtc_state.display_vram_top},
-                m_crtc_state.display_origin_left,
-                (interlaced == InterlacedRenderMode::InterleavedFields && m_GPUSTAT.vertical_interlace) ?
-                  static_cast<uint32_t>(m_crtc_state.display_origin_top + 1) :
-                  0u,
+  } uniforms = {{m_crtc_state.regs.X * source_resolution_scale, m_crtc_state.display_vram_top},
+                (m_crtc_state.display_vram_left - m_crtc_state.regs.X) * source_resolution_scale,
+                field_offset,
                 source_resolution_scale,
                 0u};
   UploadUniforms(&uniforms, sizeof(uniforms));
@@ -1283,6 +1292,44 @@ void GPU_HW_Metal::UpdateVRAM(uint32_t x, uint32_t y, uint32_t width, uint32_t h
   }
 
   const uint32_t num_pixels = width * height;
+
+  // At 1x the upload is a straight CPU write into the VRAM texture: the pixels
+  // the console handed over are the pixels VRAM holds, one 16-bit value each.
+  // A write that runs off the edge of VRAM wraps, which is the one case that
+  // still needs the shader.
+  const bool wraps = (bounds.GetWidth() != width || bounds.GetHeight() != height);
+  if (m_resolution_scale == 1 && !wraps)
+  {
+    m_vram_upload_buffer.resize(num_pixels);
+    const uint16_t mask_or = set_mask ? 0x8000 : 0x0000;
+    const uint16_t* source_pixels = static_cast<const uint16_t*>(data);
+    for (uint32_t i = 0; i < num_pixels; i++)
+      m_vram_upload_buffer[i] = VRAMRGBA5551ToRGBA8888(source_pixels[i] | mask_or);
+
+    if (check_mask)
+    {
+      // "Check mask before draw": a pixel whose mask bit is already set is
+      // left alone. VRAM carries that bit in its alpha channel and it is
+      // readable from here, so this is a per-pixel test rather than the depth
+      // test the shader would do.
+      std::vector<uint32_t> existing(num_pixels);
+      [m_vram_texture.GetTexture() getBytes:existing.data()
+                                 bytesPerRow:width * sizeof(uint32_t)
+                                  fromRegion:MTLRegionMake2D(bounds.left, bounds.top, width, height)
+                                 mipmapLevel:0];
+
+      for (uint32_t i = 0; i < num_pixels; i++)
+      {
+        if ((existing[i] >> 24) != 0)
+          m_vram_upload_buffer[i] = existing[i];
+      }
+    }
+
+    m_vram_texture.Upload(bounds.left, bounds.top, width, height, m_vram_upload_buffer.data());
+    RestoreGraphicsAPIState();
+    return;
+  }
+
   const auto map_result = m_texture_stream_buffer->Map(sizeof(uint16_t), num_pixels * sizeof(uint16_t));
   std::memcpy(map_result.pointer, data, num_pixels * sizeof(uint16_t));
   m_texture_stream_buffer->Unmap(num_pixels * sizeof(uint16_t));

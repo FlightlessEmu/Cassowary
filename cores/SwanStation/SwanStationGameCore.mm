@@ -133,6 +133,12 @@ static int16_t SwanStationInputState(unsigned port, unsigned device, unsigned in
     // copied out here once per frame.
     uint8_t *_frameBuffer;
     NSUInteger _frameBufferSize;
+    // The buffer the engine handed over for this frame, and how big it is. The
+    // engine uploads from the pointer it gave us and checks that it got the
+    // same one back, so when it offers a buffer the frame is copied into that
+    // instead of into one of ours.
+    void *_videoBufferHint;
+    NSUInteger _videoBufferHintSize;
     OEIntSize _frameSize;
     __strong id<MTLDevice> _metalDevice;
 }
@@ -259,7 +265,12 @@ static int16_t SwanStationInputState(unsigned port, unsigned device, unsigned in
 
     const NSUInteger rowBytes = width * 2;  // RGB565, see the pixel format below
     const NSUInteger required = rowBytes * height;
-    if (required > _frameBufferSize)
+
+    // Into the engine's buffer when it offered one, into ours otherwise.
+    uint8_t *base = (_videoBufferHint != NULL) ? (uint8_t *)_videoBufferHint : _frameBuffer;
+    NSUInteger capacity = (_videoBufferHint != NULL) ? _videoBufferHintSize : _frameBufferSize;
+
+    if (_videoBufferHint == NULL && required > capacity)
     {
         uint8_t *resized = (uint8_t *)realloc(_frameBuffer, required);
         if (resized == NULL)
@@ -267,11 +278,19 @@ static int16_t SwanStationInputState(unsigned port, unsigned device, unsigned in
 
         _frameBuffer = resized;
         _frameBufferSize = required;
+        base = _frameBuffer;
+        capacity = _frameBufferSize;
     }
 
+    // A PlayStation game can change resolution mid-frame, and the engine sizes
+    // its buffer from the frame before this one. It resizes for the next
+    // frame; this one is clipped rather than written past the end.
+    const NSUInteger rowsThatFit = (rowBytes > 0) ? (capacity / rowBytes) : 0;
+    const NSUInteger rowsToCopy = MIN(height, rowsThatFit);
+
     const uint8_t *source = (const uint8_t *)pixels;
-    uint8_t *destination = _frameBuffer;
-    for (NSUInteger row = 0; row < height; row++)
+    uint8_t *destination = base;
+    for (NSUInteger row = 0; row < rowsToCopy; row++)
     {
         memcpy(destination, source, rowBytes);
         source += pitch;
@@ -304,10 +323,19 @@ static int16_t SwanStationInputState(unsigned port, unsigned device, unsigned in
 
 - (const void *)getVideoBufferWithHint:(void *)hint
 {
-    // The core's own buffer is used as the source (see -executeFrame:), so the
-    // hint is ignored rather than adopted: the engine's buffer is not ours to
-    // size, and a PlayStation game can change resolution mid-frame.
-    (void)hint;
+    // The engine uploads from the buffer it hands over and expects the same
+    // pointer back (see MTLGameRenderer's assertion), so the frame is copied
+    // into it. It is sized from -bufferSize, which follows the core's own
+    // frame size.
+    if (hint != NULL)
+    {
+        _videoBufferHint = hint;
+        _videoBufferHintSize = (NSUInteger)self.bufferSize.width * (NSUInteger)self.bufferSize.height * 2;
+        return hint;
+    }
+
+    _videoBufferHint = NULL;
+    _videoBufferHintSize = 0;
     return _frameBuffer;
 }
 
