@@ -99,11 +99,6 @@ int        main_volume_get_muted(void);
 
 m64p_error main_reset(int do_hard_reset);
 
-/* Pace the emulator to the VI rate. The OpenEmu front end calls this from its
-   own new_vi, because the fork replaces that function and this used to be
-   static. */
-void       main_apply_speed_limiter(void);
-
 m64p_error open_pif(const unsigned char* pifimage, unsigned int size);
 
 #endif /* __MAIN_H__ */

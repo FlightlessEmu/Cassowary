@@ -315,11 +315,11 @@
 		<key>OE3DOButtonRight</key>
 		<string>OEControllerGCExtendedGamepadProfileDPadRight</string>
 		<key>OE3DOButtonA</key>
-		<string>OEControllerGCExtendedGamepadProfileButtonX</string>
-		<key>OE3DOButtonB</key>
 		<string>OEControllerGCExtendedGamepadProfileButtonA</string>
-		<key>OE3DOButtonC</key>
+		<key>OE3DOButtonB</key>
 		<string>OEControllerGCExtendedGamepadProfileButtonB</string>
+		<key>OE3DOButtonC</key>
+		<string>OEControllerGCExtendedGamepadProfileButtonX</string>
 		<key>OE3DOButtonL</key>
 		<string>OEControllerGCExtendedGamepadProfileButtonL1</string>
 		<key>OE3DOButtonR</key>

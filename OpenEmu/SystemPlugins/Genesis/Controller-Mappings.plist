@@ -341,13 +341,13 @@
 		<key>OEGenesisButtonRight</key>
 		<string>OEControllerGCExtendedGamepadProfileDPadRight</string>
 		<key>OEGenesisButtonA</key>
-		<string>OEControllerGCExtendedGamepadProfileButtonX</string>
-		<key>OEGenesisButtonB</key>
-		<string>OEControllerGCExtendedGamepadProfileButtonY</string>
-		<key>OEGenesisButtonC</key>
-		<string>OEControllerGCExtendedGamepadProfileButtonB</string>
-		<key>OEGenesisButtonX</key>
 		<string>OEControllerGCExtendedGamepadProfileButtonA</string>
+		<key>OEGenesisButtonB</key>
+		<string>OEControllerGCExtendedGamepadProfileButtonB</string>
+		<key>OEGenesisButtonC</key>
+		<string>OEControllerGCExtendedGamepadProfileButtonX</string>
+		<key>OEGenesisButtonX</key>
+		<string>OEControllerGCExtendedGamepadProfileButtonY</string>
 		<key>OEGenesisButtonY</key>
 		<string>OEControllerGCExtendedGamepadProfileButtonL1</string>
 		<key>OEGenesisButtonZ</key>

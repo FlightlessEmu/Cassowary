@@ -237,7 +237,7 @@
 		<key>OEGBButtonA</key>
 		<string>OEControllerGCExtendedGamepadProfileButtonA</string>
 		<key>OEGBButtonB</key>
-		<string>OEControllerGCExtendedGamepadProfileButtonX</string>
+		<string>OEControllerGCExtendedGamepadProfileButtonB</string>
 		<key>OEGBButtonStart</key>
 		<string>OEControllerGCExtendedGamepadProfileButtonHome</string>
 		<key>OEGBButtonSelect</key>

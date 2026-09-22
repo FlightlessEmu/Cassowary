@@ -207,9 +207,9 @@
 		<key>OESMSButtonRight</key>
 		<string>OEControllerGCExtendedGamepadProfileDPadRight</string>
 		<key>OESMSButtonA</key>
-		<string>OEControllerGCExtendedGamepadProfileButtonX</string>
-		<key>OESMSButtonB</key>
 		<string>OEControllerGCExtendedGamepadProfileButtonA</string>
+		<key>OESMSButtonB</key>
+		<string>OEControllerGCExtendedGamepadProfileButtonB</string>
 		<key>OESMSButtonStart</key>
 		<string>OEControllerGCExtendedGamepadProfileButtonHome</string>
 	</dict>

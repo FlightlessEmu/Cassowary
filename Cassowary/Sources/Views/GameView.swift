@@ -45,7 +45,6 @@ struct GameView: View {
 
     @State private var session: GameSession?
     @State private var layout: ControllerLayout?
-    @State private var padControllers: PhysicalControllerManager?
     @State private var keyboardInput: KeyboardControlManager?
     @State private var errorMessage: String?
     @State private var isPaused = false
@@ -123,8 +122,6 @@ struct GameView: View {
             startGame()
         }
         .onDisappear {
-            padControllers?.stop()
-            padControllers = nil
             keyboardInput?.stop()
             keyboardInput = nil
             session?.stop()
@@ -445,14 +442,10 @@ struct GameView: View {
                 self.layout = layout
                 session.layout = layout
 
-                // Physical gamepads drive the same buttons, through the same
-                // session, as the on-screen pad. On iOS the engine's bridge
-                // does this instead, through the bindings (see GameSession).
-#if targetEnvironment(macCatalyst)
-                let controllers = PhysicalControllerManager(session: session, layout: layout)
-                controllers.start()
-                padControllers = controllers
-#endif
+                // Physical gamepads reach the game through the engine's
+                // bindings — the bridge starts them in GameSession — so they
+                // drive the same buttons as the on-screen pad, and the
+                // Controller Bindings screen can remap them.
 
                 // A hardware keyboard drives them too, resolved through the
                 // engine bindings the settings screen edits.

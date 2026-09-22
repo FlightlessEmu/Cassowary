@@ -265,9 +265,9 @@
 		<key>OEJaguarButtonC</key>
 		<string>OEControllerGCExtendedGamepadProfileButtonX</string>
 		<key>OEJaguarButtonB</key>
-		<string>OEControllerGCExtendedGamepadProfileButtonA</string>
-		<key>OEJaguarButtonA</key>
 		<string>OEControllerGCExtendedGamepadProfileButtonB</string>
+		<key>OEJaguarButtonA</key>
+		<string>OEControllerGCExtendedGamepadProfileButtonA</string>
 		<key>OEJaguarButtonPause</key>
 		<string>OEControllerGCExtendedGamepadProfileButtonHome</string>
 		<key>OEJaguarButtonOption</key>

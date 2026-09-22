@@ -58,11 +58,5 @@ void new_vi()
         cheat_apply_cheats(&g_cheat_ctx, r4300, ENTRY_VI);
     }
 
-    // Mupen's own new_vi paces the emulator here. The fork replaced that
-    // function and left the call out, which was fine while a vsynced macOS
-    // renderer back-pressured the core; on this port nothing else does, so
-    // games ran as fast as the host could render.
-    main_apply_speed_limiter();
-
     [current videoInterrupt];
 }

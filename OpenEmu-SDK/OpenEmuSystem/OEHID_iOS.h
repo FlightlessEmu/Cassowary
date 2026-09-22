@@ -27,20 +27,20 @@
 /*!
  * @header OEHID_iOS.h
  * @abstract The small slice of IOKit's HID API that OpenEmu's shared code uses,
- *   re-declared so it can compile on iOS.
+ *   re-declared so it can compile where IOKit is not available.
  *
  * @discussion OpenEmu's binding model is built around HID *elements*: the
  *   controller database describes a controller by the HID usage of each button
- *   and axis, and every event carries the usage it came from. iOS has no IOKit,
- *   but GameController exposes exactly the same thing — `GCControllerElement`
- *   has `usage` and `usagePage` properties that report the same values the
- *   HID descriptor does.
+ *   and axis, and every event carries the usage it came from. iOS has no IOKit
+ *   at all, and Mac Catalyst's sandbox blocks the HID user client, but
+ *   GameController exposes exactly the same thing — `GCControllerElement` has
+ *   `usage` and `usagePage` properties that report the same values the HID
+ *   descriptor does.
  *
- *   So rather than rewrite the binding layer, the iOS port provides this
- *   header plus `OEHID_iOS.m`, which implement just enough of the IOKit HID
- *   types and functions for the shared code to run unchanged. The types are
- *   opaque handles; the functions read properties out of a dictionary the
- *   GameController bridge fills in.
+ *   So rather than rewrite the binding layer, this header plus `OEHID_iOS.m`
+ *   implement just enough of the IOKit HID types and functions for the shared
+ *   code to run unchanged. The types are opaque handles; the functions read
+ *   properties out of a dictionary the GameController bridge fills in.
  *
  *   Nothing here is a general purpose IOKit replacement. It covers the calls
  *   the OpenEmu-SDK actually makes and no more.
@@ -51,28 +51,37 @@
 
 #import <TargetConditionals.h>
 
-// Wherever the macOS SDK is in use, IOKit's headers are visible and its types
-// are the real ones. That covers macOS and Mac Catalyst. (Catalyst reaches
-// IOKit indirectly: Foundation includes NSAppleEventDescriptor, which pulls in
-// CoreServices and from there CarbonCore and IOKit.) Only the iOS device and
-// simulator builds need the stand-in declarations below.
-//
-// Note that Mac Catalyst still *behaves* like iOS — `OEDeviceManager` takes the
-// iOS path there — even though the types come from IOKit. The shim's function
-// implementations are compiled on iOS and Catalyst alike, so nothing needs to
-// link IOKit at runtime.
+// The real IOKit headers are used on macOS, where `OEDeviceManager`
+// enumerates devices through IOKit itself, and on Mac Catalyst, where the
+// system headers pull IOKit in anyway and the shim below has to be declared
+// against the real types. Catalyst cannot *use* IOKit, though: the app runs
+// sandboxed and the sandbox blocks the HID user client, so `OEDeviceManager`
+// sees no devices. iOS has no IOKit at all. Those two platforms take the
+// GameController bridge (`OEiOSGameControllerManager`) instead, which builds
+// the devices from what GameController reports.
 #if TARGET_OS_OSX || TARGET_OS_MACCATALYST
 #import <IOKit/hid/IOHIDLib.h>
 #import <IOKit/hid/IOHIDUsageTables.h>
 #import <IOKit/hid/IOHIDKeys.h>
 #import <IOKit/usb/USBSpec.h>
-#elif TARGET_OS_IOS
+#endif /* TARGET_OS_OSX || TARGET_OS_MACCATALYST */
+
+#if !TARGET_OS_OSX
 
 #import <Foundation/Foundation.h>
 #import <CoreFoundation/CoreFoundation.h>
+
+#if !TARGET_OS_MACCATALYST
 #import <OpenEmuSystem/OEHIDUsageTables_iOS.h>
+#endif
 
 NS_ASSUME_NONNULL_BEGIN
+
+#if !TARGET_OS_MACCATALYST
+
+// iOS has no IOKit at all: the stand-in types and declarations the shared code
+// compiles against. Mac Catalyst gets the real ones from the IOKit headers
+// above, because the system exposes them there.
 
 #pragma mark - Types
 
@@ -124,6 +133,13 @@ enum {
     kIOHIDOptionsTypeSeizeDevice = 0x01,
 };
 
+/// The callout types the registration functions take. They match IOKit's, so
+/// the shared code's callbacks are the same on every platform.
+typedef void (*IOHIDCallback)(void * _Nullable context, IOReturn result, void * _Nullable sender);
+typedef void (*IOHIDReportCallback)(void * _Nullable context, IOReturn result, void * _Nullable sender, IOHIDReportType type, uint32_t reportID, uint8_t *report, CFIndex reportLength);
+typedef void (*IOHIDValueCallback)(void * _Nullable context, IOReturn result, void * _Nullable sender, IOHIDValueRef value);
+typedef void (*IOHIDDeviceCallback)(void * _Nullable context, IOReturn result, void * _Nullable sender, IOHIDDeviceRef device);
+
 #pragma mark - HID property keys
 
 // A subset of IOKit's key constants. The string values match IOKit exactly so
@@ -170,11 +186,9 @@ typedef enum {
 /// On iOS controller input never needs a permission prompt, so this always
 /// reports granted.
 IOHIDAccessType IOHIDCheckAccess(IOHIDRequestType requestType);
-BOOL IOHIDRequestAccess(IOHIDRequestType requestType);
+bool IOHIDRequestAccess(IOHIDRequestType requestType);
 
 #pragma mark - Element
-
-IOHIDElementRef _Nullable IOHIDElementCreate(NSDictionary *properties);
 
 uint32_t IOHIDElementGetUsage(IOHIDElementRef element);
 uint32_t IOHIDElementGetUsagePage(IOHIDElementRef element);
@@ -184,11 +198,10 @@ IOHIDElementRef _Nullable IOHIDElementGetParent(IOHIDElementRef element);
 CFIndex IOHIDElementGetLogicalMin(IOHIDElementRef element);
 CFIndex IOHIDElementGetLogicalMax(IOHIDElementRef element);
 CFTypeRef _Nullable IOHIDElementGetProperty(IOHIDElementRef element, CFStringRef key);
-void IOHIDElementSetProperty(IOHIDElementRef element, CFStringRef key, CFTypeRef _Nullable value);
+Boolean IOHIDElementSetProperty(IOHIDElementRef element, CFStringRef key, CFTypeRef value);
 
 #pragma mark - Value
 
-IOHIDValueRef _Nullable IOHIDValueCreate(IOHIDElementRef element, uint64_t timestamp, CFIndex value);
 IOHIDElementRef IOHIDValueGetElement(IOHIDValueRef value);
 CFIndex IOHIDValueGetIntegerValue(IOHIDValueRef value);
 CFIndex IOHIDValueGetLength(IOHIDValueRef value);
@@ -196,19 +209,9 @@ uint64_t IOHIDValueGetTimeStamp(IOHIDValueRef value);
 
 #pragma mark - Device
 
-/// Build a device from properties, for the GameController bridge. iOS has no
-/// IOKit enumeration, so the bridge constructs the device the shared parser
-/// reads instead of waiting for a matching callback.
-IOHIDDeviceRef IOHIDDeviceCreate(NSDictionary *properties);
-
-/// Attach one element to a device. The device takes ownership.
-void IOHIDDeviceAddElement(IOHIDDeviceRef device, IOHIDElementRef element);
-
-uint32_t IOHIDDeviceGetUsage(IOHIDDeviceRef device);
-uint32_t IOHIDDeviceGetUsagePage(IOHIDDeviceRef device);
 CFTypeRef _Nullable IOHIDDeviceGetProperty(IOHIDDeviceRef device, CFStringRef key);
 CFArrayRef _Nullable IOHIDDeviceCopyMatchingElements(IOHIDDeviceRef device, CFDictionaryRef _Nullable matching, IOOptionBits options);
-BOOL IOHIDDeviceConformsTo(IOHIDDeviceRef device, uint32_t usagePage, uint32_t usage);
+Boolean IOHIDDeviceConformsTo(IOHIDDeviceRef device, uint32_t usagePage, uint32_t usage);
 io_service_t IOHIDDeviceGetService(IOHIDDeviceRef device);
 IOReturn IOHIDDeviceOpen(IOHIDDeviceRef device, IOOptionBits options);
 IOReturn IOHIDDeviceClose(IOHIDDeviceRef device, IOOptionBits options);
@@ -216,21 +219,36 @@ IOReturn IOHIDDeviceSetReport(IOHIDDeviceRef device, IOHIDReportType reportType,
 void IOHIDDeviceScheduleWithRunLoop(IOHIDDeviceRef device, CFRunLoopRef runLoop, CFStringRef runLoopMode);
 void IOHIDDeviceUnscheduleFromRunLoop(IOHIDDeviceRef device, CFRunLoopRef runLoop, CFStringRef runLoopMode);
 void IOHIDDeviceSetInputValueMatchingMultiple(IOHIDDeviceRef device, CFArrayRef _Nullable multiple);
-void IOHIDDeviceRegisterInputValueCallback(IOHIDDeviceRef device, void *callback, void * _Nullable context);
-void IOHIDDeviceRegisterInputReportCallback(IOHIDDeviceRef device, uint8_t *report, CFIndex reportLength, void *callback, void * _Nullable context);
-void IOHIDDeviceRegisterRemovalCallback(IOHIDDeviceRef device, void *callback, void * _Nullable context);
+void IOHIDDeviceRegisterInputValueCallback(IOHIDDeviceRef device, IOHIDValueCallback _Nullable callback, void * _Nullable context);
+void IOHIDDeviceRegisterInputReportCallback(IOHIDDeviceRef device, uint8_t *report, CFIndex reportLength, IOHIDReportCallback _Nullable callback, void * _Nullable context);
+void IOHIDDeviceRegisterRemovalCallback(IOHIDDeviceRef device, IOHIDCallback _Nullable callback, void * _Nullable context);
 
 #pragma mark - Manager
 
 IOHIDManagerRef IOHIDManagerCreate(CFAllocatorRef _Nullable allocator, IOOptionBits options);
 void IOHIDManagerSetDeviceMatchingMultiple(IOHIDManagerRef manager, CFArrayRef _Nullable multiple);
-void IOHIDManagerRegisterDeviceMatchingCallback(IOHIDManagerRef manager, void *callback, void * _Nullable context);
-void IOHIDManagerRegisterDeviceRemovalCallback(IOHIDManagerRef manager, void *callback, void * _Nullable context);
+void IOHIDManagerRegisterDeviceMatchingCallback(IOHIDManagerRef manager, IOHIDDeviceCallback _Nullable callback, void * _Nullable context);
+void IOHIDManagerRegisterDeviceRemovalCallback(IOHIDManagerRef manager, IOHIDDeviceCallback _Nullable callback, void * _Nullable context);
 void IOHIDManagerScheduleWithRunLoop(IOHIDManagerRef manager, CFRunLoopRef runLoop, CFStringRef runLoopMode);
 void IOHIDManagerUnscheduleFromRunLoop(IOHIDManagerRef manager, CFRunLoopRef runLoop, CFStringRef runLoopMode);
 
+#endif /* !TARGET_OS_MACCATALYST */
+
+#pragma mark - The GameController bridge's constructors
+
+// IOKit has no public way to build a device from a dictionary, which is what
+// the GameController bridge needs. `OEHID_iOS.m` implements these on iOS and
+// Mac Catalyst; macOS never builds them.
+IOHIDDeviceRef OEHIDDeviceCreate(NSDictionary *properties);
+IOHIDElementRef _Nullable OEHIDElementCreate(NSDictionary *properties);
+
+/// Attach one element to a device. The device takes ownership.
+void OEHIDDeviceAddElement(IOHIDDeviceRef device, IOHIDElementRef element);
+
+IOHIDValueRef _Nullable IOHIDValueCreate(IOHIDElementRef element, uint64_t timestamp, CFIndex value);
+
 NS_ASSUME_NONNULL_END
 
-#endif /* IOKit types, or the stand-in declarations */
+#endif /* !TARGET_OS_OSX */
 
 #endif /* OEHID_iOS_h */

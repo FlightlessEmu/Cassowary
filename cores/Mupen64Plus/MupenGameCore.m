@@ -74,9 +74,6 @@ NSString *MupenControlNames[] = {
     uint8_t _padData[4][OEN64ButtonCount];
     int8_t _xAxis[4];
     int8_t _yAxis[4];
-    // Which players' Rumble Paks are shaking, so the same state is not
-    // reported to the app twice.
-    BOOL _rumble[4];
     NSUInteger _frameCounter;
     double _sampleRate;
     BOOL _initializing;
@@ -432,32 +429,9 @@ static void *dlopen_myself()
     return dlopen(info.dli_fname, 0);
 }
 
-// The Rumble Pak is driven through a raw pak write: 0x23 0x01, a
-// JCMD_PAK_WRITE at 0xc000, then 0x20 motor bytes that are all 0x01 while the
-// pak shakes and all 0x00 when it stops. The app turns that into haptics.
-static void MupenControllerCommand(int Control, unsigned char *Command)
+static void MupenGetKeys(int Control, BUTTONS *Keys)
 {
     GET_CURRENT_OR_RETURN();
-
-    if (Command[0] == 0x23 && Command[1] == 0x01)
-    {
-        BOOL on = NO;
-
-        for (int i = 5; i < 0x25; i++)
-        {
-            if (Command[i] != 0)
-            {
-                on = YES;
-                break;
-            }
-        }
-
-        [current setRumble:on forPlayer:(NSUInteger)Control];
-    }
-}
-
-static void MupenGetKeys(int Control, BUTTONS *Keys)
-{    GET_CURRENT_OR_RETURN();
 
     Keys->R_DPAD = current->_padData[Control][OEN64ButtonDPadRight];
     Keys->L_DPAD = current->_padData[Control][OEN64ButtonDPadLeft];
@@ -473,29 +447,14 @@ static void MupenGetKeys(int Control, BUTTONS *Keys)
     Keys->U_CBUTTON = current->_padData[Control][OEN64ButtonCUp];
     Keys->R_TRIG = current->_padData[Control][OEN64ButtonR];
     Keys->L_TRIG = current->_padData[Control][OEN64ButtonL];
-
-    // The d-pad is digital and most games steer with the stick, so a d-pad
-    // direction pushes the stick as well. A game reading the d-pad still sees
-    // it, and one that only reads the stick — Mario Kart 64's steering, for
-    // one — answers the arrow keys and the on-screen d-pad. The sign matches
-    // didMoveN64JoystickDirection: up and right are positive.
-    int stickX = current->_xAxis[Control];
-    int stickY = current->_yAxis[Control];
-    if (current->_padData[Control][OEN64ButtonDPadRight]) stickX += 80;
-    if (current->_padData[Control][OEN64ButtonDPadLeft])  stickX -= 80;
-    if (current->_padData[Control][OEN64ButtonDPadUp])    stickY += 80;
-    if (current->_padData[Control][OEN64ButtonDPadDown])  stickY -= 80;
-
-    Keys->X_AXIS = (int8_t)MAX(-128, MIN(127, stickX));
-    Keys->Y_AXIS = (int8_t)MAX(-128, MIN(127, stickY));
+    Keys->X_AXIS = current->_xAxis[Control];
+    Keys->Y_AXIS = current->_yAxis[Control];
 }
 
 static void MupenInitiateControllers (CONTROL_INFO ControlInfo)
 {
     ControlInfo.Controls[0].Present = 1;
-    // Player one carries a Rumble Pak. The app plays its motor as haptics,
-    // and nothing persists a Controller Pak today, so the slot is free.
-    ControlInfo.Controls[0].Plugin = PLUGIN_RUMBLE_PAK;
+    ControlInfo.Controls[0].Plugin = PLUGIN_MEMPAK;
     ControlInfo.Controls[1].Present = 1;
     ControlInfo.Controls[1].Plugin = PLUGIN_MEMPAK;
     ControlInfo.Controls[2].Present = 1;
@@ -733,7 +692,6 @@ static void MupenSetAudioSpeed(int percent)
     // Load Input
     input.getKeys = MupenGetKeys;
     input.initiateControllers = MupenInitiateControllers;
-    input.controllerCommand = MupenControllerCommand;
     plugin_start(M64PLUGIN_INPUT);
 
     // Load RSP
@@ -962,10 +920,7 @@ static const int MupenParallelBufferHeight = 480;
 }
 
 // Copy the plugin's latest frame into the buffer OpenEmu gave us. The plugin
-// renders RGBA; the bitmap path was set up for BGRA. This works one 32-bit
-// word per pixel instead of four byte stores: RGBA bytes [R,G,B,A] read as
-// a little-endian word 0xAABBGGRR, rewritten as 0xFFRRGGBB (BGRA + forced
-// opaque alpha, exactly as the old per-byte loop produced).
+// renders RGBA; the bitmap path was set up for BGRA.
 - (void)copyParallelFrame
 {
     if (!_parallelVideo || !_frameBuffer || _parallelGetFrame == NULL) {
@@ -987,11 +942,13 @@ static const int MupenParallelBufferHeight = 480;
     uint8_t *dst = (uint8_t *)_frameBuffer;
 
     for (int y = 0; y < copyHeight; y++) {
-        const uint32_t *srcRow = (const uint32_t *)(pixels + (size_t)y * (size_t)pitch);
-        uint32_t *dstRow = (uint32_t *)(dst + (size_t)y * (size_t)MupenParallelBufferWidth * 4);
+        const uint8_t *srcRow = pixels + (size_t)y * (size_t)pitch;
+        uint8_t *dstRow = dst + (size_t)y * (size_t)MupenParallelBufferWidth * 4;
         for (int x = 0; x < copyWidth; x++) {
-            uint32_t p = srcRow[x];
-            dstRow[x] = ((p & 0xffu) << 16) | (p & 0xff00u) | ((p >> 16) & 0xffu) | 0xff000000u;
+            dstRow[x * 4 + 0] = srcRow[x * 4 + 2];
+            dstRow[x * 4 + 1] = srcRow[x * 4 + 1];
+            dstRow[x * 4 + 2] = srcRow[x * 4 + 0];
+            dstRow[x * 4 + 3] = 0xFF;
         }
     }
 }
@@ -1175,19 +1132,6 @@ static const int MupenParallelBufferHeight = 480;
 {
     player -= 1;
     _padData[player][button] = 0;
-}
-
-/// Tell the app the Rumble Pak started or stopped. Players are numbered from
-/// one on the way out, which is what the binding stack uses.
-- (void)setRumble:(BOOL)on forPlayer:(NSUInteger)player
-{
-    if (player > 3 || _rumble[player] == on)
-        return;
-
-    _rumble[player] = on;
-
-    if ([self.delegate respondsToSelector:@selector(gameCore:didChangeRumble:forPlayer:)])
-        [self.delegate gameCore:self didChangeRumble:on forPlayer:player + 1];
 }
 
 #pragma mark - Cheats

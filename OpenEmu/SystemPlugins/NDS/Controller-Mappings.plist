@@ -320,13 +320,13 @@
 		<key>OENDSButtonRight</key>
 		<string>OEControllerGCExtendedGamepadProfileDPadRight</string>
 		<key>OENDSButtonA</key>
-		<string>OEControllerGCExtendedGamepadProfileButtonB</string>
-		<key>OENDSButtonB</key>
 		<string>OEControllerGCExtendedGamepadProfileButtonA</string>
+		<key>OENDSButtonB</key>
+		<string>OEControllerGCExtendedGamepadProfileButtonB</string>
 		<key>OENDSButtonX</key>
-		<string>OEControllerGCExtendedGamepadProfileButtonY</string>
-		<key>OENDSButtonY</key>
 		<string>OEControllerGCExtendedGamepadProfileButtonX</string>
+		<key>OENDSButtonY</key>
+		<string>OEControllerGCExtendedGamepadProfileButtonY</string>
 		<key>OENDSButtonL</key>
 		<string>OEControllerGCExtendedGamepadProfileButtonL1</string>
 		<key>OENDSButtonR</key>

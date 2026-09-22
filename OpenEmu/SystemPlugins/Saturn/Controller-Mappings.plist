@@ -395,11 +395,11 @@
 		<key>OESaturnLeftAnalogLeft</key>
 		<string>OEControllerGCExtendedGamepadProfileLeftAnalogLeft</string>
 		<key>OESaturnButtonA</key>
-		<string>OEControllerGCExtendedGamepadProfileButtonX</string>
-		<key>OESaturnButtonB</key>
 		<string>OEControllerGCExtendedGamepadProfileButtonA</string>
-		<key>OESaturnButtonC</key>
+		<key>OESaturnButtonB</key>
 		<string>OEControllerGCExtendedGamepadProfileButtonB</string>
+		<key>OESaturnButtonC</key>
+		<string>OEControllerGCExtendedGamepadProfileButtonX</string>
 		<key>OESaturnButtonX</key>
 		<string>OEControllerGCExtendedGamepadProfileButtonY</string>
 		<key>OESaturnButtonY</key>

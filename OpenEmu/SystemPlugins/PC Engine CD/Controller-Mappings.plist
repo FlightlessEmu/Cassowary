@@ -237,7 +237,7 @@
 		<key>OEPCECDButton1</key>
 		<string>OEControllerGCExtendedGamepadProfileButtonA</string>
 		<key>OEPCECDButton2</key>
-		<string>OEControllerGCExtendedGamepadProfileButtonX</string>
+		<string>OEControllerGCExtendedGamepadProfileButtonB</string>
 		<key>OEPCECDButtonRun</key>
 		<string>OEControllerGCExtendedGamepadProfileButtonHome</string>
 		<key>OEPCECDButtonSelect</key>

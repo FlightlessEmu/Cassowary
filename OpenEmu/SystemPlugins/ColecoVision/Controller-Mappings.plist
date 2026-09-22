@@ -179,9 +179,9 @@
 		<key>OEColecoVisionButtonRight</key>
 		<string>OEControllerGCExtendedGamepadProfileDPadRight</string>
 		<key>OEColecoVisionButtonLeftAction</key>
-		<string>OEControllerGCExtendedGamepadProfileButtonX</string>
-		<key>OEColecoVisionButtonRightAction</key>
 		<string>OEControllerGCExtendedGamepadProfileButtonA</string>
+		<key>OEColecoVisionButtonRightAction</key>
+		<string>OEControllerGCExtendedGamepadProfileButtonB</string>
 	</dict>
 	<key>OEControllerNintendoSwitchProController</key>
 	<dict>

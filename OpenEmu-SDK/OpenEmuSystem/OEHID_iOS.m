@@ -26,7 +26,8 @@
 
 /*!
  * @file OEHID_iOS.m
- * @abstract The iOS side of the IOKit HID shim.
+ * @abstract The side of the IOKit HID shim that stands in where IOKit cannot
+ *   be used.
  *
  * @discussion This implements the handful of IOKit HID calls the shared
  *   OpenEmu code makes, backed by plain Foundation objects. The GameController
@@ -34,17 +35,18 @@
  *   `GCController` and hands them to the shared binding code, which then
  *   behaves exactly as it does on macOS.
  *
- *   Only compiled on iOS. On macOS the real IOKit framework provides all of
- *   this.
+ *   Compiled on iOS and Mac Catalyst. On macOS the real IOKit framework
+ *   provides all of this and nothing here is built.
  */
 
 #import <TargetConditionals.h>
 
-// The stand-in implementations are only needed where IOKit is not available at
-// runtime. Mac Catalyst can link IOKit, so it uses the real thing — and it
-// behaves like iOS regardless, because `OEDeviceManager`'s IOKit code is gated
-// on `TARGET_OS_OSX` and does not compile there.
-#if TARGET_OS_IOS && !TARGET_OS_MACCATALYST
+// The stand-in implementations are needed wherever IOKit cannot enumerate
+// controllers. iOS has no IOKit; Mac Catalyst links it, but the sandbox blocks
+// the HID user client, so a Catalyst app never sees a device through it. Both
+// platforms take the GameController path instead — see
+// `OEiOSGameControllerManager`. macOS proper keeps the real thing.
+#if TARGET_OS_IOS
 
 #import "OEHID_iOS.h"
 
@@ -137,13 +139,15 @@ static inline _OEHIDDevice *_device(IOHIDDeviceRef ref)
     return (__bridge _OEHIDDevice *)ref;
 }
 
-/// Convert an IOKit key constant to an NSString.
+/// Convert an IOKit property key to an NSString.
 ///
-/// The constants are plain C strings, but callers may hand them over either
-/// as the literal or wrapped in CFSTR(), so both spellings are accepted.
-static inline NSString *_stringForKey(const void *key)
+/// Every caller passes a `CFStringRef`: either `CFSTR(kIOHID...)` or a
+/// bridged `NSString` from the parser. The IOKit key constants are plain C
+/// strings, so `@(kIOHID...)` is a key too — that spelling is only used
+/// inside this file.
+static inline NSString *_stringForKey(CFStringRef key)
 {
-    return @((const char *)key);
+    return key ? (__bridge NSString *)key : nil;
 }
 
 #pragma mark - Access
@@ -156,14 +160,14 @@ IOHIDAccessType IOHIDCheckAccess(IOHIDRequestType requestType)
     return kIOHIDAccessTypeGranted;
 }
 
-BOOL IOHIDRequestAccess(IOHIDRequestType requestType)
+bool IOHIDRequestAccess(IOHIDRequestType requestType)
 {
     return YES;
 }
 
 #pragma mark - Element
 
-IOHIDElementRef _Nullable IOHIDElementCreate(NSDictionary *properties)
+IOHIDElementRef _Nullable OEHIDElementCreate(NSDictionary *properties)
 {
     _OEHIDElement *e = [[_OEHIDElement alloc] init];
     e.usage     = [properties[@"usage"] unsignedIntValue];
@@ -193,7 +197,7 @@ CFTypeRef _Nullable IOHIDElementGetProperty(IOHIDElementRef element, CFStringRef
     return (__bridge CFTypeRef)_element(element).properties[_stringForKey(key)];
 }
 
-void IOHIDElementSetProperty(IOHIDElementRef element, CFStringRef key, CFTypeRef _Nullable value)
+Boolean IOHIDElementSetProperty(IOHIDElementRef element, CFStringRef key, CFTypeRef value)
 {
     NSMutableDictionary *props = _element(element).properties;
     NSString *k = _stringForKey(key);
@@ -201,6 +205,8 @@ void IOHIDElementSetProperty(IOHIDElementRef element, CFStringRef key, CFTypeRef
         [props removeObjectForKey:k];
     else
         props[k] = (__bridge id)value;
+
+    return YES;
 }
 
 #pragma mark - Value
@@ -225,7 +231,7 @@ uint64_t IOHIDValueGetTimeStamp(IOHIDValueRef value)   { return ((_OEHIDValue *)
 
 #pragma mark - Device
 
-IOHIDDeviceRef IOHIDDeviceCreate(NSDictionary *properties)
+IOHIDDeviceRef OEHIDDeviceCreate(NSDictionary *properties)
 {
     _OEHIDDevice *d = [[_OEHIDDevice alloc] init];
     d.usage     = [properties[@"usage"] unsignedIntValue];
@@ -234,15 +240,12 @@ IOHIDDeviceRef IOHIDDeviceCreate(NSDictionary *properties)
     return (__bridge_retained IOHIDDeviceRef)d;
 }
 
-void IOHIDDeviceAddElement(IOHIDDeviceRef device, IOHIDElementRef element)
+void OEHIDDeviceAddElement(IOHIDDeviceRef device, IOHIDElementRef element)
 {
     _OEHIDElement *e = _element(element);
     e.parent = nil;
     [_device(device).elements addObject:e];
 }
-
-uint32_t IOHIDDeviceGetUsage(IOHIDDeviceRef device)     { return _device(device).usage; }
-uint32_t IOHIDDeviceGetUsagePage(IOHIDDeviceRef device) { return _device(device).usagePage; }
 
 CFTypeRef _Nullable IOHIDDeviceGetProperty(IOHIDDeviceRef device, CFStringRef key)
 {
@@ -259,8 +262,8 @@ CFArrayRef _Nullable IOHIDDeviceCopyMatchingElements(IOHIDDeviceRef device, CFDi
     // elements, on the usage page. Both have to be honoured or the parser sees
     // every element in every partition.
     NSDictionary *criteria = (__bridge NSDictionary *)matching;
-    NSNumber *cookie = criteria[_stringForKey(kIOHIDElementCookieKey)];
-    NSNumber *usagePage = criteria[_stringForKey(kIOHIDElementUsagePageKey)];
+    NSNumber *cookie = criteria[@(kIOHIDElementCookieKey)];
+    NSNumber *usagePage = criteria[@(kIOHIDElementUsagePageKey)];
 
     if(cookie == nil && usagePage == nil)
         return (__bridge_retained CFArrayRef)[all copy];
@@ -276,7 +279,7 @@ CFArrayRef _Nullable IOHIDDeviceCopyMatchingElements(IOHIDDeviceRef device, CFDi
     return (__bridge_retained CFArrayRef)filtered;
 }
 
-BOOL IOHIDDeviceConformsTo(IOHIDDeviceRef device, uint32_t usagePage, uint32_t usage)
+Boolean IOHIDDeviceConformsTo(IOHIDDeviceRef device, uint32_t usagePage, uint32_t usage)
 {
     _OEHIDDevice *d = _device(device);
     if(d.usagePage == usagePage && d.usage == usage)
@@ -306,9 +309,9 @@ IOReturn IOHIDDeviceSetReport(IOHIDDeviceRef device, IOHIDReportType reportType,
 void IOHIDDeviceScheduleWithRunLoop(IOHIDDeviceRef device, CFRunLoopRef runLoop, CFStringRef runLoopMode) {}
 void IOHIDDeviceUnscheduleFromRunLoop(IOHIDDeviceRef device, CFRunLoopRef runLoop, CFStringRef runLoopMode) {}
 void IOHIDDeviceSetInputValueMatchingMultiple(IOHIDDeviceRef device, CFArrayRef _Nullable multiple) {}
-void IOHIDDeviceRegisterInputValueCallback(IOHIDDeviceRef device, void *callback, void * _Nullable context) {}
-void IOHIDDeviceRegisterInputReportCallback(IOHIDDeviceRef device, uint8_t *report, CFIndex reportLength, void *callback, void * _Nullable context) {}
-void IOHIDDeviceRegisterRemovalCallback(IOHIDDeviceRef device, void *callback, void * _Nullable context) {}
+void IOHIDDeviceRegisterInputValueCallback(IOHIDDeviceRef device, IOHIDValueCallback _Nullable callback, void * _Nullable context) {}
+void IOHIDDeviceRegisterInputReportCallback(IOHIDDeviceRef device, uint8_t *report, CFIndex reportLength, IOHIDReportCallback _Nullable callback, void * _Nullable context) {}
+void IOHIDDeviceRegisterRemovalCallback(IOHIDDeviceRef device, IOHIDCallback _Nullable callback, void * _Nullable context) {}
 
 #pragma mark - Manager
 
@@ -323,17 +326,17 @@ void IOHIDManagerSetDeviceMatchingMultiple(IOHIDManagerRef manager, CFArrayRef _
     m.matching = multiple ? [(__bridge NSArray *)multiple mutableCopy] : [NSMutableArray array];
 }
 
-void IOHIDManagerRegisterDeviceMatchingCallback(IOHIDManagerRef manager, void *callback, void * _Nullable context)
+void IOHIDManagerRegisterDeviceMatchingCallback(IOHIDManagerRef manager, IOHIDDeviceCallback _Nullable callback, void * _Nullable context)
 {
     _OEHIDManager *m = (__bridge _OEHIDManager *)manager;
-    m.matchingCallback = callback;
+    m.matchingCallback = (void *)callback;
     m.matchingContext  = context;
 }
 
-void IOHIDManagerRegisterDeviceRemovalCallback(IOHIDManagerRef manager, void *callback, void * _Nullable context)
+void IOHIDManagerRegisterDeviceRemovalCallback(IOHIDManagerRef manager, IOHIDDeviceCallback _Nullable callback, void * _Nullable context)
 {
     _OEHIDManager *m = (__bridge _OEHIDManager *)manager;
-    m.removalCallback = callback;
+    m.removalCallback = (void *)callback;
     m.removalContext  = context;
 }
 
@@ -342,4 +345,4 @@ void IOHIDManagerUnscheduleFromRunLoop(IOHIDManagerRef manager, CFRunLoopRef run
 
 NS_ASSUME_NONNULL_END
 
-#endif /* TARGET_OS_IOS && !TARGET_OS_MACCATALYST */
+#endif /* TARGET_OS_IOS */

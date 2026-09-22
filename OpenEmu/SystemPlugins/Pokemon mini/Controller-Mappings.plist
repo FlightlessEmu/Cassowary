@@ -291,13 +291,13 @@
 		<key>OEPMButtonRight</key>
 		<string>OEControllerGCExtendedGamepadProfileDPadRight</string>
 		<key>OEPMButtonA</key>
-		<string>OEControllerGCExtendedGamepadProfileButtonX</string>
-		<key>OEPMButtonB</key>
-		<string>OEControllerGCExtendedGamepadProfileButtonY</string>
-		<key>OEPMButtonC</key>
-		<string>OEControllerGCExtendedGamepadProfileButtonB</string>
-		<key>OEPMButtonShake</key>
 		<string>OEControllerGCExtendedGamepadProfileButtonA</string>
+		<key>OEPMButtonB</key>
+		<string>OEControllerGCExtendedGamepadProfileButtonB</string>
+		<key>OEPMButtonC</key>
+		<string>OEControllerGCExtendedGamepadProfileButtonX</string>
+		<key>OEPMButtonShake</key>
+		<string>OEControllerGCExtendedGamepadProfileButtonY</string>
 		<key>OEPMButtonMenu</key>
 		<string>OEControllerGCExtendedGamepadProfileButtonHome</string>
 		<key>OEPMButtonPower</key>

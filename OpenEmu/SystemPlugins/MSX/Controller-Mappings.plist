@@ -181,9 +181,9 @@
 		<key>OEMSXButtonRight</key>
 		<string>OEControllerGCExtendedGamepadProfileDPadRight</string>
 		<key>OEMSXButtonA</key>
-		<string>OEControllerGCExtendedGamepadProfileButtonX</string>
-		<key>OEMSXButtonB</key>
 		<string>OEControllerGCExtendedGamepadProfileButtonA</string>
+		<key>OEMSXButtonB</key>
+		<string>OEControllerGCExtendedGamepadProfileButtonB</string>
 	</dict>
 	<key>OEControllerNintendoSwitchProController</key>
 	<dict>

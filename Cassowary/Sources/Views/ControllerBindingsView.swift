@@ -50,6 +50,12 @@ struct ControllerBindingsView: View {
     /// this is what tells SwiftUI the row text has changed.
     @State private var revision = 0
 
+    /// Whether the missing-association heal below has run for the current
+    /// device. The heal re-posts the device-add notification, which comes
+    /// straight back into this screen's own observer — without the flag the
+    /// screen would re-enter itself until the stack blows.
+    @State private var didHealAssociation = false
+
     /// The control identifier bound to each button, for the live highlight.
     @State private var controlIdentifiers: [String: String] = [:]
 
@@ -246,15 +252,18 @@ struct ControllerBindingsView: View {
 
     /// Pick the controller the rows describe, and start listening to it.
     private func refreshDevice() {
-        #if !targetEnvironment(macCatalyst)
-        // iOS has no IOKit: the bridge is what turns GameController's
-        // controllers into the devices the bindings stack knows.
+        // iOS has no IOKit, and Catalyst's sandbox blocks it: the bridge is
+        // what turns GameController's controllers into the devices the
+        // bindings stack knows.
         OEiOSGameControllerManager.shared.start()
-        #endif
 
-        let handler = OEDeviceManager.shared.controllerDeviceHandlers.first
+        let handlers = OEDeviceManager.shared.controllerDeviceHandlers
+        NSLog("[Cassowary] bindings refresh for %@: %lu device handlers", systemID, UInt(handlers.count))
+
+        let handler = handlers.first
         if handler !== device {
             device = handler
+            didHealAssociation = false
             recording = nil
             input.stop()
             if let handler {
@@ -267,6 +276,7 @@ struct ControllerBindingsView: View {
 
     private func loadPlayer() {
         guard let systemBindings, let device else {
+            NSLog("[Cassowary] bindings player for %@: no device", systemID)
             player = nil
             controlIdentifiers = [:]
             return
@@ -274,6 +284,24 @@ struct ControllerBindingsView: View {
 
         player = systemBindings.devicePlayerBindings(for: device)
             ?? systemBindings.devicePlayerBindings(forPlayer: 1)
+
+        if player == nil, !didHealAssociation {
+            // The bindings object missed this device: it was registered after
+            // the pad was bridged and no later add reached it. Run the same
+            // association a device add would, then read again. The post is
+            // synchronous and this screen observes it too, so the flag keeps
+            // the re-entrant pass from posting again; by the time the outer
+            // post returns every observer has run and the player resolves.
+            didHealAssociation = true
+            NSLog("[Cassowary] bindings player for %@: healing missing association", systemID)
+            NotificationCenter.default.post(
+                name: .OEDeviceManagerDidAddDeviceHandler,
+                object: nil,
+                userInfo: [OEDeviceManagerDeviceHandlerUserInfoKey: device])
+            player = systemBindings.devicePlayerBindings(for: device)
+                ?? systemBindings.devicePlayerBindings(forPlayer: 1)
+        }
+
         refreshControlIdentifiers()
     }
 
@@ -286,14 +314,24 @@ struct ControllerBindingsView: View {
 
         var identifiers: [String: String] = [:]
         for (key, value) in player.bindingEvents {
-            guard let control = value.controlDescription?.identifier else { continue }
+            let names: [String]
 
             if let simple = key as? OEKeyBindingDescription {
-                identifiers[simple.name] = control
+                names = [simple.name]
             } else if let group = key as? OEOrientedKeyGroupBindingDescription {
-                for name in group.keyNames {
-                    identifiers[name] = control
-                }
+                names = group.keyNames
+            } else {
+                continue
+            }
+
+            // An axis or hat binds its whole group at once, so every
+            // direction carries the same control. The row's own badge text
+            // names the direction, which is what picks its value out of that
+            // control — otherwise both ends of a stick light up together.
+            let values = value.controlDescription?.controlValues ?? []
+            for name in names {
+                let badge = player.bindingDescriptions[name]
+                identifiers[name] = values.first { $0.name == badge }?.identifier ?? value.identifier
             }
         }
         controlIdentifiers = identifiers

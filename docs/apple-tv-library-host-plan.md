@@ -94,7 +94,7 @@ rather than fail silently.
 | Save states next to the ROM, `<name>.oesavestate` | `Cassowary/Sources/Session/GameSession.swift` | **File format and location stay untouched.** Existing saves keep working. |
 | Battery saves in `Application Support/OpenEmu/<Core>/Battery Saves/` | `OpenEmu-SDK/OpenEmuBase/OEGameCoreController.m` | Sync has to map a battery save back to a game — a known wrinkle (see §5.7). |
 | Cover art in `Application Support/CoverArt` | `Cassowary/Sources/Models/CoverArtStore.swift` | The TV can fetch its own art, or get it from the host. Both are cheap. |
-| Physical controllers via GameController | `Cassowary/Sources/Controls/PhysicalControllerManager.swift` | Exactly what tvOS uses. The TV input path is mostly free. |
+| Physical controllers via GameController | `OpenEmu-SDK/OpenEmuSystem/OEiOSGameControllerManager.m` | The same bridge iOS and Mac Catalyst use; extend it to tvOS and the TV input path is mostly free. |
 | Emulator runs in-process | `Cassowary/Sources/Session/GameSession.swift` | The TV can reuse it as-is once the engine builds for tvOS. |
 | Build modes: simulator / device / catalyst | `Scripts/cassowary/build-cassowary.sh` | A `--tvos` mode follows the same pattern. |
 | Generated project, never hand-edited | `Cassowary/project.yml` | A second target is a spec change, not a project surgery. |
@@ -322,9 +322,9 @@ controller — not that it compiled.
 - Video: `CAMetalLayer`, fully supported on tvOS. The Metal layer host view
   works as-is.
 - Audio: CoreAudio `AudioUnit`, supported on tvOS.
-- Controllers: `GameController` is the same framework on tvOS; the existing
-  physical-controller manager is the input path. The Siri Remote maps as a
-  micro gamepad for simple systems.
+- Controllers: `GameController` is the same framework on tvOS; the
+  GameController bridge that iOS and Mac Catalyst use is the input path. The
+  Siri Remote maps as a micro gamepad for simple systems.
 - Touch controls, haptics, and keyboard capture are iOS-only and get gated out.
 
 ---

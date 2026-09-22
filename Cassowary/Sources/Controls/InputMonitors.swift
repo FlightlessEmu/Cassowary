@@ -158,16 +158,36 @@ final class ControllerInputMonitor: ObservableObject {
     }
 
     private func handle(_ event: OEHIDEvent) {
-        guard let value = handler?.controllerDescription?.controlValueDescription(for: event),
-              let control = value.controlDescription?.identifier
-        else { return }
+        guard let description = handler?.controllerDescription else { return }
 
         if Self.isPress(event) {
-            pressedControls.insert(control)
+            guard let value = description.controlValueDescription(for: event) else { return }
+            pressedControls.insert(value.identifier)
         } else {
-            pressedControls.remove(control)
+            // A stick or hat that has gone back to center reports no
+            // direction, and the engine's value lookup only knows the
+            // directions. Release through the control the event belongs to
+            // and clear every value it owns.
+            for control in description.controls where control.controlIdentifier == event.controlIdentifier {
+                for value in control.controlValues {
+                    pressedControls.remove(value.identifier)
+                }
+            }
         }
 
         onEvent?(event)
+    }
+}
+
+/// Run `work` on the main actor.
+///
+/// GameController calls its handlers on the main thread, but nothing in the
+/// API promises it, so be explicit and cheap about it. Shared by the keyboard
+/// monitors and the controller bindings screen.
+func onMain(_ work: @escaping @MainActor () -> Void) {
+    if Thread.isMainThread {
+        MainActor.assumeIsolated { work() }
+    } else {
+        DispatchQueue.main.async { MainActor.assumeIsolated { work() } }
     }
 }
