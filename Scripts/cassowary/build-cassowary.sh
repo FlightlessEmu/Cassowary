@@ -494,6 +494,12 @@ if [[ "$MODE" == catalyst ]]; then
   banner "Signing ad-hoc"
   ENTITLEMENTS="$PWD/Cassowary/Resources/Cassowary.entitlements"
 
+  # The Copy PlugIns phase leaves a stamp file in PlugIns for Xcode's
+  # dependency analysis. codesign treats anything in there as nested code and
+  # refuses to sign the app ("code object is not signed at all"), so drop it;
+  # the next Xcode build re-creates it.
+  rm -f "$APP/Contents/PlugIns/.plugins-copied"
+
   find "$APP/Contents/Frameworks" -name "*.framework" -maxdepth 1 | while read -r framework; do
     codesign --force --sign - "$framework" 2>/dev/null
   done
