@@ -110,33 +110,36 @@ with both:
    `BinCombined`, `CalcOffsets`, `SortWork`. Not needed as passes: the CPU
    does the span setup, and the rasteriser walks polygons in submission order
    instead of binning them into tiles.
-3. `Rasterise` (starting with the no-texture Z-buffer variants) and
-   `DepthBlend`. The shaders are written and run, and their output reaches the
-   3D texture, but nothing is drawn. What is known, after bisecting it in the
-   harness:
+3. ~~`Rasterise` (starting with the no-texture Z-buffer variants) and
+   `DepthBlend`.~~ Done, in a simpler shape than upstream's: the CPU does the
+   span setup, bins the polygons per scanline, and hands the shaders the list
+   for each line; one dispatch then walks the polygons in submission order, so
+   the depth test, the translucent blending and the anti-aliasing push-down all
+   happen in the order the DS does them. Each pixel does a handful of spans
+   instead of the whole frame, which is what makes the dispatch finish at all.
+4. ~~`FinalPass` without effects, then edge marking, fog and anti-aliasing.~~
+   Done: edge marking, fog and anti-aliasing are in, with melonDS's pushed-down
+   second line of buffers behind the anti-aliasing.
+5. Textures: done — a Metal texture cache (`MelonDSMetalTexcache.h`) behind the
+   same `Texcache` template, loading into 2D array textures, with the frame's
+   array textures in a table the shader indexes per polygon. Decal, modulate,
+   toon and highlight are in, and shadow masks record depth only. Two things
+   worth knowing: the shader has to declare the table as `texture2d_array` to
+   read a slice out of it (through a plain `texture2d` the slice is swallowed
+   and every read hits the empty first layer), and drawing per variant instead
+   of per frame breaks the depth, blending and anti-aliasing order across
+   variants.
+6. Shadow masks, toon and highlight modes, and the W-buffering variants: the
+   modes are in; W-buffering is per polygon and in.
 
-   - The polygon walk, the span fetch, the span and inside tests, the edge
-     attributes and the write path all work: stopping the kernel just before
-     the interpolation and writing a marker makes the marker appear for every
-     pixel the polygons cover, and the CPU mirror of the same tests agrees
-     (every polygon's pixels pass).
-   - Adding the interpolation back makes all of it disappear, with the layer
-     left at its clear colour. The kernel is one thread per pixel looping over
-     every polygon, and each span it walks does a 64-bit division per pixel —
-     about 49,000 pixels times 176 polygons per frame. That is far too much
-     work for one dispatch, and the GPU drops it.
-   - So the next step is not a bug fix but a restructure: give each pixel much
-     less to do. The natural one, and what melonDS's own renderer does with its
-     tiles, is to bin the work per line — the DS is a line-based rasteriser, so
-     the CPU can hand the shader the list of polygons that touch each of the
-     192 lines (it already knows, from the span indices) and the per-line
-     interpolation factors, leaving the shader a handful of spans per pixel
-     instead of the whole frame.
-4. `FinalPass` without effects, then edge marking, fog and anti-aliasing.
-5. Textures: a Metal texture cache (`Texcache<loader, handle>` from
-   `src/GPU3D_Texcache.h`, with a loader that makes Metal array textures) and
-   the textured shader variants.
-6. Shadow masks, toon and highlight modes, and the W-buffering variants.
+Where it stands: a frame of a retail game matches the software rasteriser on
+about 41,000 to 45,000 of its 49,152 pixels. The pixels that still differ are
+on polygon edges — a bottom-edge pixel was traced to a texel fetch that comes
+back transparent where the software renderer's comes back opaque, so the
+remaining work is in the fetch: the wrap modes, or how the coordinates are
+rounded at edges. `MELONDS_3D=cmp` runs both rasterisers on the same frame in
+the same process and writes `/tmp/cmp-metal.ppm` and `/tmp/cmp-soft.ppm` for a
+side-by-side look.
 
 Until step 3 lands, the 3D layer comes from the software rasteriser (see
 above), and with it the Metal picture is pixel-for-pixel identical to the
