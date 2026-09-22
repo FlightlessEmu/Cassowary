@@ -459,6 +459,43 @@ s32 InterpolateAttrLinear(s32 y0, s32 y1, s32 i, s32 irecip, s32 idiff) noexcept
     return y1 + (s32) (((s64) (y0 - y1) * (idiff - i)) / idiff);
 }
 
+/// melonDS's software rasteriser interpolates Z along Y differently from along
+/// X: it keeps the displacement's low bits by halving it only until it fits in
+/// ten bits, then shifting the result back up. The compute renderer's version,
+/// used along X, drops those bits instead. Following the software renderer
+/// here matters because a step of Z can decide which polygon wins the depth
+/// test.
+s32 InterpolateZYBuffer(s32 z0, s32 z1, s32 i, s32 idiff) noexcept
+{
+    if (z0 == z1 || idiff == 0)
+        return z0;
+
+    s32 base, disp, factor;
+    if (z0 < z1)
+    {
+        base = z0;
+        disp = z1 - z0;
+        factor = i;
+    }
+    else
+    {
+        base = z1;
+        disp = z0 - z1;
+        factor = idiff - i;
+    }
+
+    const s32 xrecip_z = (1 << 22) / idiff;
+
+    int shift = 0;
+    while (disp > 0x3FF)
+    {
+        disp >>= 1;
+        shift++;
+    }
+
+    return base + (s32) ((((s64) disp * factor * xrecip_z) >> 22) << shift);
+}
+
 u32 InterpolateZZBuffer(s32 z0, s32 z1, s32 i, s32 irecip, s32 idiff) noexcept
 {
     if (z0 == z1)
@@ -735,7 +772,7 @@ void SoftwareTexel(const GPU& gpu, u32 texparam, u32 texpal, int s, int t, u32* 
     case 6: // A5I3
     {
         u8 pixel = gpu.ReadVRAMFlat_Texture<u8>(vramaddr + ((t * width) + s));
-        texpal <<= 3;
+        texpal <<= 4;
         *color = gpu.ReadVRAMFlat_TexPal<u16>(texpal + ((pixel & 0x7) << 1));
         *alpha = (pixel >> 3);
         break;
@@ -1138,7 +1175,7 @@ void Rasterizer3D::SetupXSpan(SpanSetupX* xspan, const SpanSetupY& spanLIn, cons
         const s32 ifactor = CalcYFactorY(spanL, i);
         const s32 idiff = spanL.I1 - spanL.I0;
 
-        xspan->Z0 = (s32) InterpolateZZBuffer(spanL.Z0, spanL.Z1, i, spanL.IRecip, idiff);
+        xspan->Z0 = InterpolateZYBuffer(spanL.Z0, spanL.Z1, i, idiff);
 
         if (!spanL.Linear)
         {
@@ -1180,7 +1217,7 @@ void Rasterizer3D::SetupXSpan(SpanSetupX* xspan, const SpanSetupY& spanLIn, cons
         const s32 ifactor = CalcYFactorY(spanR, i);
         const s32 idiff = spanR.I1 - spanR.I0;
 
-        xspan->Z1 = (s32) InterpolateZZBuffer(spanR.Z0, spanR.Z1, i, spanR.IRecip, idiff);
+        xspan->Z1 = InterpolateZYBuffer(spanR.Z0, spanR.Z1, i, idiff);
 
         if (!spanR.Linear)
         {
@@ -1738,7 +1775,119 @@ void Rasterizer3D::CompareWithSoftware(GPU& gpu, SoftRenderer& software) noexcep
                         x, y, a, b, pixelAttr, a == b ? "" : "  <-- differs");
             }
 
+            {
+                const MetaUniform* meta = (const MetaUniform*) _metaUniform.contents;
+                fprintf(stderr, "[probe] alpha ref: uniform %u, gpu %u, dispcnt %08x, clear %08x\n",
+                        meta->AlphaRef, gpu.GPU3D.RenderAlphaRef, gpu.GPU3D.RenderDispCnt,
+                        meta->ClearColor);
+            }
+
             const u32* rec = (const u32*) _debugBuffer.contents;
+
+            // Which polygons' spans cover the probe pixels, in submission
+            // order, so it is clear how many of them compete for each.
+            {
+                const u32* lineOffsets = (const u32*) _linePolyOffsets.contents;
+                static const int probes[][2] = { {100,20}, {60,20} };
+                for (int slot = 0; slot < 2; slot++)
+                {
+                    const int px = probes[slot][0], py = probes[slot][1];
+                    fprintf(stderr, "[probe] slot %d: polygons covering (%d,%d):\n", slot, px, py);
+                    for (u32 k = lineOffsets[py]; k < lineOffsets[py + 1]; k++)
+                    {
+                        const u32 p = _linePolyIndicesCPU[k];
+                        const RenderPolygon& rp = _polygons[p];
+                        if (px < rp.XMin || px > rp.XMax)
+                            continue;
+
+                        const SpanSetupX& xs = _xSpans[rp.FirstXSpan + (u32) (py - rp.YTop)];
+                        const bool inSpan = !(px < std::max(xs.X0, 0) || px >= std::max(xs.X1, 0));
+
+                        const bool left = px < xs.InsideStart;
+                        const bool right = px >= xs.InsideEnd;
+                        const bool inside = !left && !right;
+                        const bool drawn = inSpan
+                                        && ((left && (xs.Flags & kXSpanSetup_FillLeft))
+                                            || (right && (xs.Flags & kXSpanSetup_FillRight))
+                                            || (inside && (xs.Flags & kXSpanSetup_FillInside)));
+
+                        fprintf(stderr, "[probe] slot %d:   poly %u attr %08x mode %u alpha %u"
+                                " y %d..%d span x %d..%d in %d..%d flags %x %s\n",
+                                slot, p, rp.Attr, rp.TexMode, (rp.Attr >> 16) & 0x1F,
+                                rp.YTop, rp.YBot,
+                                xs.X0, xs.X1, xs.InsideStart, xs.InsideEnd, xs.Flags,
+                                drawn ? "drawn" : (inSpan ? "skipped" : "outside span"));
+
+                        // Which of these polygons' textures could produce the
+                        // software rasteriser's colour at the probe pixel?
+                        {
+                            const u32 soft = software.GetLine(py)[px];
+                            const u32 sr = soft & 0x3F, sg = (soft >> 8) & 0x3F, sb = (soft >> 16) & 0x3F;
+                            const u32 width = rp.TexWidth, height = rp.TexHeight;
+                            u32 matches = 0;
+                            u32 firstTx = 0, firstTy = 0, firstColor = 0;
+
+                            for (u32 ty = 0; ty < height; ty++)
+                            {
+                                for (u32 tx = 0; tx < width; tx++)
+                                {
+                                    u32 color = 0, alpha = 0;
+                                    SoftwareTexel(gpu, _polyTexParam[p], _polyTexPalette[p],
+                                                  (int) tx << 4, (int) ty << 4, &color, &alpha);
+                                    u32 tr = (color << 1) & 0x3E; if (tr) tr++;
+                                    u32 tg = (color >> 4) & 0x3E; if (tg) tg++;
+                                    u32 tb = (color >> 9) & 0x3E; if (tb) tb++;
+
+                                    // The polygon modulates the texel with its
+                                    // vertex colour; the record has the colour
+                                    // the Metal rasteriser used, and the two
+                                    // rasterisers agree on vertex colours.
+                                    const u32* rrec = rec + slot * 32;
+                                    const u32 vr6 = rrec[16] & 0xFF, vg6 = (rrec[16] >> 8) & 0xFF, vb6 = (rrec[16] >> 16) & 0xFF;
+                                    const u32 mr = ((tr + 1) * (vr6 + 1) - 1) >> 6;
+                                    const u32 mg = ((tg + 1) * (vg6 + 1) - 1) >> 6;
+                                    const u32 mb = ((tb + 1) * (vb6 + 1) - 1) >> 6;
+
+                                    if (mr == sr && mg == sg && mb == sb)
+                                    {
+                                        if (matches == 0) { firstTx = tx; firstTy = ty; firstColor = color; }
+                                        matches++;
+                                    }
+                                }
+                            }
+                            fprintf(stderr, "[probe] slot %d:   poly %u texparam %08x pal %u %ux%u:"
+                                    " %u texel(s) could give the software colour %08x%s\n",
+                                    slot, p, _polyTexParam[p], _polyTexPalette[p], width, height,
+                                    matches, soft,
+                                    matches ? "" : " (its texel colour does not match)");
+                            if (matches)
+                                fprintf(stderr, "[probe] slot %d:     first at (%u,%u) %08x\n",
+                                        slot, firstTx, firstTy, firstColor);
+                        }
+
+                        // The Y spans that produced this X span, so the
+                        // texture coordinates going in can be checked.
+                        for (const SetupIndices& si : _spanIndices)
+                        {
+                            if (si.PolyIdx != p || si.Y != py)
+                                continue;
+
+                            const SpanSetupY& sl = _spans[si.SpanIdxL];
+                            const SpanSetupY& sr = _spans[si.SpanIdxR];
+                            fprintf(stderr, "[probe] slot %d:     left  y %d..%d v %d..%d w %d..%d"
+                                    " i %d..%d linear %d incr %x\n",
+                                    slot, sl.Y0, sl.Y1, sl.TexcoordV0, sl.TexcoordV1, sl.W0, sl.W1,
+                                    sl.I0, sl.I1, sl.Linear, sl.Increment);
+                            fprintf(stderr, "[probe] slot %d:     right y %d..%d v %d..%d w %d..%d"
+                                    " i %d..%d linear %d incr %x\n",
+                                    slot, sr.Y0, sr.Y1, sr.TexcoordV0, sr.TexcoordV1, sr.W0, sr.W1,
+                                    sr.I0, sr.I1, sr.Linear, sr.Increment);
+                            break;
+                        }
+                    }
+                }
+            }
+
             for (int slot = 0; slot < 2; slot++)
             {
                 const u32* r = rec + slot * 32;

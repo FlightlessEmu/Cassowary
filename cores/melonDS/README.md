@@ -133,8 +133,8 @@ with both:
    modes are in; W-buffering is per polygon and in.
 
 Where it stands: a frame of a retail game matches the software rasteriser on
-about 46,000 of its 49,152 pixels, with the rest spread over a handful of
-surfaces rather than edges.
+about 45,500 to 46,300 of its 49,152 pixels, with the rest spread over a
+handful of surfaces rather than edges.
 
 The comparison harness is the tool to finish it with. `MELONDS_3D=cmp` runs
 both rasterisers on the same frame in the same process and:
@@ -159,10 +159,10 @@ What the harness has established so far:
   setup, the depth test, the blending, the coverage and the final pass all
   match. The rest is in the texture path.
 - Every decoded texture in a frame matches the software rasteriser's decode
-  texel for texel. Getting there needed one fix: A5I3's palette base is in the
-  same smaller units as the four-entry palette, and melonDS's texture cache
-  only halved it for the four-entry one, so A5I3 textures were read from the
-  wrong palette. The software rasteriser shifts the base by three for both.
+  texel for texel. (Worth knowing when comparing the two: only the four-colour
+  palette is addressed in the smaller units, so the software rasteriser shifts
+  the base by three for that format alone. A5I3 uses the same shift as the
+  larger palettes.)
 - The differences that are left are in the *coordinates*, not the texels: for
   the probe pixels the software rasteriser samples a different texel of a
   texture that is decoded correctly.
@@ -190,14 +190,22 @@ something more specific than "the coordinates differ":
   through the modulate the polygon uses. The search runs over the whole
   texture, using the software rasteriser's own decode.
 
-So the software rasteriser's last writer at that pixel is a *different
-polygon*, not the same polygon sampling a different texel. The difference is in
-which polygon wins, not in the fetch. The next step is to find why: the
-candidates are the alpha test's reference value (the polygon's alpha is 10, so
-a reference of 10 or more would skip it) and the edge fill rules, which the
-software rasteriser relaxes for translucent polygons with blending enabled —
-`l_filledge`/`r_filledge` in `RenderScanline` — where this port still follows
-the compute renderer's `FillLeft`/`FillRight`/`FillInside` flags.
+Three polygons cover that pixel — 55, 73 and 117, all the same material, in
+that submission order — and the search says the software's colour can only come
+from the *first* of them. So the software rasteriser's last writer is a
+different polygon from the Metal one's, and the difference is in which polygon
+wins rather than in the fetch.
+
+The probe reports the whole set now, in submission order, with each polygon's
+span, whether the span covers the pixel, and whether any texel of its texture
+could produce the software's colour. That is the tool to finish this with. The
+remaining candidates for why the later polygons lose in the software are the
+depth test (a step of Z can flip it, which is why the Y-direction Z
+interpolation now follows the software rasteriser's higher-precision version)
+and the edge fill rules, which the software rasteriser relaxes for translucent
+polygons with blending enabled — `l_filledge`/`r_filledge` in `RenderScanline`
+— where this port still follows the compute renderer's
+`FillLeft`/`FillRight`/`FillInside` flags.
 
 Until step 3 lands, the 3D layer comes from the software rasteriser (see
 above), and with it the Metal picture is pixel-for-pixel identical to the
@@ -206,17 +214,13 @@ and compares them.
 
 ## Patches to upstream
 
-Four, all documented where they change the code:
+Three, all documented where they change the code:
 
 - `src/ARMJIT.cpp` — skips `pthread_jit_write_protect_np`, which the Catalyst
   SDK marks unavailable; Catalyst's JIT pages stay writable without it.
 - `src/GPU2D_Soft.cpp` — calls the renderer's `PrepareCaptureFrame` for any
   accelerated renderer, not only the OpenGL one. Display capture reads the 3D
   layer back on the CPU, and a Metal renderer needs the same call.
-- `src/GPU3D_Texcache.h` — halves the palette base for A5I3 textures as well as
-  for four-colour ones. The software rasteriser shifts the base by three for
-  both; without the halving an A5I3 texture is read from the wrong palette and
-  comes out the wrong colours.
 - The build itself lives in `MelonDS/CMakeLists.txt`, which includes upstream's
   `src/CMakeLists.txt` rather than copying its source list.
 
