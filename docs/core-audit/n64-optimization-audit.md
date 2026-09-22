@@ -152,7 +152,15 @@ The build scripts used to carry a short tvOS core list (Gambatte and mGBA)
 because every core has to compile against the tvOS SDK and then run on an
 Apple TV. That list is gone: `build-cassowary.sh` now asks for every core in
 every mode, and a core that fails to compile is skipped with a warning and
-simply not staged.
+simply not staged. All 26 cores build for both tvOS targets.
+
+Three cores needed their own build script taught tvOS: MAME, melonDS and
+VirtualC64. MAME needed more than that. Its object tree had to be split per
+platform (the makefile keys it on the target OS name, which is `macosx` for
+all of them, so a tvOS link picked up the iOS objects), and three of its
+Apple guards were iOS-only: Lua's `system()`, the headless OSD's `NSSize`
+alias, and the instruction cache flush, which has no `__clear_cache` to call
+on tvOS.
 
 ## 10. Still open
 

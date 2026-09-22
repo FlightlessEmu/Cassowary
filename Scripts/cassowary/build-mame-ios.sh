@@ -114,7 +114,6 @@ make NOWERROR=1 REGENIE=1 macosx_arm64_clang \
 # MAME always writes the bare name, so a device build would otherwise
 # overwrite the Simulator's copy.
 BUILT="$MAME_SRC/mamearcade_headless.dylib"
-install_name_tool -id "@rpath/${BUILT:t}" "$BUILT" 2>/dev/null || true
 
 OUT="$MAME_SRC/$DYLIB_NAME"
 if [[ "$DYLIB_NAME" != "mamearcade_headless.dylib" ]]; then
@@ -122,6 +121,12 @@ if [[ "$DYLIB_NAME" != "mamearcade_headless.dylib" ]]; then
 else
   OUT="$BUILT"
 fi
+
+# The install name has to carry the platform suffix as well. The plugin link
+# records the install name, and build-core-ios.sh looks for the file name when
+# it rewrites the reference to a loader-relative path; with the bare name
+# there the rewrite silently finds nothing and the plugin loses its copy.
+install_name_tool -id "@rpath/$DYLIB_NAME" "$OUT" 2>/dev/null || true
 
 print -- "built $OUT"
 file "$OUT"
