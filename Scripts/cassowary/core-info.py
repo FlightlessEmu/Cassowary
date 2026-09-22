@@ -17,7 +17,8 @@ Prints a JSON object:
       "sources": ["GBGameCore.mm", "..."],
       "headerSearchPaths": ["..."],
       "otherCFlags": ["-DHAVE_STDINT_H"],
-      "frameworks": ["..."]
+      "frameworks": ["..."],
+      "resources": ["..."]
     }
 
 Paths are absolute and resolved against the project directory. Build settings
@@ -507,6 +508,23 @@ def main():
     frameworks = [p for p, _ in phase_files(text, target_id, 'PBXFrameworksBuildPhase', file_paths)]
     libraries = framework_system_libraries(text, target_id)
 
+    # Data files from the target's Resources phase. Localizations arrive as
+    # *.lproj paths, which the build script copies as a folder of their own, so
+    # they are left out here.
+    resources = []
+    seen_resources = set()
+    for owner in [target_id] + dependent_target_ids(text, target_id):
+        if owner in excluded_ids:
+            continue
+        for path, _ in phase_files(text, owner, 'PBXResourcesBuildPhase', file_paths):
+            if '.lproj/' in path:
+                continue
+            full = os.path.normpath(os.path.join(core_dir, path))
+            if full in seen_resources or not os.path.isfile(full):
+                continue
+            seen_resources.add(full)
+            resources.append(full)
+
     # Project paths that exist, plus everything discovered on disk.
     live_header_paths = [p for p in header_paths if os.path.isdir(p)]
     discovered, quoted = discover_header_dirs(core_dir)
@@ -538,6 +556,7 @@ def main():
         'cxxStandard': cxx_standard,
         'frameworks': frameworks,
         'libraries': libraries,
+        'resources': resources,
         'arc': settings.get('CLANG_ENABLE_OBJC_ARC', 'YES') == 'YES',
     }
 
@@ -554,6 +573,7 @@ def main():
         print("QUOTE_INCLUDES=(" + " ".join(shlex.quote(p) for p in info['quoteHeaderSearchPaths']) + ")")
         print("EXTRA_CFLAGS=(" + " ".join(shlex.quote(f) for f in info['otherCFlags']) + ")")
         print("LIBS=(" + " ".join(shlex.quote(l) for l in info['libraries']) + ")")
+        print("RESOURCES=(" + " ".join(shlex.quote(r) for r in info['resources']) + ")")
         print(f"CSTD={shlex.quote(info['cStandard'])}")
         print(f"CXXSTD={shlex.quote(info['cxxStandard'])}")
         print(f"INFO_PLIST={shlex.quote(info['infoPlist'])}")

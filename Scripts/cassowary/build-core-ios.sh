@@ -550,6 +550,16 @@ for lproj in "$PROJECT_DIR"/*.lproj; do
   [[ -d "$lproj" ]] && cp -R "$lproj" "$PLUGIN_DIR/" 2>/dev/null || true
 done
 
+# Data files from the core's Resources build phase. They are not code, but a
+# core cannot run without them: BSNES needs boards.bml to build the cartridge
+# memory map (without it the core crashes or shows a black screen), and Nestopia
+# reads its game database. The bundle is flat, so each file lands at its root,
+# which is where the cores look for it.
+for resource in "${RESOURCES[@]:-}"; do
+  [[ -f "$resource" ]] || continue
+  cp -f "$resource" "$PLUGIN_DIR/${resource:t}"
+done
+
 # Mupen64Plus renders through the paraLLEl-RDP video plugin, which the core
 # loads from its own PlugIns directory at runtime. The plugin is built
 # separately (it needs MoltenVK and the parallel-rdp sources): see
