@@ -264,6 +264,7 @@ private:
     u32 _numSpanIndices = 0;
     u32 _numPolygons = 0;
 
+
     bool _ready;
 
     /// Fills the buffers for one frame: every polygon's vertical spans and the

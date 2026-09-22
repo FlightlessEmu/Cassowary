@@ -1474,8 +1474,6 @@ void Rasterizer3D::CompareWithSoftware(SoftRenderer& software) noexcept
             fprintf(stderr, "[cmp] same %u diff %u\n", same, diff);
     }
 
-
-
     {
         // Write both layers out once so they can be looked at side by side:
         // the Metal colour buffer and the software rasteriser's lines, in the

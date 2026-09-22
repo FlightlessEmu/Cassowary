@@ -406,6 +406,7 @@ kernel void melonds_rasterise(
     {
         const MelonDSRenderPolygon polygon = polygons[linePolyIndices[k]];
 
+
         if (pixel.x < uint(max(polygon.XMin, 0)) || pixel.x > uint(max(polygon.XMax, 0)))
             continue;
 
@@ -422,6 +423,8 @@ kernel void melonds_rasterise(
               || (insideRightEdge && (xspan.Flags & kXSpanSetup_FillRight) != 0U)
               || (insidePolygonInside && (xspan.Flags & kXSpanSetup_FillInside) != 0U)))
             continue;
+
+
 
 
         // The edge flags the final pass uses to mark edges.
@@ -590,6 +593,8 @@ kernel void melonds_rasterise(
         if (a <= meta.AlphaRef)
             continue;
 
+
+
         const uint color = r | (g << 8) | (b << 16) | (a << 24);
 
         // What the software rasteriser calls polyattr: the polygon's identity,
@@ -616,6 +621,8 @@ kernel void melonds_rasterise(
             if (!pass)
                 continue;
 
+
+
             if ((meta.DispCnt & (1U << 4)) != 0U)
             {
                 // anti-aliasing: push the covered pixel down before drawing
@@ -629,6 +636,9 @@ kernel void melonds_rasterise(
             depthBuffer[pixeladdr] = z;
             colorBuffer[pixeladdr] = color;
             attrBuffer[pixeladdr] = polyattr | attr;
+            if (pixel.x == 100 && pixel.y == 191)
+                colorBuffer[pixeladdr] = 0x1F3F0000; // DEBUG: constant red, writes work?
+
         }
         else
         {
