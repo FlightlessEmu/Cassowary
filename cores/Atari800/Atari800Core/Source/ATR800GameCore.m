@@ -251,19 +251,23 @@ static ATR800GameCore *_currentCore;
     // is never called again after the initial setup.
     uint8_t *dest = _renderTarget ? _renderTarget : _videoBuffer;
     if (dest) {
+        // Precompute the 256 palette entries as BGRA words once per frame.
+        // Colours_table holds 0xRRGGBB; the old code did three shifts per
+        // pixel (276k macro calls per frame). One table lookup per pixel
+        // produces identical bytes.
+        uint32_t bgraLUT[256];
+        for (int c = 0; c < 256; c++) {
+            int rgb = Colours_table[c];
+            bgraLUT[c] = (uint32_t)(rgb & 0xff)
+                       | (uint32_t)(rgb & 0xff00)
+                       | ((uint32_t)((rgb >> 16) & 0xff) << 16)
+                       | 0xff000000u;
+        }
         UBYTE *source = (UBYTE *)(Screen_atari);
-        UBYTE *destination = dest;
-        for (int i = 0; i < Screen_HEIGHT; i++) {
-            for (int j = 0; j < Screen_WIDTH; j++) {
-                UBYTE r = Colours_GetR(*source);
-                UBYTE g = Colours_GetG(*source);
-                UBYTE b = Colours_GetB(*source);
-                *destination++ = b;
-                *destination++ = g;
-                *destination++ = r;
-                *destination++ = 0xff;
-                source++;
-            }
+        uint32_t *destination = (uint32_t *)dest;
+        const int pixelCount = Screen_WIDTH * Screen_HEIGHT;
+        for (int i = 0; i < pixelCount; i++) {
+            destination[i] = bgraLUT[source[i]];
         }
     }
 
