@@ -97,7 +97,7 @@ static int SaveRGBBufferToFile(const char *filename, const unsigned char *buf, i
         return 3;
     }
     // open the file to write
-    FILE *savefile = fopen(filename, "wb");
+    FILE *savefile = osal_file_open(filename, "wb");
     if (savefile == NULL)
     {
         DebugMessage(M64MSG_ERROR, "Error opening '%s' to save screenshot.", filename);
@@ -148,20 +148,26 @@ static char *GetNextScreenshotPath(void)
     if (*pccNameChar == 0)
     {
         // generate the base name of the screenshot
-        // add the ROM name, convert to lowercase, convert spaces to underscores
-        strcpy(ScreenshotFileName, ROM_PARAMS.headername);
-        for (pch = ScreenshotFileName; *pch != '\0'; pch++)
-            *pch = ((*pch == ' ') || (*pch == ':')) ? '_' : tolower(*pch);
+        // add the ROM name and convert to lowercase
+        if (ROM_PARAMS.headername[0] != 0)
+        {
+            strcpy(ScreenshotFileName, ROM_PARAMS.headername);
+            for (pch = ScreenshotFileName; *pch != '\0'; pch++)
+                *pch = tolower(*pch);
+        }
+        else
+        {
+            // fallback to using MD5 when there's no internal ROM name set
+            strcpy(ScreenshotFileName, ROM_SETTINGS.MD5);
+        }
     }
     else
     {
         ShiftJis2UTF8((unsigned char *) ROM_PARAMS.headername, (unsigned char *) ScreenshotFileName, sizeof(ScreenshotFileName));
-        for (pch = ScreenshotFileName; *pch != '\0'; pch++)
-        {
-            if (*pch == ' ' || *pch == ':')
-                *pch = '_';
-        }
     }
+
+    // sanitize filename
+    string_replace_chars(ScreenshotFileName, " :<>\"/\\|?*", '_');
 
     strcat(ScreenshotFileName, "-###.png");
     
@@ -189,7 +195,7 @@ static char *GetNextScreenshotPath(void)
     for (; CurrentShotIndex < 1000; CurrentShotIndex++)
     {
         sprintf(NumberPtr, "%03i.png", CurrentShotIndex);
-        FILE *pFile = fopen(ScreenshotPath, "r");
+        FILE *pFile = osal_file_open(ScreenshotPath, "r");
         if (pFile == NULL)
             break;
         fclose(pFile);
@@ -222,7 +228,10 @@ void TakeScreenshot(int iFrameNumber)
     // look for an unused screenshot filename
     filename = GetNextScreenshotPath();
     if (filename == NULL)
+    {
+        StateChanged(M64CORE_SCREENSHOT_CAPTURED, 0);
         return;
+    }
 
     // get the width and height
     int width = 640;
@@ -233,6 +242,7 @@ void TakeScreenshot(int iFrameNumber)
     unsigned char *pucFrame = (unsigned char *) malloc(width * height * 3);
     if (pucFrame == NULL)
     {
+        StateChanged(M64CORE_SCREENSHOT_CAPTURED, 0);
         free(filename);
         return;
     }
@@ -241,11 +251,19 @@ void TakeScreenshot(int iFrameNumber)
     gfx.readScreen(pucFrame, &width, &height, 0);
 
     // write the image to a PNG
-    SaveRGBBufferToFile(filename, pucFrame, width, height, width * 3);
+    int rval = SaveRGBBufferToFile(filename, pucFrame, width, height, width * 3);
     // free the memory
     free(pucFrame);
     free(filename);
     // print message -- this allows developers to capture frames and use them in the regression test
-    main_message(M64MSG_INFO, OSD_BOTTOM_LEFT, "Captured screenshot for frame %i.", iFrameNumber);
+    if (rval != 0)
+    {
+        StateChanged(M64CORE_SCREENSHOT_CAPTURED, 0);
+    }
+    else
+    {
+        main_message(M64MSG_INFO, OSD_BOTTOM_LEFT, "Captured screenshot for frame %i.", iFrameNumber);
+        StateChanged(M64CORE_SCREENSHOT_CAPTURED, 1);
+    }
 }
 

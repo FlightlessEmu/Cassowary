@@ -546,24 +546,18 @@ static void MupenSetAudioSpeed(int percent)
     ConfigSetParameter(config, "SharedDataPath", M64TYPE_STRING, dataURL.fileSystemRepresentation);
     ConfigSaveSection("Core");
 
-    // NOTE: The ARM64 dynarec (NEW_DYNAREC_ARM64) is compiled in and the
-    // required JIT infrastructure is in place (MAP_JIT allocation, proper
-    // pthread_jit_write_protect_np scoping, sys_icache_invalidate — see
-    // new_dynarec.c and assem_arm64.c).  However the ARM64 JIT backend
-    // currently produces incorrect results for SM64 and likely other titles:
-    // the game boots but enters an idle spin that it never exits, producing
-    // a black screen with no audio.  This is a dynarec emulation-correctness
-    // bug (not a JIT plumbing issue) that needs a separate investigation.
-    //
-    // Until that is resolved, keep the pure interpreter on aarch64 so that
-    // games that were working continue to work.  Track as issue #463.
-    //
-    // On x86_64 the dynarec is known-good and is used as before.
+    // The ARM64 dynarec needs a JIT, which iOS does not allow. Upstream
+    // master has native Apple Silicon support (MAP_JIT, sys_icache_invalidate,
+    // Mach-O linkage — see new_dynarec.c and linkage_arm64.S), so the
+    // simulator, which runs as a Mac process, can use it. On a real device
+    // fall back to the cached interpreter: it is the fastest mode that does
+    // not need executable memory (the pure interpreter decodes every
+    // instruction on every pass).
     m64p_handle section;
-#ifdef __aarch64__
-    int ival = EMUMODE_PURE_INTERPRETER;
-#else
+#if TARGET_OS_SIMULATOR
     int ival = EMUMODE_DYNAREC;
+#else
+    int ival = EMUMODE_INTERPRETER;
 #endif
 
     ConfigOpenSection("Core", &section);

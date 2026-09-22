@@ -101,7 +101,12 @@ static const input_plugin_functions dummy_input = {
     dummyinput_RomOpen,
     dummyinput_SDL_KeyDown,
     dummyinput_SDL_KeyUp,
-    dummyinput_RenderCallback
+    dummyinput_RenderCallback,
+    dummyinput_SendVRUWord,
+    dummyinput_SetMicState,
+    dummyinput_ReadVRUResults,
+    dummyinput_ClearVRUWords,
+    dummyinput_SetVRUWordMask
 };
 
 static const rsp_plugin_functions dummy_rsp = {
@@ -228,7 +233,7 @@ static m64p_error plugin_connect_gfx(m64p_dynlib_handle plugin_handle)
 
 static m64p_error plugin_start_gfx(void)
 {
-    uint8_t media = *((uint8_t*)mem_base_u32(g_mem_base, MM_CART_ROM) + (0x3b ^ S8));
+    uint8_t media = g_rom_size == 0 ? 0 : *((uint8_t*)mem_base_u32(g_mem_base, MM_CART_ROM) + (0x3b ^ S8));
 
     /* Here we feed 64DD IPL ROM header to GFX plugin if 64DD is present.
      * We use g_media_loader.get_dd_rom to detect 64DD presence
@@ -239,7 +244,7 @@ static m64p_error plugin_start_gfx(void)
         ? NULL
         : g_media_loader.get_dd_rom(g_media_loader.cb_data);
 
-    uint32_t rom_base = (dd_ipl_rom_filename != NULL && strlen(dd_ipl_rom_filename) != 0 && media != 'C')
+    uint32_t rom_base = (g_rom_size == 0 || (dd_ipl_rom_filename != NULL && strlen(dd_ipl_rom_filename) != 0 && media != 'C'))
         ? MM_DD_ROM
         : MM_CART_ROM;
 
@@ -394,6 +399,15 @@ static m64p_error plugin_connect_input(m64p_dynlib_handle plugin_handle)
             return M64ERR_INPUT_INVALID;
         }
 
+        if (!GET_FUNC(ptr_SendVRUWord, input.sendVRUWord, "SendVRUWord") ||
+            !GET_FUNC(ptr_SetMicState, input.setMicState, "SetMicState") ||
+            !GET_FUNC(ptr_ReadVRUResults, input.readVRUResults, "ReadVRUResults") ||
+            !GET_FUNC(ptr_ClearVRUWords, input.clearVRUWords, "ClearVRUWords") ||
+            !GET_FUNC(ptr_SetVRUWordMask, input.setVRUWordMask, "SetVRUWordMask"))
+        {
+            DebugMessage(M64MSG_WARNING, "Input plugin does not contain VRU support.");
+        }
+
         /* check the version info */
         (*input.getVersion)(&PluginType, &PluginVersion, &APIVersion, NULL, NULL);
         if (PluginType != M64PLUGIN_INPUT || (APIVersion & 0xffff0000) != (INPUT_API_VERSION & 0xffff0000) || APIVersion < 0x020100)
@@ -427,6 +441,7 @@ static m64p_error plugin_start_input(void)
          Controls[i].Present = 0;
          Controls[i].RawData = 0;
          Controls[i].Plugin = PLUGIN_NONE;
+         Controls[i].Type = CONT_TYPE_STANDARD;
       }
 
     /* call the input plugin */

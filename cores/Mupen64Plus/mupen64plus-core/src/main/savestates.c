@@ -31,8 +31,8 @@
 #include <string.h>
 #include <sys/types.h>
 #include <zlib.h>
-#include <unzip.h>
-#include <zip.h>
+#include <minizip/unzip.h>
+#include <minizip/zip.h>
 
 #define M64P_CORE_PROTOTYPES 1
 #include "api/callbacks.h"
@@ -43,6 +43,7 @@
 #include "device/device.h"
 #include "main/list.h"
 #include "main/main.h"
+#include "osal/files.h"
 #include "osal/preproc.h"
 #include "osd/osd.h"
 #include "plugin/plugin.h"
@@ -57,7 +58,7 @@ enum { GB_CART_FINGERPRINT_OFFSET = 0x134 };
 enum { DD_DISK_ID_OFFSET = 0x43670 };
 
 static const char* savestate_magic = "M64+SAVE";
-static const int savestate_latest_version = 0x00010800;  /* 1.8 */
+static const int savestate_latest_version = 0x00010900;  /* 1.9 */
 static const unsigned char pj64_magic[4] = { 0xC8, 0xA6, 0xD8, 0x23 };
 
 static savestates_job job = savestates_job_nothing;
@@ -85,31 +86,32 @@ static char *savestates_generate_path(savestates_type type)
     }
     else /* Use the selected savestate slot */
     {
-        char *filename;
+        char *filepath;
+        size_t size = 0;
+
         switch (type)
         {
             case savestates_type_m64p:
-                filename = formatstr("%s.st%d", ROM_SETTINGS.goodname, slot);
+                /* check if old file path exists, if it does then use that */
+                filepath = formatstr("%s%s.st%d", get_savestatepath(), ROM_SETTINGS.goodname, slot);
+                if (get_file_size(filepath, &size) != file_ok || size == 0)
+                {
+                    /* else use new path */
+                    filepath = formatstr("%s%s.st%d", get_savestatepath(), get_savestatefilename(), slot);
+                }
                 break;
             case savestates_type_pj64_zip:
-                filename = formatstr("%s.pj%d.zip", ROM_PARAMS.headername, slot);
+                filepath = formatstr("%s%s.pj%d.zip", get_savestatepath(), ROM_PARAMS.headername, slot);
                 break;
             case savestates_type_pj64_unc:
-                filename = formatstr("%s.pj%d", ROM_PARAMS.headername, slot);
+                filepath = formatstr("%s%s.pj%d", get_savestatepath(), ROM_PARAMS.headername, slot);
                 break;
             default:
-                filename = NULL;
+                filepath = NULL;
                 break;
         }
 
-        if (filename != NULL)
-        {
-            char *filepath = formatstr("%s%s", get_savestatepath(), filename);
-            free(filename);
-            return filepath;
-        }
-        else
-            return NULL;
+        return filepath;
     }
 }
 
@@ -140,6 +142,7 @@ void savestates_inc_slot(void)
 {
     if(++slot>9)
         slot = 0;
+    ConfigSetParameter(g_CoreConfig, "CurrentStateSlot", M64TYPE_INT, &slot);
     StateChanged(M64CORE_SAVESTATE_SLOT, slot);
 }
 
@@ -200,7 +203,7 @@ static int savestates_load_m64p(struct device* dev, char *filepath)
 
     SDL_LockMutex(savestates_lock);
 
-    f = gzopen(filepath, "rb");
+    f = osal_gzopen(filepath, "rb");
     if(f==NULL)
     {
         main_message(M64MSG_STATUS, OSD_BOTTOM_LEFT, "Could not open state file: %s", filepath);
@@ -549,8 +552,8 @@ static int savestates_load_m64p(struct device* dev, char *filepath)
 
             unsigned int enabled = ALIGNED_GETDATA(curr, uint32_t);
             unsigned int bank = ALIGNED_GETDATA(curr, uint32_t);
-            unsigned int access_mode = ALIGNED_GETDATA(curr, uint32_t);
-            unsigned int access_mode_changed = ALIGNED_GETDATA(curr, uint32_t);
+            unsigned int cart_enabled = ALIGNED_GETDATA(curr, uint32_t);
+            unsigned int reset_state = ALIGNED_GETDATA(curr, uint32_t);
             COPYARRAY(gb_fingerprint, curr, uint8_t, GB_CART_FINGERPRINT_SIZE);
             if (gb_fingerprint[0] != 0) {
                 rom_bank = ALIGNED_GETDATA(curr, uint32_t);
@@ -564,13 +567,13 @@ static int savestates_load_m64p(struct device* dev, char *filepath)
                 COPYARRAY(cam_regs, curr, uint8_t, POCKET_CAM_REGS_COUNT);
             }
 
-            if (ROM_SETTINGS.transferpak && !Controls[i].RawData) {
+            if (ROM_SETTINGS.transferpak && !Controls[i].RawData && (Controls[i].Type == CONT_TYPE_STANDARD)) {
 
                 /* init transferpak state if enabled and not controlled by input plugin */
                 dev->transferpaks[i].enabled = enabled;
                 dev->transferpaks[i].bank = bank;
-                dev->transferpaks[i].access_mode = access_mode;
-                dev->transferpaks[i].access_mode_changed = access_mode_changed;
+                dev->transferpaks[i].cart_enabled = cart_enabled;
+                dev->transferpaks[i].reset_state = reset_state;
 
                 /* if it holds a valid cartridge init gbcart */
                 if (dev->transferpaks[i].gb_cart != NULL
@@ -674,7 +677,7 @@ static int savestates_load_m64p(struct device* dev, char *filepath)
             uint8_t rpk_state = GETDATA(curr, uint8_t);
 
             /* init rumble pak state if enabled and not controlled by the input plugin */
-            if (ROM_SETTINGS.rumble && !Controls[i].RawData) {
+            if (ROM_SETTINGS.rumble && !Controls[i].RawData && (Controls[i].Type == CONT_TYPE_STANDARD)) {
                 set_rumble_reg(&dev->rumblepaks[i], rpk_state);
             }
         }
@@ -694,8 +697,8 @@ static int savestates_load_m64p(struct device* dev, char *filepath)
 
             unsigned int enabled = GETDATA(curr, uint32_t);
             unsigned int bank = GETDATA(curr, uint32_t);
-            unsigned int access_mode = GETDATA(curr, uint32_t);
-            unsigned int access_mode_changed = GETDATA(curr, uint32_t);
+            unsigned int cart_enabled = GETDATA(curr, uint32_t);
+            unsigned int reset_state = GETDATA(curr, uint32_t);
             COPYARRAY(gb_fingerprint, curr, uint8_t, GB_CART_FINGERPRINT_SIZE);
             if (gb_fingerprint[0] != 0) {
                 rom_bank = GETDATA(curr, uint32_t);
@@ -709,13 +712,13 @@ static int savestates_load_m64p(struct device* dev, char *filepath)
                 COPYARRAY(cam_regs, curr, uint8_t, POCKET_CAM_REGS_COUNT);
             }
 
-            if (ROM_SETTINGS.transferpak && !Controls[i].RawData) {
+            if (ROM_SETTINGS.transferpak && !Controls[i].RawData && (Controls[i].Type == CONT_TYPE_STANDARD)) {
 
                 /* init transferpak state if enabled and not controlled by input plugin */
                 dev->transferpaks[i].enabled = enabled;
                 dev->transferpaks[i].bank = bank;
-                dev->transferpaks[i].access_mode = access_mode;
-                dev->transferpaks[i].access_mode_changed = access_mode_changed;
+                dev->transferpaks[i].cart_enabled = cart_enabled;
+                dev->transferpaks[i].reset_state = reset_state;
 
                 /* if it holds a valid cartridge init gbcart */
                 if (dev->transferpaks[i].gb_cart != NULL
@@ -868,6 +871,13 @@ static int savestates_load_m64p(struct device* dev, char *filepath)
             dev->cart.flashram.erase_page = GETDATA(curr, uint16_t);
             dev->cart.flashram.mode = GETDATA(curr, uint16_t);
         }
+
+        if (version >= 0x00010900)
+        {
+            /* extra cp0 and cp2 state */
+            *r4300_cp0_latch(&dev->r4300.cp0) = GETDATA(curr, uint64_t);
+            *r4300_cp2_latch(&dev->r4300.cp2) = GETDATA(curr, uint64_t);
+        }
     }
     else
     {
@@ -891,10 +901,10 @@ static int savestates_load_m64p(struct device* dev, char *filepath)
 
             dev->controllers[i].flavor->reset(&dev->controllers[i]);
 
-            if (ROM_SETTINGS.rumble) {
+            if (ROM_SETTINGS.rumble && (Controls[i].Type == CONT_TYPE_STANDARD)) {
                 poweron_rumblepak(&dev->rumblepaks[i]);
             }
-            if (ROM_SETTINGS.transferpak) {
+            if (ROM_SETTINGS.transferpak && (Controls[i].Type == CONT_TYPE_STANDARD)) {
                 poweron_transferpak(&dev->transferpaks[i]);
             }
         }
@@ -922,7 +932,7 @@ static int savestates_load_m64p(struct device* dev, char *filepath)
          */
         for (i = 0; i < RDRAM_MAX_MODULES_COUNT; ++i) {
             memcpy(dev->rdram.regs[i], dev->rdram.regs[0], RDRAM_REGS_COUNT*sizeof(dev->rdram.regs[0][0]));
-            dev->rdram.regs[i][RDRAM_DEVICE_ID_REG] = ri_address_to_id_field(i * 0x200000) << 2;
+            dev->rdram.regs[i][RDRAM_DEVICE_ID_REG] = ri_address_to_id_field(ri_address(i * 0x200000), 0) << 2;
         }
 
         /* dd state */
@@ -1262,10 +1272,10 @@ static int savestates_load_pj64(struct device* dev,
 
         dev->controllers[i].flavor->reset(&dev->controllers[i]);
 
-        if (ROM_SETTINGS.rumble) {
+        if (ROM_SETTINGS.rumble && (Controls[i].Type == CONT_TYPE_STANDARD)) {
             poweron_rumblepak(&dev->rumblepaks[i]);
         }
-        if (ROM_SETTINGS.transferpak) {
+        if (ROM_SETTINGS.transferpak && (Controls[i].Type == CONT_TYPE_STANDARD)) {
             poweron_transferpak(&dev->transferpaks[i]);
         }
     }
@@ -1276,7 +1286,7 @@ static int savestates_load_pj64(struct device* dev,
      */
     for (i = 0; i < (SaveRDRAMSize / 0x200000); ++i) {
         memcpy(dev->rdram.regs[i], dev->rdram.regs[0], RDRAM_REGS_COUNT*sizeof(dev->rdram.regs[0][0]));
-        dev->rdram.regs[i][RDRAM_DEVICE_ID_REG] = ri_address_to_id_field(i * 0x200000) << 2;
+        dev->rdram.regs[i][RDRAM_DEVICE_ID_REG] = ri_address_to_id_field(ri_address(i * 0x200000), 0) << 2;
     }
 
     /* dd state */
@@ -1338,7 +1348,7 @@ static int savestates_load_pj64_unc(struct device* dev, char *filepath)
     FILE *f;
 
     /* Open the file. */
-    f = fopen(filepath, "rb");
+    f = osal_file_open(filepath, "rb");
     if (f == NULL)
     {
         main_message(M64MSG_STATUS, OSD_BOTTOM_LEFT, "Could not open state file: %s", filepath);
@@ -1359,7 +1369,7 @@ static int savestates_load_pj64_unc(struct device* dev, char *filepath)
 static savestates_type savestates_detect_type(char *filepath)
 {
     unsigned char magic[4];
-    FILE *f = fopen(filepath, "rb");
+    FILE *f = osal_file_open(filepath, "rb");
     if (f == NULL)
     {
         DebugMessage(M64MSG_STATUS, "Could not open state file %s\n", filepath);
@@ -1399,21 +1409,21 @@ int savestates_load(void)
         // try M64P type first
         type = savestates_type_m64p;
         filepath = savestates_generate_path(type);
-        fPtr = fopen(filepath, "rb"); // can I open this?
+        fPtr = osal_file_open(filepath, "rb"); // can I open this?
         if (fPtr == NULL)
         {
             free(filepath);
             // try PJ64 zipped type second
             type = savestates_type_pj64_zip;
             filepath = savestates_generate_path(type);
-            fPtr = fopen(filepath, "rb"); // can I open this?
+            fPtr = osal_file_open(filepath, "rb"); // can I open this?
             if (fPtr == NULL)
             {
                 free(filepath);
                 // finally, try PJ64 uncompressed
                 type = savestates_type_pj64_unc;
                 filepath = savestates_generate_path(type);
-                fPtr = fopen(filepath, "rb"); // can I open this?
+                fPtr = osal_file_open(filepath, "rb"); // can I open this?
                 if (fPtr == NULL)
                 {
                     free(filepath);
@@ -1433,10 +1443,11 @@ int savestates_load(void)
         }
         filepath = savestates_generate_path(type);
         if (filepath != NULL)
-            fPtr = fopen(filepath, "rb"); // can I open this?
+            fPtr = osal_file_open(filepath, "rb"); // can I open this?
         if (fPtr == NULL)
         {
-            main_message(M64MSG_STATUS, OSD_BOTTOM_LEFT, "Failed to open savestate file %s", filepath);
+            if (filepath != NULL)
+                main_message(M64MSG_STATUS, OSD_BOTTOM_LEFT, "Failed to open savestate file %s", filepath);
             if (filepath != NULL)
                 free(filepath);
             filepath = NULL;
@@ -1477,12 +1488,13 @@ static void savestates_save_m64p_work(struct work_struct *work)
     SDL_LockMutex(savestates_lock);
 
     // Write the state to a GZIP file
-    f = gzopen(save->filepath, "wb");
+    f = osal_gzopen(save->filepath, "wb");
 
     if (f==NULL)
     {
         main_message(M64MSG_STATUS, OSD_BOTTOM_LEFT, "Could not open state file: %s", save->filepath);
         free(save->data);
+        StateChanged(M64CORE_STATE_SAVECOMPLETE, 0);
         return;
     }
 
@@ -1492,6 +1504,7 @@ static void savestates_save_m64p_work(struct work_struct *work)
         main_message(M64MSG_STATUS, OSD_BOTTOM_LEFT, "Could not write data to state file: %s", save->filepath);
         gzclose(f);
         free(save->data);
+        StateChanged(M64CORE_STATE_SAVECOMPLETE, 0);
         return;
     }
 
@@ -1502,6 +1515,7 @@ static void savestates_save_m64p_work(struct work_struct *work)
     free(save);
 
     SDL_UnlockMutex(savestates_lock);
+    StateChanged(M64CORE_STATE_SAVECOMPLETE, 1);
 }
 
 static int savestates_save_m64p(const struct device* dev, char *filepath)
@@ -1520,6 +1534,7 @@ static int savestates_save_m64p(const struct device* dev, char *filepath)
     save = malloc(sizeof(*save));
     if (!save) {
         main_message(M64MSG_STATUS, OSD_BOTTOM_LEFT, "Insufficient memory to save state.");
+        StateChanged(M64CORE_STATE_SAVECOMPLETE, 0);
         return 0;
     }
 
@@ -1538,6 +1553,7 @@ static int savestates_save_m64p(const struct device* dev, char *filepath)
         free(save->filepath);
         free(save);
         main_message(M64MSG_STATUS, OSD_BOTTOM_LEFT, "Insufficient memory to save state.");
+        StateChanged(M64CORE_STATE_SAVECOMPLETE, 0);
         return 0;
     }
 
@@ -1781,8 +1797,8 @@ static int savestates_save_m64p(const struct device* dev, char *filepath)
     for (i = 0; i < GAME_CONTROLLERS_COUNT; ++i) {
         PUTDATA(curr, uint32_t, dev->transferpaks[i].enabled);
         PUTDATA(curr, uint32_t, dev->transferpaks[i].bank);
-        PUTDATA(curr, uint32_t, dev->transferpaks[i].access_mode);
-        PUTDATA(curr, uint32_t, dev->transferpaks[i].access_mode_changed);
+        PUTDATA(curr, uint32_t, dev->transferpaks[i].cart_enabled);
+        PUTDATA(curr, uint32_t, dev->transferpaks[i].reset_state);
 
         if (dev->transferpaks[i].gb_cart == NULL) {
             uint8_t gb_fingerprint[GB_CART_FINGERPRINT_SIZE];
@@ -1895,6 +1911,10 @@ static int savestates_save_m64p(const struct device* dev, char *filepath)
     PUTDATA(curr, uint32_t, dev->cart.flashram.status);
     PUTDATA(curr, uint16_t, dev->cart.flashram.erase_page);
     PUTDATA(curr, uint16_t, dev->cart.flashram.mode);
+
+    /* cp0 and cp2 latch (since 1.9) */
+    PUTDATA(curr, uint64_t, *r4300_cp0_latch((struct cp0*)&dev->r4300.cp0));
+    PUTDATA(curr, uint64_t, *r4300_cp2_latch((struct cp2*)&dev->r4300.cp2));
 
     init_work(&save->work, savestates_save_m64p_work);
     queue_work(&save->work);
@@ -2107,6 +2127,7 @@ static int savestates_save_pj64_zip(const struct device* dev, char *filepath)
             zipCloseFileInZip(zipfile); // This may fail, but we don't care
             zipClose(zipfile, "");
         }
+        StateChanged(M64CORE_STATE_SAVECOMPLETE, 1);
         return 1;
 }
 
@@ -2119,21 +2140,24 @@ static int savestates_save_pj64_unc(const struct device* dev, char *filepath)
 {
     FILE *f;
 
-    f = fopen(filepath, "wb");
+    f = osal_file_open(filepath, "wb");
     if (f == NULL)
     {
         main_message(M64MSG_STATUS, OSD_BOTTOM_LEFT, "Could not create PJ64 state file: %s", filepath);
+        StateChanged(M64CORE_STATE_SAVECOMPLETE, 0);
         return 0;
     }
 
     if (!savestates_save_pj64(dev, filepath, f, write_data_to_file))
     {
         fclose(f);
+        StateChanged(M64CORE_STATE_SAVECOMPLETE, 0);
         return 0;
     }
 
     main_message(M64MSG_STATUS, OSD_BOTTOM_LEFT, "Saved state to: %s", namefrompath(filepath));
     fclose(f);
+    StateChanged(M64CORE_STATE_SAVECOMPLETE, 1);
     return 1;
 }
 
@@ -2163,13 +2187,14 @@ int savestates_save(void)
             case savestates_type_m64p: ret = savestates_save_m64p(dev, filepath); break;
             case savestates_type_pj64_zip: ret = savestates_save_pj64_zip(dev, filepath); break;
             case savestates_type_pj64_unc: ret = savestates_save_pj64_unc(dev, filepath); break;
-            default: ret = 0; break;
+            default: ret = 0; StateChanged(M64CORE_STATE_SAVECOMPLETE, ret); break;
         }
         free(filepath);
     }
-
-    // deliver callback to indicate completion of state saving operation
-    StateChanged(M64CORE_STATE_SAVECOMPLETE, ret);
+    else
+    {
+        StateChanged(M64CORE_STATE_SAVECOMPLETE, ret);
+    }
 
     savestates_clear_job();
     return ret;

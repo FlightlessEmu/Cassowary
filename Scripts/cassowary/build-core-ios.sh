@@ -185,6 +185,21 @@ case "$CORE" in
       print -- "building $CORE with the interpreter (no JIT)"
     fi
     EXTRA_CFLAGS+=(-DMUPEN_NO_JIT_WRITE_PROTECT -DMUPEN_NO_SYSTEM)
+    # savestates.c includes minizip as <minizip/unzip.h>, so the directory
+    # that holds minizip has to be on the search path. Header discovery adds
+    # the minizip directory itself, which is not enough for the angle include.
+    INCLUDES+=("$PWD/cores/Mupen64Plus/mupen64plus-core/subprojects")
+    # The ARM64 dynarec's assembly includes src/asm_defines/asm_defines_gas.h,
+    # which is generated from asm_defines.c and checked in (upstream's
+    # .gitignore hides it, so it is force-added to git). Regenerate it whenever
+    # the r4300 struct layouts change, or the dynarec will read stale offsets:
+    #   cd cores/Mupen64Plus/mupen64plus-core
+    #   xcrun --sdk iphonesimulator clang -c src/asm_defines/asm_defines.c \
+    #     -o /tmp/asm_defines.o -target arm64-apple-ios17.0-simulator \
+    #     -isysroot "$(xcrun --sdk iphonesimulator --show-sdk-path)" \
+    #     -I src -I src/device/r4300/new_dynarec \
+    #     -DNEW_DYNAREC=NEW_DYNAREC_ARM64 -w
+    #   bash tools/gen_asm_script.sh src/asm_defines /tmp/asm_defines.o
     if [[ "$PLATFORM" == catalyst ]]; then
       # Compatibility/vidext.m still calls glGetIntegerv on Catalyst.
       LINK_FRAMEWORKS+=(-framework OpenGL)

@@ -19,6 +19,7 @@
 *   51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.          *
 * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
+#include <stdlib.h>
 #include "disk.h"
 
 #define M64P_CORE_PROTOTYPES 1
@@ -40,21 +41,51 @@ static size_t storage_disk_size(const void* storage)
     return disk->istorage->size(disk->storage);
 }
 
-static void storage_disk_save(void* storage, size_t start, size_t size)
+
+static void storage_disk_save_dummy(void* storage, size_t start, size_t size)
+{
+    /* do nothing */
+}
+
+static void storage_disk_save_full(void* storage, size_t start, size_t size)
+{
+    struct dd_disk* disk = (struct dd_disk*)storage;
+    disk->isave_storage->save(disk->save_storage, start, size);
+}
+
+static void storage_disk_save_ram_only(void* storage, size_t start, size_t size)
 {
     struct dd_disk* disk = (struct dd_disk*)storage;
 
-    // XXX: you have now access to all disk members
-    // and can handle the various format specificities here
-
-    disk->istorage->save(disk->storage, start, size);
+    /* check range and translate start address before calling save */
+    if (start >= disk->offset_ram) {
+        start -= disk->offset_ram;
+        if ((start + size) <= disk->isave_storage->size(disk->save_storage)) {
+            disk->isave_storage->save(disk->save_storage, start, size);
+        }
+    }
 }
 
-const struct storage_backend_interface g_istorage_disk =
+
+const struct storage_backend_interface g_istorage_disk_read_only =
 {
     storage_disk_data,
     storage_disk_size,
-    storage_disk_save
+    storage_disk_save_dummy
+};
+
+const struct storage_backend_interface g_istorage_disk_full =
+{
+    storage_disk_data,
+    storage_disk_size,
+    storage_disk_save_full
+};
+
+const struct storage_backend_interface g_istorage_disk_ram_only =
+{
+    storage_disk_data,
+    storage_disk_size,
+    storage_disk_save_ram_only
 };
 
 
@@ -399,7 +430,7 @@ uint8_t* scan_and_expand_disk_format(uint8_t* data, size_t size,
 
         //IPL Load Address
         uint32_t ipl_load_addr = big32(sys_data->ipl_load_addr);
-        if (ipl_load_addr < 0x80000000 && ipl_load_addr >= 0x80800000) continue;
+        if (ipl_load_addr < 0x80000000 || ipl_load_addr >= 0x80800000) continue;
 
         //Country Code
         uint32_t disk_region = big32(sys_data->region);
@@ -531,7 +562,7 @@ uint8_t* scan_and_expand_disk_format(uint8_t* data, size_t size,
             if (disk_type < 6)
             {
                 sys_data_->ram_lba_start = big16((RAM_START_LBA[disk_type] - SYSTEM_LBAS));
-                sys_data_->ram_lba_end = big16((RAM_START_LBA[6] - SYSTEM_LBAS));
+                sys_data_->ram_lba_end = big16(MAX_LBA - SYSTEM_LBAS);
             }
             else
             {
