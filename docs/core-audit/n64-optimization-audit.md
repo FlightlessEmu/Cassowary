@@ -41,30 +41,30 @@ ARM64 dynarec was broken. With upstream master:
   code, not this port; it needs reporting and a fix before the dynarec
   can become the default.
 
-## 3. Build flags: the cores are compiled at `-O0`
+## 3. Build flags: the cores were compiled at `-O0`
 
-`Scripts/cassowary/build-core-ios.sh` passes no optimisation flag at
+`Scripts/cassowary/build-core-ios.sh` passed no optimisation flag at
 all, and `core-info.py` never reads `GCC_OPTIMIZATION_LEVEL` (the
 projects set 3 for Release, 0 for Debug, and the script reads Debug).
-Every core in the app is therefore built at clang's default, `-O0`.
-For the N64 core that means the interpreter, the RSP and the whole
-core run unoptimised; the same is true for every other core.
+Every core in the app was therefore built at clang's default, `-O0` —
+the interpreter, the RSP and the whole core, unoptimised.
 
-This is the single largest win left and it is not N64-specific.
+`build-core-ios.sh` now compiles with `-O2` (override with
+`CASSOWARY_CORE_OPTIMIZATION`). Measured on Mario Kart 64's attract
+mode under Mac Catalyst, paced to the VI rate: the N64 core uses 10.4
+CPU-seconds per 30 seconds of wall time at `-O2`, down from 13.3 at
+`-O0` — about 22% less CPU for the same emulated work, and that is
+with the video and RSP plugins unchanged. Cores already built keep
+their old bundles until they are rebuilt; delete
+`build/cassowary-plugins*` once to force that.
 
-## 4. Plugin build flags
+The plugins are built by `build/spike/parallel-plugin/build.sh` (not
+vendored yet), which now uses `-O2` as well and defines
+`-DUSE_SSE2NEON` for the RSP. cxd4's vector unit has SSE2 intrinsics
+(`vu.c`, `add.c`, `multiply.c`, `divide.c`) that go through `sse2neon`
+on ARM; without the define they fell back to scalar C.
 
-The paraLLEl-RDP video plugin and the cxd4 RSP are built by
-`build/spike/parallel-plugin/build.sh` (not vendored yet):
-
-- Both are compiled at `-O1`; `-O2` (or `-O3`) is worth several percent
-  in the RSP interpreter and the RDP command processor.
-- The RSP is built without `-DUSE_SSE2NEON`, which the upstream
-  Makefile defines for ARM. cxd4's vector unit has SSE2 intrinsics
-  (`vu.c`, `add.c`, `multiply.c`, `divide.c`) that go through
-  `sse2neon` on ARM; without the define it falls back to scalar C.
-
-## 5. Frame handoff
+## 4. Frame handoff
 
 `copyParallelFrame` copies the plugin's frame and swizzles RGBA to BGRA
 one pixel at a time, on the emulation thread, every frame. The Metal
@@ -74,7 +74,7 @@ can be dropped and the copy reduced to a row `memcpy`. A 32-bit word
 variant of the loop crashed with an out-of-bounds read; the row copy is
 bounds-safe.
 
-## 6. Simulator support
+## 5. Simulator support
 
 The N64 core now runs in the iOS Simulator, which needed three fixes:
 
@@ -91,7 +91,7 @@ The N64 core now runs in the iOS Simulator, which needed three fixes:
    executable-only until the toggle is used. The core now looks the
    symbol up with `dlsym` and falls back to a no-op on a device.
 
-## 7. Audio
+## 6. Audio
 
 The old port's audio was jumbled. The likely cause is already in this
 branch: without the SDL clock fix and the VI speed limiter, the core
@@ -101,7 +101,7 @@ carried here. The audio format itself (native-endian 16-bit stereo,
 left/right swapped by the glue) matches what OpenEmu's audio unit
 expects.
 
-## 8. Crashes found while bringing the core up
+## 7. Crashes found while bringing the core up
 
 1. **The GFX plugin would not start.** MoltenVK ships unsigned in the
    xcframework and dyld refuses to load an unsigned dylib in the
@@ -133,7 +133,7 @@ expects.
    `Command[0]` unconditionally, so controller detection crashed the
    core. It now returns early for that call.
 
-## 9. The GPU channel converter is not safe for the N64 frame path
+## 8. The GPU channel converter is not safe for the N64 frame path
 
 Reporting `OEPixelFormat_RGBA` so the Metal renderer converts RGBA to
 BGRA on the GPU (`MTLPixelConverter`) crashes the app with a corrupted
@@ -141,7 +141,7 @@ main-thread stack within seconds. The CPU swizzle in
 `copyParallelFrame` is what works today; the RGBA path needs its own
 investigation before it can replace it.
 
-## 10. Still open
+## 9. Still open
 
 - The `-O0` build (section 3), the plugin flags (section 4) and the
   frame handoff (section 5) are measured only by inspection so far.

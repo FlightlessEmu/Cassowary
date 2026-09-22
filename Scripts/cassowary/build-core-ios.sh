@@ -72,6 +72,15 @@ SDK=$(xcrun --sdk "$SDK_NAME" --show-sdk-path)
 # mean plain macOS frameworks.
 SDK_BUILD="$PWD/build/cassowary-${PLATFORM}"
 
+# The cores' Xcode projects set GCC_OPTIMIZATION_LEVEL = 3 for Release and 0
+# for Debug, and core-info.py reads the Debug configuration. Without this the
+# whole core — CPU interpreter, RSP, everything — would be compiled at clang's
+# default, -O0, which is what the projects say Debug means. Emulation is the
+# one place that cannot afford it. -O2 matches the projects' intent and keeps
+# build times sane; override with CASSOWARY_CORE_OPTIMIZATION when chasing a
+# miscompile or comparing.
+OPTIMIZATION=${CASSOWARY_CORE_OPTIMIZATION:--O2}
+
 # Mac Catalyst builds against the macOS SDK plus the iOS support frameworks;
 # without this, UIKit and friends are not on the search path.
 CATALYST_FRAMEWORKS=()
@@ -330,6 +339,9 @@ done
 COMMON=(
   -target "$TARGET"
   -isysroot "$SDK"
+  # See OPTIMIZATION above: the projects' Debug configuration is -O0, and
+  # these cores are not debug builds.
+  "$OPTIMIZATION"
   # Source headers before the built frameworks: -F is position-sensitive for
   # Framework/Header.h lookups, and the frameworks in SDK_BUILD can be older
   # than the sources (e.g. a fresh SDK typedef invisible until rebuild).
