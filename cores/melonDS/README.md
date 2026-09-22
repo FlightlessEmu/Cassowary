@@ -179,13 +179,42 @@ differing pixels to 4,511.
 What is left is small: one test frame differs on 69 of its 49,152 pixels, and
 another on 469. The differences are single texels — the same polygon, the same
 span, the same texture, one texel over — so they are still the texture
-coordinate thread described below, now down to a few pixels per surface.
+coordinate thread, now down to a few pixels per surface.
 
-The comparison harness is what got it this far, and it is worth keeping: the
-probe reports, in submission order, every polygon whose span covers a chosen
-pixel, whether the span covers it, whether any texel of its texture could
-produce the software rasteriser's colour, and the pixel and attributes before
-and after each write. Its probe pixels are set in `MelonDSMetal3DShaders.h`
-and `MelonDSMetalRenderer.mm` (search for `pixel.x == 100`).
+Two rules found along the way are worth recording, because both were large:
 
+- The software rasteriser depth-tests *every* pixel, translucent ones included,
+  and when the test fails against the topmost pixel it tests against the pixel
+  underneath — the one an antialiased edge pushed down — and draws there if
+  that one passes instead. The port only depth-tested opaque pixels and never
+  tested the pixel underneath. With both ported, one test frame went from 2,806
+  differing pixels to 69.
+- The buffer underneath is written by every opaque write while anti-aliasing is
+  on, not only by edge pixels, and a pixel that is already the pushed-down one
+  is not pushed down again.
 
+The comparison harness is what got the renderer this far, and it is worth
+keeping. Its probe reports, in submission order, every polygon whose span
+covers a chosen pixel, whether the span covers it, whether any texel of its
+texture could produce the software rasteriser's colour, and the pixel and
+attributes before and after each write. The probe pixels are set in
+`MelonDSMetal3DShaders.h` and `MelonDSMetalRenderer.mm` (search for
+`pixel.x == 100`).
+
+The offline harness renders the same ROM and frame with both rasterisers and
+compares them pixel for pixel, which is what all of the above is measured with.
+
+## Patches to upstream
+
+Three, all documented where they change the code:
+
+- `src/ARMJIT.cpp` — skips `pthread_jit_write_protect_np`, which the Catalyst
+  SDK marks unavailable; Catalyst's JIT pages stay writable without it.
+- `src/GPU2D_Soft.cpp` — calls the renderer's `PrepareCaptureFrame` for any
+  accelerated renderer, not only the OpenGL one. Display capture reads the 3D
+  layer back on the CPU, and a Metal renderer needs the same call.
+- The build itself lives in `MelonDS/CMakeLists.txt`, which includes upstream's
+  `src/CMakeLists.txt` rather than copying its source list.
+
+To move to a newer melonDS: replace `src/` with the new release, re-apply those
+patches, and rebuild.
