@@ -309,7 +309,14 @@ static const OEGameControllerElementSpec OEGameControllerControlElements[OEGameC
     [self bindButton:pad.leftTrigger control:OEGameControllerControlButtonL2 device:device];
     [self bindButton:pad.rightTrigger control:OEGameControllerControlButtonR2 device:device];
 
-    if(@available(iOS 13.0, *)) {
+    // Menu is what the plugins' defaults call Start, and the element they
+    // bind it to is Home. On iOS the system usually consumes the Home button
+    // itself, so the button that actually arrives is Menu; both drive the
+    // element, and the newer Home button is used when it is delivered.
+    if(@available(iOS 13.0, *))
+        [self bindButton:pad.buttonMenu control:OEGameControllerControlButtonHome device:device];
+
+    if(@available(iOS 14.0, *)) {
         if(pad.buttonHome != nil)
             [self bindButton:pad.buttonHome control:OEGameControllerControlButtonHome device:device];
     }
@@ -339,6 +346,7 @@ static const OEGameControllerElementSpec OEGameControllerControlElements[OEGameC
     pad.leftTrigger.valueChangedHandler = nil;
     pad.rightTrigger.valueChangedHandler = nil;
     if(@available(iOS 13.0, *)) {
+        pad.buttonMenu.valueChangedHandler = nil;
         pad.buttonHome.valueChangedHandler = nil;
     }
     pad.dpad.up.valueChangedHandler = nil;

@@ -285,14 +285,24 @@ struct ControllerBindingsView: View {
 
         var identifiers: [String: String] = [:]
         for (key, value) in player.bindingEvents {
-            guard let control = value.controlDescription?.identifier else { continue }
+            let names: [String]
 
             if let simple = key as? OEKeyBindingDescription {
-                identifiers[simple.name] = control
+                names = [simple.name]
             } else if let group = key as? OEOrientedKeyGroupBindingDescription {
-                for name in group.keyNames {
-                    identifiers[name] = control
-                }
+                names = group.keyNames
+            } else {
+                continue
+            }
+
+            // An axis or hat binds its whole group at once, so every
+            // direction carries the same control. The row's own badge text
+            // names the direction, which is what picks its value out of that
+            // control — otherwise both ends of a stick light up together.
+            let values = value.controlDescription?.controlValues ?? []
+            for name in names {
+                let badge = player.bindingDescriptions[name]
+                identifiers[name] = values.first { $0.name == badge }?.identifier ?? value.identifier
             }
         }
         controlIdentifiers = identifiers
