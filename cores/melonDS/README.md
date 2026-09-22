@@ -112,15 +112,20 @@ with both:
    instead of binning them into tiles.
 3. `Rasterise` (starting with the no-texture Z-buffer variants) and
    `DepthBlend`. The shaders are written and run, and their output reaches the
-   3D texture, but the span bounds and inside tests reject every pixel, so
-   nothing is drawn yet. The write path, the interpolation and the hand-off
-   are all known to work: with those tests bypassed, the last polygon covers
-   the screen and its colour lands in the texture intact. The spans the CPU
-   sets up are sane (flags `0xE`, inside `1..9`, x `0..10` for the polygons
-   dumped), so the next step is to compare what the shader reads for a span
-   against what the CPU wrote, for one known pixel — a diagnostic that packs
-   `X0`, `X1`, `InsideStart`, `InsideEnd` and `Flags` into the colour buffer
-   and reads it back on the CPU in the harness.
+   3D texture, but the depth test is rejecting every polygon, so nothing is
+   drawn yet. What is known:
+
+   - The polygon walk, the span fetch, the interpolation, the write path and
+     the hand-off to the texture all work: with the depth test bypassed, the
+     last polygon covers the screen and its colour lands in the texture intact.
+   - The per-frame values are sane: the clear depth reads as `16777215` and the
+     alpha reference as `0`, so a polygon with a z in the hundreds of thousands
+     should pass `z < dstz` easily.
+   - So the depth buffer's value as the rasteriser sees it is not the value the
+     clear pass wrote. The next step is to have the rasterise pass write a
+     known value into the depth buffer and read it back on the CPU, and to
+     check the buffer bindings against the kernel's parameter order (a swap
+     between the depth and attribute buffers would produce exactly this).
 4. `FinalPass` without effects, then edge marking, fog and anti-aliasing.
 5. Textures: a Metal texture cache (`Texcache<loader, handle>` from
    `src/GPU3D_Texcache.h`, with a loader that makes Metal array textures) and
