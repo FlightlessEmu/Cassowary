@@ -277,6 +277,8 @@ case "$CORE" in
       simulator) MAME_DYLIB_NAME=mamearcade_headless.dylib ;;
       device)    MAME_DYLIB_NAME=mamearcade_headless-device.dylib ;;
       catalyst)  MAME_DYLIB_NAME=mamearcade_headless-catalyst.dylib ;;
+      tvos)      MAME_DYLIB_NAME=mamearcade_headless-tvos.dylib ;;
+      tvos-sim)  MAME_DYLIB_NAME=mamearcade_headless-tvos-sim.dylib ;;
     esac
     MAME_DYLIB="$PWD/cores/MAME/deps/mame/$MAME_DYLIB_NAME"
     if [[ ! -f "$MAME_DYLIB" ]]; then
@@ -285,6 +287,8 @@ case "$CORE" in
       case "$PLATFORM" in
         device)   MAME_BUILD_FLAGS=(--device) ;;
         catalyst) MAME_BUILD_FLAGS=(--catalyst) ;;
+        tvos)     MAME_BUILD_FLAGS=(--tvos) ;;
+        tvos-sim) MAME_BUILD_FLAGS=(--tvos-sim) ;;
       esac
       ./Scripts/cassowary/build-mame-ios.sh "${MAME_BUILD_FLAGS[@]}"
     fi

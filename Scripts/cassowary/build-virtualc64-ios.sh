@@ -6,7 +6,7 @@
 # built here and linked into the plugin bundle by Scripts/cassowary/build-core-ios.sh.
 #
 # Usage:
-#   Scripts/cassowary/build-virtualc64-ios.sh [--device | --catalyst]
+#   Scripts/cassowary/build-virtualc64-ios.sh [--device | --catalyst | --tvos | --tvos-sim]
 #
 # Defaults to the iOS Simulator SDK. The static libraries land in
 # build/cassowary-virtualc64-<mode>/.
@@ -19,12 +19,16 @@ MODE=simulator
 case "${1:-}" in
   --device)   MODE=device ;;
   --catalyst) MODE=catalyst ;;
+  --tvos)     MODE=tvos ;;
+  --tvos-sim) MODE=tvos-sim ;;
 esac
 
 case "$MODE" in
-  simulator) SDK_NAME=iphonesimulator ; SYSROOT=iphonesimulator ; TARGET=17.0 ;;
-  device)    SDK_NAME=iphoneos        ; SYSROOT=iphoneos        ; TARGET=17.0 ;;
-  catalyst)  SDK_NAME=macosx          ; SYSROOT=macosx          ; TARGET=17.0 ;;
+  simulator) SDK_NAME=iphonesimulator  ; SYSROOT=iphonesimulator  ; TARGET=17.0 ; SYSTEM_NAME=iOS ;;
+  device)    SDK_NAME=iphoneos         ; SYSROOT=iphoneos         ; TARGET=17.0 ; SYSTEM_NAME=iOS ;;
+  tvos)      SDK_NAME=appletvos        ; SYSROOT=appletvos        ; TARGET=17.0 ; SYSTEM_NAME=tvOS ;;
+  tvos-sim)  SDK_NAME=appletvsimulator ; SYSROOT=appletvsimulator ; TARGET=17.0 ; SYSTEM_NAME=tvOS ;;
+  catalyst)  SDK_NAME=macosx           ; SYSROOT=macosx           ; TARGET=17.0 ;;
 esac
 
 BUILD="build/cassowary-virtualc64-$MODE"
@@ -52,7 +56,7 @@ if [[ "$MODE" == catalyst ]]; then
   CMAKE_ARGS+=(-DCMAKE_CXX_COMPILER_TARGET=arm64-apple-ios17.0-macabi)
 else
   CMAKE_ARGS+=(-DCMAKE_OSX_DEPLOYMENT_TARGET="$TARGET")
-  CMAKE_ARGS+=(-DCMAKE_SYSTEM_NAME=iOS)
+  CMAKE_ARGS+=(-DCMAKE_SYSTEM_NAME="$SYSTEM_NAME")
   CMAKE_ARGS+=(-DCMAKE_OSX_SYSROOT="$SYSROOT")
 fi
 

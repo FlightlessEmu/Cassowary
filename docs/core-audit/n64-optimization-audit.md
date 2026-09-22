@@ -141,7 +141,20 @@ main-thread stack within seconds. The CPU swizzle in
 `copyParallelFrame` is what works today; the RGBA path needs its own
 investigation before it can replace it.
 
-## 9. Still open
+## 9. tvOS
+
+The core builds for tvOS and for the tvOS Simulator, and the paraLLEl-RDP
+video plugin, the cxd4 RSP and MoltenVK were built for both as well, so the
+N64 bundle on an Apple TV is complete. tvOS forbids JIT, so the core runs
+the cached interpreter there — the same default the phone uses.
+
+The build scripts used to carry a short tvOS core list (Gambatte and mGBA)
+because every core has to compile against the tvOS SDK and then run on an
+Apple TV. That list is gone: `build-cassowary.sh` now asks for every core in
+every mode, and a core that fails to compile is skipped with a warning and
+simply not staged.
+
+## 10. Still open
 
 - The `-O0` build (section 3), the plugin flags (section 4) and the
   frame handoff (section 5) are measured only by inspection so far.
