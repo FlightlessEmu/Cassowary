@@ -104,11 +104,23 @@ with both:
 1. ~~Buffers, uniforms and the CPU-side span setup (`SetupYSpan`,
    `SetupYSpanDummy`, `SetupAttrs`, polygon and variant collection).~~ Done:
    `MelonDSMetal::Rasterizer3D` fills the spans, the per-line indices and the
-   per-frame values. The shaders that walk them are next.
+   per-frame values, and the same setup also produces the horizontal spans
+   (`InterpSpans`' work) on the CPU.
 2. `ClearCoarseBinMask`, `ClearIndirectWorkCount`, `InterpSpans`,
-   `BinCombined`, `CalcOffsets`, `SortWork`.
+   `BinCombined`, `CalcOffsets`, `SortWork`. Not needed as passes: the CPU
+   does the span setup, and the rasteriser walks polygons in submission order
+   instead of binning them into tiles.
 3. `Rasterise` (starting with the no-texture Z-buffer variants) and
-   `DepthBlend`.
+   `DepthBlend`. The shaders are written and run, and their output reaches the
+   3D texture, but the span bounds and inside tests reject every pixel, so
+   nothing is drawn yet. The write path, the interpolation and the hand-off
+   are all known to work: with those tests bypassed, the last polygon covers
+   the screen and its colour lands in the texture intact. The spans the CPU
+   sets up are sane (flags `0xE`, inside `1..9`, x `0..10` for the polygons
+   dumped), so the next step is to compare what the shader reads for a span
+   against what the CPU wrote, for one known pixel — a diagnostic that packs
+   `X0`, `X1`, `InsideStart`, `InsideEnd` and `Flags` into the colour buffer
+   and reads it back on the CPU in the harness.
 4. `FinalPass` without effects, then edge marking, fog and anti-aliasing.
 5. Textures: a Metal texture cache (`Texcache<loader, handle>` from
    `src/GPU3D_Texcache.h`, with a loader that makes Metal array textures) and
