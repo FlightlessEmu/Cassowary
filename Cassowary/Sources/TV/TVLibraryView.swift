@@ -150,6 +150,11 @@ struct TVLibraryView: View {
             }
             .padding(24)
         }
+        // Focus sections make the sidebar and the grid each behave as one
+        // block, so pressing Right from any row reaches the games: without
+        // them the engine only looks for a tile whose frame overlaps the
+        // focused row, and the first row sits above the first tile.
+        .focusSection()
     }
 
     @ViewBuilder
@@ -230,8 +235,11 @@ struct TVLibraryView: View {
                     }
                 }
             }
-            .padding(40)
+            .padding(.horizontal, 40)
+            .padding(.top, 16)
+            .padding(.bottom, 40)
         }
+        .focusSection()
     }
 
     private var emptyState: some View {
