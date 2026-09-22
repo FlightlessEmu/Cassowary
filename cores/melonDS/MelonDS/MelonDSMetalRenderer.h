@@ -179,7 +179,7 @@ public:
 
     /// Temporary comparison: diffs the Metal colour buffer against the
     /// software rasteriser's for the same frame.
-    void CompareWithSoftware(melonDS::SoftRenderer& software) noexcept;
+    void CompareWithSoftware(melonDS::GPU& gpu, melonDS::SoftRenderer& software) noexcept;
 
 private:
     /// The largest number of vertical spans a frame can set up, matching
@@ -232,12 +232,22 @@ private:
     __strong id<MTLBuffer> _linePolyOffsets;
     __strong id<MTLBuffer> _linePolyIndices;
 
+    /// A small scratch buffer the rasteriser writes what it sampled for a
+    /// couple of fixed pixels into, for comparing against the software
+    /// rasteriser.
+    __strong id<MTLBuffer> _debugBuffer;
+
     /// The CPU-side copies the buffers are filled from.
     std::vector<SpanSetupY> _spans;
     std::vector<SpanSetupX> _xSpans;
     std::vector<SetupIndices> _spanIndices;
     std::vector<RenderPolygon> _polygons;
     std::vector<u32> _linePolyIndicesCPU;
+
+    /// The texture parameters behind each polygon, kept for the comparison
+    /// against the software rasteriser.
+    std::vector<u32> _polyTexParam;
+    std::vector<u32> _polyTexPalette;
 
     /// melonDS's texture cache, loading the DS's textures into Metal array
     /// textures. One dispatch draws the whole frame, so the frame's array

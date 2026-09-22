@@ -133,13 +133,48 @@ with both:
    modes are in; W-buffering is per polygon and in.
 
 Where it stands: a frame of a retail game matches the software rasteriser on
-about 41,000 to 45,000 of its 49,152 pixels. The pixels that still differ are
-on polygon edges — a bottom-edge pixel was traced to a texel fetch that comes
-back transparent where the software renderer's comes back opaque, so the
-remaining work is in the fetch: the wrap modes, or how the coordinates are
-rounded at edges. `MELONDS_3D=cmp` runs both rasterisers on the same frame in
-the same process and writes `/tmp/cmp-metal.ppm` and `/tmp/cmp-soft.ppm` for a
-side-by-side look.
+about 46,000 of its 49,152 pixels, with the rest spread over a handful of
+surfaces rather than edges.
+
+The comparison harness is the tool to finish it with. `MELONDS_3D=cmp` runs
+both rasterisers on the same frame in the same process and:
+
+- prints `same`/`diff` counts and a 4x4-block map of where the differences are
+- prints a fixed set of probe pixels with both renderers' colours and the
+  attributes the Metal side stored
+- has the shader record what it sampled for two of those pixels — the polygon,
+  its texture mode, slot and layer, the interpolated `u`/`v`, the wrapped texel
+  coordinates, the texel itself and the colour it produced — and prints the
+  software rasteriser's own decode of the same texel beside it
+- writes `/tmp/cmp-metal.ppm` and `/tmp/cmp-soft.ppm` for a side-by-side look
+
+`MELONDS_NO_TEX` and `MELONDS_NO_BLEND` clear the display's texture and
+blending bits for both renderers, which splits a difference into "texture" and
+"everything else" in one run; `MELONDS_TEXDIFF` compares every decoded texture
+against the software rasteriser's decode, texel by texel.
+
+What the harness has established so far:
+
+- With textures off, the two agree on all but about 200 pixels, so the span
+  setup, the depth test, the blending, the coverage and the final pass all
+  match. The rest is in the texture path.
+- Every decoded texture in a frame matches the software rasteriser's decode
+  texel for texel. Getting there needed one fix: A5I3's palette base is in the
+  same smaller units as the four-entry palette, and melonDS's texture cache
+  only halved it for the four-entry one, so A5I3 textures were read from the
+  wrong palette. The software rasteriser shifts the base by three for both.
+- The differences that are left are in the *coordinates*, not the texels: for
+  the probe pixels the software rasteriser samples a different texel of a
+  texture that is decoded correctly.
+
+The place to look next is the span endpoints for edges that run mostly
+horizontally (the X-major edges). melonDS's software rasteriser interpolates
+those along Y with a one-pixel offset (`interpoffset` in `Slope::Setup`), while
+its compute renderer — which this port follows — switches the interpolation
+parameter to X and shifts the range by one. The two give slightly different
+endpoints for the span, which is what shifts the texture coordinates. Porting
+the software rasteriser's `Slope`/`Interpolator` for the span endpoints, or
+narrowing the difference to the X-major case, is the next step.
 
 Until step 3 lands, the 3D layer comes from the software rasteriser (see
 above), and with it the Metal picture is pixel-for-pixel identical to the
@@ -148,13 +183,17 @@ and compares them.
 
 ## Patches to upstream
 
-Three, all documented where they change the code:
+Four, all documented where they change the code:
 
 - `src/ARMJIT.cpp` — skips `pthread_jit_write_protect_np`, which the Catalyst
   SDK marks unavailable; Catalyst's JIT pages stay writable without it.
 - `src/GPU2D_Soft.cpp` — calls the renderer's `PrepareCaptureFrame` for any
   accelerated renderer, not only the OpenGL one. Display capture reads the 3D
   layer back on the CPU, and a Metal renderer needs the same call.
+- `src/GPU3D_Texcache.h` — halves the palette base for A5I3 textures as well as
+  for four-colour ones. The software rasteriser shifts the base by three for
+  both; without the halving an A5I3 texture is read from the wrong palette and
+  comes out the wrong colours.
 - The build itself lives in `MelonDS/CMakeLists.txt`, which includes upstream's
   `src/CMakeLists.txt` rather than copying its source list.
 

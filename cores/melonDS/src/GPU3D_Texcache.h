@@ -210,7 +210,12 @@ public:
             switch (fmt)
             {
             case 1: texSize = width*height; numPalEntries = 32; break;
-            case 6: texSize = width*height; numPalEntries = 8; break;
+            // A5I3's palette is eight entries, so its base is in the same
+            // smaller units as the four-entry palette below: the software
+            // rasteriser shifts the base by three for both. Without the halving
+            // the palette is read from the wrong place and the texture comes
+            // out the wrong colours.
+            case 6: texSize = width*height; numPalEntries = 8; palAddr >>= 1; break;
             case 2: texSize = width*height/4; numPalEntries = 4; palAddr >>= 1; break;
             case 3: texSize = width*height/2; numPalEntries = 16; break;
             case 4: texSize = width*height; numPalEntries = 256; break;

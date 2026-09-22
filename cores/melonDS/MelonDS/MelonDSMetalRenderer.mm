@@ -27,6 +27,7 @@
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
+#include <set>
 #include <simd/simd.h>
 
 using namespace melonDS;
@@ -219,11 +220,23 @@ void Renderer::RenderFrame(GPU& gpu)
                 _software->Reset(gpu);
             }
 
+            // Diagnostic: with MELONDS_NO_TEX set, both rasterisers skip
+            // textures entirely, which tells apart a texture problem from an
+            // interpolation one.
+            const u32 savedDispCnt = gpu.GPU3D.RenderDispCnt;
+            if (getenv("MELONDS_NO_TEX") != nullptr)
+                gpu.GPU3D.RenderDispCnt &= ~1U;
+            if (getenv("MELONDS_NO_BLEND") != nullptr)
+                gpu.GPU3D.RenderDispCnt &= ~(1U << 3);
+
             // The software rasteriser first, on the same polygon data, then
             // the Metal one, then diff the two colour buffers word for word.
             _software->RenderFrame(gpu);
             _rasterizer->Render(gpu, _threeDTexture);
-            _rasterizer->CompareWithSoftware(*_software);
+
+            gpu.GPU3D.RenderDispCnt = savedDispCnt;
+
+            _rasterizer->CompareWithSoftware(gpu, *_software);
         }
         else
         {
@@ -431,23 +444,19 @@ s32 InterpolateAttrPersp(s32 y0, s32 y1, s32 ifactor) noexcept
 
 s32 InterpolateAttrLinear(s32 y0, s32 y1, s32 i, s32 irecip, s32 idiff) noexcept
 {
-    if (y0 == y1)
+    (void) irecip;
+
+    if (y0 == y1 || idiff == 0)
         return y0;
 
-    irecip = std::abs(irecip);
-
-    u64 mul;
+    // melonDS's software rasteriser divides exactly here, rather than through
+    // a reciprocal the way its compute renderer does. The two differ by a
+    // step, which shows up as whole surfaces being a shade out, so the exact
+    // division is the one to copy.
     if (y0 < y1)
-        mul = (u64) (y1 - y0) * (u64) std::abs(i) * (u64) irecip;
-    else
-        mul = (u64) (y0 - y1) * (u64) std::abs(idiff - i) * (u64) irecip;
+        return y0 + (s32) (((s64) (y1 - y0) * i) / idiff);
 
-    mul += 3ULL << 24;
-
-    if (y0 < y1)
-        return y0 + (s32) (mul >> 30);
-
-    return y1 + (s32) (mul >> 30);
+    return y1 + (s32) (((s64) (y0 - y1) * (idiff - i)) / idiff);
 }
 
 u32 InterpolateZZBuffer(s32 z0, s32 z1, s32 i, s32 irecip, s32 idiff) noexcept
@@ -573,6 +582,169 @@ uint32_t RasterModeForVariant(u8 blendMode, bool textured, bool highLightMode) n
 
 } // namespace
 
+/// The software rasteriser's own texel decode, copied from `TextureLookup` in
+/// GPU3D_Soft.cpp. The comparison uses it to check the texture cache's decode
+/// against the one the reference renderer does.
+void SoftwareTexel(const GPU& gpu, u32 texparam, u32 texpal, int s, int t, u32* color, u32* alpha)
+{
+    u32 vramaddr = (texparam & 0xFFFF) << 3;
+    s32 width = 8 << ((texparam >> 20) & 0x7);
+    s32 height = 8 << ((texparam >> 23) & 0x7);
+
+    s >>= 4;
+    t >>= 4;
+
+    if (texparam & (1 << 16))
+    {
+        if (texparam & (1 << 18))
+        {
+            if (s & width) s = (width - 1) - (s & (width - 1));
+            else           s = (s & (width - 1));
+        }
+        else
+            s &= width - 1;
+    }
+    else
+    {
+        if (s < 0) s = 0;
+        else if (s >= width) s = width - 1;
+    }
+
+    if (texparam & (1 << 17))
+    {
+        if (texparam & (1 << 19))
+        {
+            if (t & height) t = (height - 1) - (t & (height - 1));
+            else            t = (t & (height - 1));
+        }
+        else
+            t &= height - 1;
+    }
+    else
+    {
+        if (t < 0) t = 0;
+        else if (t >= height) t = height - 1;
+    }
+
+    const u8 alpha0 = (texparam & (1 << 29)) ? 0 : 31;
+
+    *color = 0;
+    *alpha = 0;
+
+    switch ((texparam >> 26) & 0x7)
+    {
+    case 1: // A3I5
+    {
+        u8 pixel = gpu.ReadVRAMFlat_Texture<u8>(vramaddr + ((t * width) + s));
+        texpal <<= 4;
+        *color = gpu.ReadVRAMFlat_TexPal<u16>(texpal + ((pixel & 0x1F) << 1));
+        *alpha = ((pixel >> 3) & 0x1C) + (pixel >> 6);
+        break;
+    }
+    case 2: // 4-color
+    {
+        u8 pixel = gpu.ReadVRAMFlat_Texture<u8>(vramaddr + (((t * width) + s) >> 2));
+        pixel >>= ((s & 0x3) << 1);
+        pixel &= 0x3;
+        texpal <<= 3;
+        *color = gpu.ReadVRAMFlat_TexPal<u16>(texpal + (pixel << 1));
+        *alpha = (pixel == 0) ? alpha0 : 31;
+        break;
+    }
+    case 3: // 16-color
+    {
+        u8 pixel = gpu.ReadVRAMFlat_Texture<u8>(vramaddr + (((t * width) + s) >> 1));
+        if (s & 0x1) pixel >>= 4;
+        else         pixel &= 0xF;
+        texpal <<= 4;
+        *color = gpu.ReadVRAMFlat_TexPal<u16>(texpal + (pixel << 1));
+        *alpha = (pixel == 0) ? alpha0 : 31;
+        break;
+    }
+    case 4: // 256-color
+    {
+        u8 pixel = gpu.ReadVRAMFlat_Texture<u8>(vramaddr + ((t * width) + s));
+        texpal <<= 4;
+        *color = gpu.ReadVRAMFlat_TexPal<u16>(texpal + (pixel << 1));
+        *alpha = (pixel == 0) ? alpha0 : 31;
+        break;
+    }
+    case 5: // compressed
+    {
+        vramaddr += ((t & 0x3FC) * (width >> 2)) + (s & 0x3FC);
+        vramaddr += (t & 0x3);
+        vramaddr &= 0x7FFFF;
+
+        u32 slot1addr = 0x20000 + ((vramaddr & 0x1FFFC) >> 1);
+        if (vramaddr >= 0x40000)
+            slot1addr += 0x10000;
+
+        u8 val;
+        if (vramaddr >= 0x20000 && vramaddr < 0x40000)
+            val = 0;
+        else
+        {
+            val = gpu.ReadVRAMFlat_Texture<u8>(vramaddr);
+            val >>= (2 * (s & 0x3));
+        }
+
+        const u16 palinfo = gpu.ReadVRAMFlat_Texture<u16>(slot1addr);
+        const u32 paloffset = (palinfo & 0x3FFF) << 2;
+        texpal <<= 4;
+
+        const u16 color0 = gpu.ReadVRAMFlat_TexPal<u16>(texpal + paloffset);
+        const u16 color1 = gpu.ReadVRAMFlat_TexPal<u16>(texpal + paloffset + 2);
+
+        auto mix5to8 = [](u16 c0, u16 c1) {
+            const u32 r = ((c0 & 0x001F) * 5 + (c1 & 0x001F) * 3) >> 3;
+            const u32 g = (((c0 & 0x03E0) * 5 + (c1 & 0x03E0) * 3) >> 3) & 0x03E0;
+            const u32 b = (((c0 & 0x7C00) * 5 + (c1 & 0x7C00) * 3) >> 3) & 0x7C00;
+            return r | g | b;
+        };
+        auto mix3of5 = [](u16 c0, u16 c1) {
+            const u32 r = ((c0 & 0x001F) * 3 + (c1 & 0x001F) * 5) >> 3;
+            const u32 g = (((c0 & 0x03E0) * 3 + (c1 & 0x03E0) * 5) >> 3) & 0x03E0;
+            const u32 b = (((c0 & 0x7C00) * 3 + (c1 & 0x7C00) * 5) >> 3) & 0x7C00;
+            return r | g | b;
+        };
+        auto avg = [](u16 c0, u16 c1) {
+            const u32 r = ((c0 & 0x001F) + (c1 & 0x001F)) >> 1;
+            const u32 g = (((c0 & 0x03E0) + (c1 & 0x03E0)) >> 1) & 0x03E0;
+            const u32 b = (((c0 & 0x7C00) + (c1 & 0x7C00)) >> 1) & 0x7C00;
+            return r | g | b;
+        };
+
+        switch (val & 0x3)
+        {
+        case 0: *color = color0; *alpha = 31; break;
+        case 1: *color = color1; *alpha = 31; break;
+        case 2:
+            if ((palinfo >> 14) == 1)      *color = avg(color0, color1);
+            else if ((palinfo >> 14) == 3) *color = mix5to8(color0, color1);
+            else                           *color = gpu.ReadVRAMFlat_TexPal<u16>(texpal + paloffset + 4);
+            *alpha = 31;
+            break;
+        case 3:
+            if ((palinfo >> 14) == 2)      { *color = gpu.ReadVRAMFlat_TexPal<u16>(texpal + paloffset + 6); *alpha = 31; }
+            else if ((palinfo >> 14) == 3) { *color = mix3of5(color0, color1); *alpha = 31; }
+            else                           { *color = 0; *alpha = 0; }
+            break;
+        }
+        break;
+    }
+    case 6: // A5I3
+    {
+        u8 pixel = gpu.ReadVRAMFlat_Texture<u8>(vramaddr + ((t * width) + s));
+        texpal <<= 3;
+        *color = gpu.ReadVRAMFlat_TexPal<u16>(texpal + ((pixel & 0x7) << 1));
+        *alpha = (pixel >> 3);
+        break;
+    }
+    default:
+        break;
+    }
+}
+
 Rasterizer3D::Rasterizer3D(id<MTLDevice> device, id<MTLCommandQueue> queue) noexcept
     : _device(device),
       _queue(queue),
@@ -622,6 +794,8 @@ Rasterizer3D::Rasterizer3D(id<MTLDevice> device, id<MTLCommandQueue> queue) noex
                                             options:MTLResourceStorageModeShared];
     _linePolyIndices = [_device newBufferWithLength:sizeof(u32) * MaxSpanIndices
                                              options:MTLResourceStorageModeShared];
+    _debugBuffer = [_device newBufferWithLength:sizeof(u32) * 32
+                                        options:MTLResourceStorageModeShared];
 
     // Bound when a variant uses no texture, so there is always something to
     // sample from. It is never actually read.
@@ -658,6 +832,8 @@ Rasterizer3D::Rasterizer3D(id<MTLDevice> device, id<MTLCommandQueue> queue) noex
     _xSpans.resize(kMaxSpanIndices);
     _spanIndices.resize(kMaxSpanIndices);
     _polygons.resize(MaxPolygons);
+    _polyTexParam.resize(MaxPolygons);
+    _polyTexPalette.resize(MaxPolygons);
     _linePolyIndicesCPU.resize(MaxSpanIndices);
     _toonTable.resize(4 * 34);
 
@@ -849,33 +1025,30 @@ void Rasterizer3D::SetupYSpan(RenderPolygon* rp, SpanSetupY* span, Polygon* poly
         span->XCovIncr = 0;
     }
 
-    if (span->I0 == span->I1)
-    {
-        span->Linear = true;
-        span->IRecip = 0;
-        span->W0n = span->W0d = span->W1d = 0;
-    }
-    else if (span->W0 == span->W1)
-    {
-        span->Linear = true;
-
-        span->W0n = 0;
-        span->W0d = 1;
-        span->W1d = 1;
-
+    if (span->I0 != span->I1)
         span->IRecip = (1<<30) / (span->I1 - span->I0);
+    else
+        span->IRecip = 0;
+
+    // The linear path is only taken when both W values are equal *and* have
+    // their low bits clear. The mask is 0x7E along Y, matching the software
+    // rasteriser's Y interpolator.
+    span->Linear = (span->W0 == span->W1) && !(span->W0 & 0x7E) && !(span->W1 & 0x7E);
+
+    // The W values are halved for the factor calculation, with the odd case
+    // rounded so that the two halves add back up. This is what both of
+    // melonDS's rasterisers do; skipping it shifts whole spans by a step.
+    if ((span->W0 & 0x1) && !(span->W1 & 0x1))
+    {
+        span->W0n = (span->W0 - 1) >> 1;
+        span->W0d = (span->W0 + 1) >> 1;
+        span->W1d = span->W1 >> 1;
     }
     else
     {
-        span->Linear = false;
-
-        span->W0n = span->W0;
-        span->W0d = span->W0;
-        span->W1d = span->W1;
-
-        s32 num = span->W1 - span->W0;
-        s32 den = span->W1 * (span->I1 - span->I0);
-        span->IRecip = (1<<30) / (den / num);
+        span->W0n = span->W0 >> 1;
+        span->W0d = span->W0 >> 1;
+        span->W1d = span->W1 >> 1;
     }
 }
 
@@ -1084,6 +1257,8 @@ void Rasterizer3D::SetupFrame(GPU& gpu) noexcept
         RenderPolygon& rp = _polygons[i];
         rp.FirstXSpan = numSpanIndices;
         rp.Attr = polygon->Attr | (polygon->FacingView ? (1U << 6) : 0U);
+        _polyTexParam[i] = polygon->TexParam;
+        _polyTexPalette[i] = polygon->TexPalette;
 
         // Each polygon carries its own texture state, so one dispatch draws
         // the whole frame in submission order.
@@ -1137,6 +1312,59 @@ void Rasterizer3D::SetupFrame(GPU& gpu) noexcept
                 rp.TexWidth = TextureWidth(polygon->TexParam);
                 rp.TexHeight = TextureHeight(polygon->TexParam);
                 rp.TextureLayer = (float) texLayer;
+
+                // Diagnostic: compare the whole decoded texture against the
+                // software rasteriser's own decode of the same texture.
+                if (getenv("MELONDS_TEXDIFF") != nullptr && ((polygon->TexParam >> 26) & 0x7) != 0)
+                {
+                    static std::set<u64> seen;
+                    const u64 key = ((u64) polygon->TexParam << 32) | polygon->TexPalette;
+                    if (seen.insert(key).second)
+                    {
+
+                        const u32 width = rp.TexWidth, height = rp.TexHeight;
+                        std::vector<u32> decoded(width * height);
+                        [handle getBytes:decoded.data()
+                             bytesPerRow:width * 4
+                           bytesPerImage:width * height * 4
+                              fromRegion:MTLRegionMake3D(0, 0, 0, width, height, 1)
+                             mipmapLevel:0
+                                   slice:texLayer];
+
+                        u32 same = 0, diff = 0, shown = 0;
+                        for (u32 ty = 0; ty < height; ty++)
+                        {
+                            for (u32 tx = 0; tx < width; tx++)
+                            {
+                                u32 color = 0, alpha = 0;
+                                SoftwareTexel(gpu, polygon->TexParam, polygon->TexPalette,
+                                              (int) tx << 4, (int) ty << 4, &color, &alpha);
+
+                                u32 sr = (color << 1) & 0x3E; if (sr) sr++;
+                                u32 sg = (color >> 4) & 0x3E; if (sg) sg++;
+                                u32 sb = (color >> 9) & 0x3E; if (sb) sb++;
+                                const u32 want = sr | (sg << 8) | (sb << 16) | (alpha << 24);
+                                const u32 got = decoded[ty * width + tx];
+
+                                if (got == want)
+                                    same++;
+                                else
+                                {
+                                    diff++;
+                                    if (shown < 8)
+                                    {
+                                        shown++;
+                                        fprintf(stderr, "[tex] (%u,%u) cache %08x software %08x\n",
+                                                tx, ty, got, want);
+                                    }
+                                }
+                            }
+                        }
+
+                        fprintf(stderr, "[tex] %ux%u layer %u: same %u diff %u (texparam %08x pal %u)\n",
+                                width, height, texLayer, same, diff, polygon->TexParam, polygon->TexPalette);
+                    }
+                }
             }
         }
 
@@ -1404,6 +1632,7 @@ void Rasterizer3D::Render(GPU& gpu, id<MTLTexture> output) noexcept
         [encoder setBuffer:_colorBufferB offset:0 atIndex:8];
         [encoder setBuffer:_depthBufferB offset:0 atIndex:9];
         [encoder setBuffer:_attrBufferB offset:0 atIndex:10];
+        [encoder setBuffer:_debugBuffer offset:0 atIndex:11];
 
         id<MTLTexture> textures[MaxTextureSlots];
         for (u32 s = 0; s < MaxTextureSlots; s++)
@@ -1442,11 +1671,13 @@ void Rasterizer3D::Render(GPU& gpu, id<MTLTexture> output) noexcept
     [commandBuffer waitUntilCompleted];
 }
 
-void Rasterizer3D::CompareWithSoftware(SoftRenderer& software) noexcept
+void Rasterizer3D::CompareWithSoftware(GPU& gpu, SoftRenderer& software) noexcept
 {
     const u32* mine = (const u32*) _colorBuffer.contents;
+    const u32* attr = (const u32*) _attrBuffer.contents;
 
     u32 same = 0, diff = 0, diffReported = 0;
+    u32 zeroMine = 0, alphaZeroSoft = 0;
     for (int y = 0; y < (int) kScreenHeight; y++)
     {
         const u32* ref = software.GetLine(y);
@@ -1460,10 +1691,35 @@ void Rasterizer3D::CompareWithSoftware(SoftRenderer& software) noexcept
                 continue;
             }
             diff++;
+            if (a == 0)
+                zeroMine++;
+            if ((b >> 24) == 0)
+                alphaZeroSoft++;
             if (diffReported < 8)
             {
                 diffReported++;
-                fprintf(stderr, "[cmp] (%d,%d) metal %08x soft %08x\n", x, y, a, b);
+
+                // Which polygon drew it, and what texture it used.
+                const u32 pixelAttr = attr[(size_t) y * kScreenWidth + x];
+                const u32 polyid = pixelAttr >> 24;
+                const RenderPolygon* found = nullptr;
+                for (u32 p = 0; p < _numPolygons; p++)
+                {
+                    if ((_polygons[p].Attr & 0x3F000000U) == (polyid << 24))
+                    {
+                        found = &_polygons[p];
+                        break;
+                    }
+                }
+
+                fprintf(stderr, "[cmp] (%d,%d) metal %08x soft %08x attr %08x", x, y, a, b, pixelAttr);
+                if (found != nullptr)
+                {
+                    fprintf(stderr, " | texmode %u slot %u layer %u size %ux%u wrap %u",
+                            found->TexMode, found->TexSlot, (u32) found->TextureLayer,
+                            found->TexWidth, found->TexHeight, found->TexWrap);
+                }
+                fprintf(stderr, "\n");
             }
         }
     }
@@ -1471,7 +1727,95 @@ void Rasterizer3D::CompareWithSoftware(SoftRenderer& software) noexcept
     {
         static int n = 0;
         if ((n++ % 200) == 0)
-            fprintf(stderr, "[cmp] same %u diff %u\n", same, diff);
+        {
+            // A fixed set of pixels, so runs can be compared directly.
+            static const int probes[][2] = { {0,0}, {100,20}, {150,100}, {60,20}, {100,191} };
+            for (const auto& probe : probes)
+            {
+                const int x = probe[0], y = probe[1];
+                const u32 a = mine[(size_t) y * kScreenWidth + x];
+                const u32 b = software.GetLine(y)[x];
+                const u32 pixelAttr = attr[(size_t) y * kScreenWidth + x];
+                fprintf(stderr, "[probe] (%d,%d) metal %08x soft %08x attr %08x%s\n",
+                        x, y, a, b, pixelAttr, a == b ? "" : "  <-- differs");
+            }
+
+            const u32* rec = (const u32*) _debugBuffer.contents;
+            for (int slot = 0; slot < 2; slot++)
+            {
+                const u32* r = rec + slot * 16;
+                if (r[15] != 0xDEADBEEFU)
+                {
+                    fprintf(stderr, "[probe] slot %d: not written\n", slot);
+                    continue;
+                }
+                fprintf(stderr, "[probe] slot %d: attr %08x texmode %u slot %u layer %u"
+                        " u %d v %d texel (%u,%u) %08x src %08x size %ux%u wrap %u"
+                        " span x %d..%d u %d..%d v %d..%d\n",
+                        slot, r[0], r[1], r[2], r[3],
+                        (int) r[4], (int) r[5], r[6], r[7], r[8], r[9],
+                        r[10] & 0xFFFF, r[10] >> 16, r[11],
+                        (int) (r[12] & 0xFFFF), (int) (r[12] >> 16),
+                        (int) (r[13] & 0xFFFF), (int) (r[13] >> 16),
+                        (int) (r[14] & 0xFFFF), (int) (r[14] >> 16));
+
+                // What the software rasteriser would read for the same texel.
+                {
+                    const u32 p = r[0];
+                    u32 color = 0, alpha = 0;
+                    SoftwareTexel(gpu, _polyTexParam[p], _polyTexPalette[p],
+                                  (int) r[4], (int) r[5], &color, &alpha);
+
+                    u32 sr = (color << 1) & 0x3E; if (sr) sr++;
+                    u32 sg = (color >> 4) & 0x3E; if (sg) sg++;
+                    u32 sb = (color >> 9) & 0x3E; if (sb) sb++;
+
+                    fprintf(stderr, "[probe] slot %d: poly %u software texel %08x (r %u g %u b %u a %u)"
+                            " texparam %08x pal %u size %ux%u\n",
+                            slot, p, sr | (sg << 8) | (sb << 16) | (alpha << 24),
+                            sr, sg, sb, alpha, _polyTexParam[p], _polyTexPalette[p],
+                            _polygons[p].TexWidth, _polygons[p].TexHeight);
+                    fprintf(stderr, "[probe] slot %d: cpu polygon TexMode %u Attr %08x blendMode %u textured %u WBuffer %u\n",
+                            slot, _polygons[p].TexMode, _polygons[p].Attr,
+                            (_polygons[p].Attr >> 4) & 3, ((_polyTexParam[p] >> 26) & 7) != 0,
+                            _polygons[p].WBuffer);
+                }
+            }
+        }
+    }
+
+    {
+        static int n = 0;
+        if ((n++ % 200) == 0)
+            fprintf(stderr, "[cmp] same %u diff %u (metal zero %u, soft transparent %u)\n",
+                    same, diff, zeroMine, alphaZeroSoft);
+    }
+
+    // A coarse map of where the differences are: one character per 4x4 block,
+    // a digit for how many pixels in it differ.
+    {
+        static int n = 0;
+        if ((n++ % 200) == 0)
+        {
+            fprintf(stderr, "[cmp] diff map (4x4 blocks, '.' none, digits = count):\n");
+            for (int by = 0; by < (int) kScreenHeight; by += 4)
+            {
+                char row[(int) kScreenWidth / 4 + 1];
+                for (int bx = 0; bx < (int) kScreenWidth; bx += 4)
+                {
+                    int count = 0;
+                    for (int y = by; y < by + 4 && y < (int) kScreenHeight; y++)
+                    {
+                        const u32* ref = software.GetLine(y);
+                        for (int x = bx; x < bx + 4 && x < (int) kScreenWidth; x++)
+                            count += (mine[(size_t) y * kScreenWidth + x] != ref[x]);
+                    }
+                    row[bx / 4] = count == 0 ? '.' : (char) ('0' + (count > 9 ? 9 : count));
+                }
+                row[(int) kScreenWidth / 4] = 0;
+                fprintf(stderr, "[cmp] %s\n", row);
+            }
+        }
     }
 
     {

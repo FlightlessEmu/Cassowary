@@ -130,23 +130,19 @@ inline int MelonDSInterpolateAttrPersp(int y0, int y1, int ifactor)
 
 inline int MelonDSInterpolateAttrLinear(int y0, int y1, int i, int irecip, int idiff)
 {
-    if (y0 == y1)
+    (void) irecip;
+
+    if (y0 == y1 || idiff == 0)
         return y0;
 
-    irecip = abs(irecip);
-
-    ulong mul;
+    // melonDS's software rasteriser divides exactly here, rather than through
+    // a reciprocal the way its compute renderer does. The two differ by a
+    // step, which shows up as whole surfaces being a shade out, so the exact
+    // division is the one to copy.
     if (y0 < y1)
-        mul = (ulong)(y1 - y0) * (ulong)abs(i) * (ulong)irecip;
-    else
-        mul = (ulong)(y0 - y1) * (ulong)abs(idiff - i) * (ulong)irecip;
+        return y0 + int(((long)(y1 - y0) * long(i)) / long(idiff));
 
-    mul += 3UL << 24;
-
-    if (y0 < y1)
-        return y0 + int(mul >> 30);
-
-    return y1 + int(mul >> 30);
+    return y1 + int(((long)(y0 - y1) * long(idiff - i)) / long(idiff));
 }
 
 inline uint MelonDSInterpolateZZBuffer(int z0, int z1, int i, int irecip, int idiff)
@@ -366,9 +362,11 @@ kernel void melonds_3d_clear(
     depthBuffer[addr] = meta.ClearDepth;
     attrBuffer[addr] = meta.ClearAttr;
 
-    colorBufferB[addr] = 0;
-    depthBufferB[addr] = 0;
-    attrBufferB[addr] = 0;
+    // The buffer underneath is deliberately not cleared: the software
+    // rasteriser only zeroes it once, when it is set up, and lets the pushed
+    // pixels from each frame stay there. An edge pixel with zero coverage is
+    // resolved to whatever that buffer holds, so clearing it here would show
+    // up as a difference on those pixels.
 }
 
 /// Walks every polygon in submission order and draws the pixels of its spans.
@@ -390,6 +388,7 @@ kernel void melonds_rasterise(
     device uint *depthBufferB [[buffer(9)]],
     device uint *attrBufferB [[buffer(10)]],
     array<texture2d_array<uint, access::read>, 64> texTables [[texture(0)]],
+    device uint *debugBuffer [[buffer(11)]],
     uint2 pixel [[thread_position_in_grid]])
 {
     if (pixel.x >= kScreenWidth || pixel.y >= kScreenHeight)
@@ -459,6 +458,14 @@ kernel void melonds_rasterise(
             }
 
             attr |= uint(cov) << 8;
+        }
+        else if ((attr & 0xFU) != 0U)
+        {
+            // The polygon's inside, on its top or bottom scanline. The software
+            // rasteriser calls the pixel fully covered here, "to avoid black
+            // lines from anti-aliasing": the scanline above or below belongs to
+            // another polygon, and the pixel is not really an edge of this one.
+            attr |= 0x1FU << 8;
         }
 
         uint z;
@@ -531,15 +538,24 @@ kernel void melonds_rasterise(
         {
             if (polygon.TexMode == kRasterHighlight)
             {
+                // Highlight mode keeps the vertex colour for the texture and
+                // adds the toon colour on top of the result. Only the toon
+                // mode replaces the colour before sampling.
                 vg6 = vr6;
                 vb6 = vr6;
             }
-
-            const uint tooncolor = meta.ToonTable[(vr6 >> 1) * 4];
-            vr6 = tooncolor & 0xFFU;
-            vg6 = (tooncolor >> 8) & 0xFFU;
-            vb6 = (tooncolor >> 16) & 0xFFU;
+            else
+            {
+                const uint tooncolor = meta.ToonTable[(vr6 >> 1) * 4];
+                vr6 = tooncolor & 0xFFU;
+                vg6 = (tooncolor >> 8) & 0xFFU;
+                vb6 = (tooncolor >> 16) & 0xFFU;
+            }
         }
+
+        uint dbgTx = 0;
+        uint dbgTy = 0;
+        uint dbgTex = 0;
 
         if (polygon.TexMode != kRasterNoTexture)
         {
@@ -552,6 +568,10 @@ kernel void melonds_rasterise(
             const int tx = MelonDSWrapTexel(MelonDSFloorShift4(u), int(polygon.TexWidth), wrapS);
             const int ty = MelonDSWrapTexel(MelonDSFloorShift4(v), int(polygon.TexHeight), wrapT);
             const uint4 texcolor = texTables[polygon.TexSlot].read(uint2(uint(tx), uint(ty)), uint(polygon.TextureLayer));
+
+            dbgTx = uint(tx);
+            dbgTy = uint(ty);
+            dbgTex = texcolor.r | (texcolor.g << 8) | (texcolor.b << 16) | (texcolor.a << 24);
 
             if (polygon.TexMode == kRasterDecal)
             {
@@ -597,6 +617,29 @@ kernel void melonds_rasterise(
 
         const uint color = r | (g << 8) | (b << 16) | (a << 24);
 
+        // Diagnostic: what the shader saw for two fixed pixels.
+        if ((pixel.x == 100 && pixel.y == 20) || (pixel.x == 60 && pixel.y == 20))
+        {
+            const uint slot = (pixel.x == 100) ? 0U : 1U;
+            device uint *rec = debugBuffer + slot * 16;
+            rec[0] = linePolyIndices[k];
+            rec[1] = polygon.TexMode;
+            rec[2] = polygon.TexSlot;
+            rec[3] = uint(polygon.TextureLayer);
+            rec[4] = uint(u);
+            rec[5] = uint(v);
+            rec[6] = dbgTx;
+            rec[7] = dbgTy;
+            rec[8] = dbgTex;
+            rec[9] = color;
+            rec[10] = uint(polygon.TexWidth) | (uint(polygon.TexHeight) << 16);
+            rec[11] = polygon.TexWrap;
+            rec[12] = uint(xspan.X0) | (uint(xspan.X1) << 16);
+            rec[13] = uint(xspan.TexcoordU0) | (uint(xspan.TexcoordU1) << 16);
+            rec[14] = uint(xspan.TexcoordV0) | (uint(xspan.TexcoordV1) << 16);
+            rec[15] = 0xDEADBEEFU;
+        }
+
         // What the software rasteriser calls polyattr: the polygon's identity,
         // its facing and its alpha, which the depth test and the blending read
         // back out of the attribute buffer.
@@ -623,11 +666,12 @@ kernel void melonds_rasterise(
 
 
 
-            if ((meta.DispCnt & (1U << 4)) != 0U)
+            if ((meta.DispCnt & (1U << 4)) != 0U && (attr & 0xFU) != 0U)
             {
                 // anti-aliasing: push the covered pixel down before drawing
                 // over it, so the final pass can blend edge pixels with what
-                // is underneath them.
+                // is underneath them. Only edge pixels need it — that is the
+                // only place the buffer underneath is ever read.
                 colorBufferB[pixeladdr] = colorBuffer[pixeladdr];
                 depthBufferB[pixeladdr] = depthBuffer[pixeladdr];
                 attrBufferB[pixeladdr] = attrBuffer[pixeladdr];
@@ -636,9 +680,6 @@ kernel void melonds_rasterise(
             depthBuffer[pixeladdr] = z;
             colorBuffer[pixeladdr] = color;
             attrBuffer[pixeladdr] = polyattr | attr;
-            if (pixel.x == 100 && pixel.y == 191)
-                colorBuffer[pixeladdr] = 0x1F3F0000; // DEBUG: constant red, writes work?
-
         }
         else
         {
