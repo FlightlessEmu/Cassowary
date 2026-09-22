@@ -794,7 +794,7 @@ Rasterizer3D::Rasterizer3D(id<MTLDevice> device, id<MTLCommandQueue> queue) noex
                                             options:MTLResourceStorageModeShared];
     _linePolyIndices = [_device newBufferWithLength:sizeof(u32) * MaxSpanIndices
                                              options:MTLResourceStorageModeShared];
-    _debugBuffer = [_device newBufferWithLength:sizeof(u32) * 32
+    _debugBuffer = [_device newBufferWithLength:sizeof(u32) * 64
                                         options:MTLResourceStorageModeShared];
 
     // Bound when a variant uses no texture, so there is always something to
@@ -1003,27 +1003,25 @@ void Rasterizer3D::SetupYSpan(RenderPolygon* rp, SpanSetupY* span, Polygon* poly
 
     if (xMajor)
     {
-        // melonDS's software rasteriser interpolates an edge that runs mostly
-        // horizontally along Y as well, offsetting the range by one pixel when
-        // the slope runs the other way. Its compute renderer switches the
-        // interpolation parameter to X instead, which gives slightly different
-        // span endpoints and so shifts the texture coordinates. The software
-        // renderer is the one to match here.
-        const s32 interpoffset = (side != negative) ? 1 : 0;
-
-        span->I0 = span->Y0 - interpoffset;
-        span->I1 = span->Y1 - interpoffset;
-
         // used for calculating AA coverage
         span->XCovIncr = (ylen << 10) / xlen;
     }
     else
     {
-        span->I0 = span->Y0;
-        span->I1 = span->Y1;
-
         span->XCovIncr = 0;
     }
+
+    // melonDS's software rasteriser interpolates an edge that runs mostly
+    // horizontally along Y as well, offsetting the range by one pixel when the
+    // slope runs the other way; its compute renderer switches the interpolation
+    // parameter to X instead, which gives slightly different span endpoints and
+    // so shifts the texture coordinates. The software renderer is the one to
+    // match here, so the parameter is always Y, with that offset. Note the
+    // software's test is `>=`, so a slope of exactly 1:1 gets the offset too.
+    const s32 interpoffset = (span->Increment >= 0x40000 && (side != negative)) ? 1 : 0;
+
+    span->I0 = span->Y0 - interpoffset;
+    span->I1 = span->Y1 - interpoffset;
 
     if (span->I0 != span->I1)
         span->IRecip = (1<<30) / (span->I1 - span->I0);
@@ -1743,7 +1741,7 @@ void Rasterizer3D::CompareWithSoftware(GPU& gpu, SoftRenderer& software) noexcep
             const u32* rec = (const u32*) _debugBuffer.contents;
             for (int slot = 0; slot < 2; slot++)
             {
-                const u32* r = rec + slot * 16;
+                const u32* r = rec + slot * 32;
                 if (r[15] != 0xDEADBEEFU)
                 {
                     fprintf(stderr, "[probe] slot %d: not written\n", slot);
@@ -1779,6 +1777,48 @@ void Rasterizer3D::CompareWithSoftware(GPU& gpu, SoftRenderer& software) noexcep
                             slot, _polygons[p].TexMode, _polygons[p].Attr,
                             (_polygons[p].Attr >> 4) & 3, ((_polyTexParam[p] >> 26) & 7) != 0,
                             _polygons[p].WBuffer);
+
+                    // Work backwards from the software rasteriser's colour:
+                    // with the blend off its pixel is the polygon's own colour,
+                    // and the modulate can be inverted, so the texel it must
+                    // have sampled can be found by searching the texture.
+                    {
+                        const int px = slot == 0 ? 100 : 60;
+                        const u32 soft = software.GetLine(20)[px];
+                        const u32 sr = soft & 0x3F, sg = (soft >> 8) & 0x3F, sb = (soft >> 16) & 0x3F;
+                        const u32 vr6 = r[16] & 0xFF, vg6 = (r[16] >> 8) & 0xFF, vb6 = (r[16] >> 16) & 0xFF;
+                        const u32 width = _polygons[p].TexWidth, height = _polygons[p].TexHeight;
+
+                        u32 found = 0;
+                        for (u32 ty = 0; ty < height; ty++)
+                        {
+                            for (u32 tx = 0; tx < width; tx++)
+                            {
+                                u32 color = 0, alpha = 0;
+                                SoftwareTexel(gpu, _polyTexParam[p], _polyTexPalette[p],
+                                              (int) tx << 4, (int) ty << 4, &color, &alpha);
+                                u32 tr = (color << 1) & 0x3E; if (tr) tr++;
+                                u32 tg = (color >> 4) & 0x3E; if (tg) tg++;
+                                u32 tb = (color >> 9) & 0x3E; if (tb) tb++;
+
+                                const u32 mr = ((tr + 1) * (vr6 + 1) - 1) >> 6;
+                                const u32 mg = ((tg + 1) * (vg6 + 1) - 1) >> 6;
+                                const u32 mb = ((tb + 1) * (vb6 + 1) - 1) >> 6;
+
+                                if (mr == sr && mg == sg && mb == sb)
+                                {
+                                    found++;
+                                    if (found <= 6)
+                                        fprintf(stderr, "[probe] slot %d: software colour %08x comes from"
+                                                " texel (%u,%u) %08x (alpha %u)\n",
+                                                slot, soft, tx, ty,
+                                                tr | (tg << 8) | (tb << 16) | (alpha << 24), alpha);
+                                }
+                            }
+                        }
+                        fprintf(stderr, "[probe] slot %d: vertex colour r %u g %u b %u, software pixel %08x,"
+                                " %u texel(s) match\n", slot, vr6, vg6, vb6, soft, found);
+                    }
                 }
             }
         }

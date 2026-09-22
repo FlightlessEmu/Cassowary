@@ -176,13 +176,28 @@ shifts the texture coordinates. The span setup now follows the software
 rasteriser for those edges, and one of the two test frames went from 6,994
 differing pixels to 4,511.
 
-What is left is one solid rectangle of a surface, about 2,800 pixels, where the
-two rasterisers sample different texels of a texture that is decoded
-correctly, and the polygon is translucent in the Metal one and opaque in the
-software one. That is the shape a texture-coordinate difference makes, so the
-next step is the same: keep narrowing the span endpoints, this time by porting
-the software rasteriser's `Slope`/`Interpolator` outright and comparing the
-endpoints directly rather than one rule at a time.
+What is left is one solid rectangle of a surface, about 2,800 pixels. The
+probe pixels there are drawn by a translucent polygon whose texture decodes
+correctly, and working backwards from the software rasteriser's own colour says
+something more specific than "the coordinates differ":
+
+- With blending off, the software's pixel at (100,20) is `1f152e38`, so its
+  source colour is (56, 46, 21).
+- Both rasterisers agree that polygon's vertex colour is (61, 61, 45): with
+  textures off the polygon is opaque, so it overwrites the pixel and the two
+  agree on it.
+- No texel in that polygon's texture produces (56, 46, 21) from (61, 61, 45)
+  through the modulate the polygon uses. The search runs over the whole
+  texture, using the software rasteriser's own decode.
+
+So the software rasteriser's last writer at that pixel is a *different
+polygon*, not the same polygon sampling a different texel. The difference is in
+which polygon wins, not in the fetch. The next step is to find why: the
+candidates are the alpha test's reference value (the polygon's alpha is 10, so
+a reference of 10 or more would skip it) and the edge fill rules, which the
+software rasteriser relaxes for translucent polygons with blending enabled —
+`l_filledge`/`r_filledge` in `RenderScanline` — where this port still follows
+the compute renderer's `FillLeft`/`FillRight`/`FillInside` flags.
 
 Until step 3 lands, the 3D layer comes from the software rasteriser (see
 above), and with it the Metal picture is pixel-for-pixel identical to the

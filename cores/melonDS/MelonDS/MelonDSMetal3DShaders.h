@@ -621,7 +621,7 @@ kernel void melonds_rasterise(
         if ((pixel.x == 100 && pixel.y == 20) || (pixel.x == 60 && pixel.y == 20))
         {
             const uint slot = (pixel.x == 100) ? 0U : 1U;
-            device uint *rec = debugBuffer + slot * 16;
+            device uint *rec = debugBuffer + slot * 32;
             rec[0] = linePolyIndices[k];
             rec[1] = polygon.TexMode;
             rec[2] = polygon.TexSlot;
@@ -638,6 +638,7 @@ kernel void melonds_rasterise(
             rec[13] = uint(xspan.TexcoordU0) | (uint(xspan.TexcoordU1) << 16);
             rec[14] = uint(xspan.TexcoordV0) | (uint(xspan.TexcoordV1) << 16);
             rec[15] = 0xDEADBEEFU;
+            rec[16] = uint(vr >> 3) | (uint(vg >> 3) << 8) | (uint(vb >> 3) << 16);
         }
 
         // What the software rasteriser calls polyattr: the polygon's identity,
