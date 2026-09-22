@@ -112,20 +112,26 @@ with both:
    instead of binning them into tiles.
 3. `Rasterise` (starting with the no-texture Z-buffer variants) and
    `DepthBlend`. The shaders are written and run, and their output reaches the
-   3D texture, but the depth test is rejecting every polygon, so nothing is
-   drawn yet. What is known:
+   3D texture, but nothing is drawn. What is known, after bisecting it in the
+   harness:
 
-   - The polygon walk, the span fetch, the interpolation, the write path and
-     the hand-off to the texture all work: with the depth test bypassed, the
-     last polygon covers the screen and its colour lands in the texture intact.
-   - The per-frame values are sane: the clear depth reads as `16777215` and the
-     alpha reference as `0`, so a polygon with a z in the hundreds of thousands
-     should pass `z < dstz` easily.
-   - So the depth buffer's value as the rasteriser sees it is not the value the
-     clear pass wrote. The next step is to have the rasterise pass write a
-     known value into the depth buffer and read it back on the CPU, and to
-     check the buffer bindings against the kernel's parameter order (a swap
-     between the depth and attribute buffers would produce exactly this).
+   - The polygon walk, the span fetch, the span and inside tests, the edge
+     attributes and the write path all work: stopping the kernel just before
+     the interpolation and writing a marker makes the marker appear for every
+     pixel the polygons cover, and the CPU mirror of the same tests agrees
+     (every polygon's pixels pass).
+   - Adding the interpolation back makes all of it disappear, with the layer
+     left at its clear colour. The kernel is one thread per pixel looping over
+     every polygon, and each span it walks does a 64-bit division per pixel —
+     about 49,000 pixels times 176 polygons per frame. That is far too much
+     work for one dispatch, and the GPU drops it.
+   - So the next step is not a bug fix but a restructure: give each pixel much
+     less to do. The natural one, and what melonDS's own renderer does with its
+     tiles, is to bin the work per line — the DS is a line-based rasteriser, so
+     the CPU can hand the shader the list of polygons that touch each of the
+     192 lines (it already knows, from the span indices) and the per-line
+     interpolation factors, leaving the shader a handful of spans per pixel
+     instead of the whole frame.
 4. `FinalPass` without effects, then edge marking, fog and anti-aliasing.
 5. Textures: a Metal texture cache (`Texcache<loader, handle>` from
    `src/GPU3D_Texcache.h`, with a loader that makes Metal array textures) and
