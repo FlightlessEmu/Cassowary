@@ -48,6 +48,9 @@ struct TVLibraryView: View {
 
     @State private var showConflict = false
     @State private var selection: Selection = .all
+    /// Which sidebar row has the focus, so the highlight can be drawn here
+    /// rather than by the TV's focus effect.
+    @FocusState private var focusedRow: Selection?
 
     var body: some View {
         ZStack {
@@ -148,12 +151,18 @@ struct TVLibraryView: View {
                     }
                 }
             }
-            .padding(24)
+            // More room on the right than the left: a focused row grows a
+            // little under the TV's focus effect, and without room to grow the
+            // glow is cut off by the divider.
+            .padding(.leading, 24)
+            .padding(.trailing, 44)
+            .padding(.vertical, 24)
         }
-        // Focus sections make the sidebar and the grid each behave as one
-        // block, so pressing Right from any row reaches the games: without
-        // them the engine only looks for a tile whose frame overlaps the
-        // focused row, and the first row sits above the first tile.
+        .scrollIndicators(.hidden)
+        // The sidebar behaves as one block, so pressing Right from any row
+        // reaches the games: without a section the engine only looks for a
+        // tile whose frame overlaps the focused row, and the first row sits
+        // above the first tile.
         .focusSection()
     }
 
@@ -188,10 +197,20 @@ struct TVLibraryView: View {
             }
             .padding(.vertical, 12)
             .padding(.horizontal, 14)
-            .background(selection == value ? Color.white.opacity(0.16) : Color.clear,
-                        in: .rect(cornerRadius: 12))
+            .background(rowBackground(value), in: .rect(cornerRadius: 12))
         }
         .buttonStyle(.plain)
+        // The TV's focus effect grows the row and draws its own outline, which
+        // reached outside the sidebar and over the heading above. The highlight
+        // is drawn here instead, so it stays exactly on the row.
+        .focusEffectDisabled()
+        .focused($focusedRow, equals: value)
+    }
+
+    private func rowBackground(_ value: Selection) -> Color {
+        if focusedRow == value { return Color.white.opacity(0.30) }
+        if selection == value { return Color.white.opacity(0.14) }
+        return .clear
     }
 
     // MARK: - Detail
