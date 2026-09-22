@@ -230,12 +230,12 @@ inline int MelonDSWrapTexel(int t, int size, uint mode)
         return m < 0 ? m + size : m;
     }
 
-    const int span = size * 2;
-    int m = t % span;
-    if (m < 0)
-        m += span;
-
-    return m < size ? m : span - 1 - m;
+    // melonDS's software rasteriser tests the coordinate's bits rather than
+    // taking it modulo the doubled size, so a negative coordinate mirrors the
+    // way two's-complement arithmetic does. The two agree for positive
+    // coordinates and differ for negative ones.
+    const int m = t & (size - 1);
+    return (t & size) ? (size - 1) - m : m;
 }
 
 // MARK: - Blending and depth
@@ -625,7 +625,7 @@ kernel void melonds_rasterise(
         // visible rather than only the last one. The counters live past the
         // records, at word 1024.
         uint dbgIdx = 0xFFFFFFFFU;
-        if ((pixel.x == 100 && pixel.y == 20) || (pixel.x == 60 && pixel.y == 20))
+        if ((pixel.x == 100 && pixel.y == 10) || (pixel.x == 203 && pixel.y == 0))
         {
             const uint slot = (pixel.x == 100) ? 0U : 1U;
             device atomic_uint *counters = (device atomic_uint *) (debugBuffer + 1024);

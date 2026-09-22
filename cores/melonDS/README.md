@@ -133,8 +133,8 @@ with both:
    modes are in; W-buffering is per polygon and in.
 
 Where it stands: a frame of a retail game matches the software rasteriser on
-about 45,500 to 46,300 of its 49,152 pixels, with the rest spread over a
-handful of surfaces rather than edges.
+about 48,700 to 49,100 of its 49,152 pixels, and the pixels that still differ
+are single texels rather than whole surfaces.
 
 The comparison harness is the tool to finish it with. `MELONDS_3D=cmp` runs
 both rasterisers on the same frame in the same process and:
@@ -176,67 +176,16 @@ shifts the texture coordinates. The span setup now follows the software
 rasteriser for those edges, and one of the two test frames went from 6,994
 differing pixels to 4,511.
 
-What is left is one solid rectangle of a surface, about 2,800 pixels. The
-probe pixels there are drawn by a translucent polygon whose texture decodes
-correctly, and working backwards from the software rasteriser's own colour says
-something more specific than "the coordinates differ":
+What is left is small: one test frame differs on 69 of its 49,152 pixels, and
+another on 469. The differences are single texels — the same polygon, the same
+span, the same texture, one texel over — so they are still the texture
+coordinate thread described below, now down to a few pixels per surface.
 
-- With blending off, the software's pixel at (100,20) is `1f152e38`, so its
-  source colour is (56, 46, 21).
-- Both rasterisers agree that polygon's vertex colour is (61, 61, 45): with
-  textures off the polygon is opaque, so it overwrites the pixel and the two
-  agree on it.
-- No texel in that polygon's texture produces (56, 46, 21) from (61, 61, 45)
-  through the modulate the polygon uses. The search runs over the whole
-  texture, using the software rasteriser's own decode.
+The comparison harness is what got it this far, and it is worth keeping: the
+probe reports, in submission order, every polygon whose span covers a chosen
+pixel, whether the span covers it, whether any texel of its texture could
+produce the software rasteriser's colour, and the pixel and attributes before
+and after each write. Its probe pixels are set in `MelonDSMetal3DShaders.h`
+and `MelonDSMetalRenderer.mm` (search for `pixel.x == 100`).
 
-Three polygons cover that pixel — 55, 73 and 117, all the same material, in
-that submission order. The probe records the pixel's value before and after
-each of their writes, and that settles it: polygon 117's write starts from
-`1f152e38`, which is *exactly* the software rasteriser's final colour. The
-Metal rasteriser's state before that write already matches the software; the
-software simply does not perform the write.
 
-That is the translucent skip rule, not a texture problem. melonDS's
-`PlotTranslucentPixel` refuses a translucent write whose polygon ID matches
-what is already in the pixel's attributes. Polygon 117 is only skipped if the
-pixel already holds a *translucent* write from the same material; if the write
-underneath was opaque, the IDs differ and the write goes ahead. So the
-difference is one step further back: whether an earlier polygon of the same
-material was drawn opaquely or translucently, which comes down to its texel's
-alpha, which comes back to the texture coordinates.
-
-The probe is the tool to follow that chain: it reports, in submission order,
-every polygon whose span covers the pixel, whether the span covers it, whether
-any texel of its texture could produce the software's colour, and the pixel and
-attributes before and after each write.
-
-The attributes narrow it one more step. At the probe pixel the write before
-117's is opaque (its polygon-ID bits are zero), so 117's translucent write is
-allowed; in the software the pixel must already hold a *translucent* write from
-the same material for the skip to fire. Two polygons of that material, 55 and
-73, cover the pixel in both rasterisers, so one of them is writing translucently
-in the software and either opaquely or not at all in the Metal one — which
-comes down to its texel's alpha, and so to the texture coordinates again. That
-is the step to check next: the texel alpha, and whether the polygon's write
-survives the depth test in each rasteriser.
-
-Until step 3 lands, the 3D layer comes from the software rasteriser (see
-above), and with it the Metal picture is pixel-for-pixel identical to the
-software one — the offline harness renders the same ROM and frame with both
-and compares them.
-
-## Patches to upstream
-
-Three, all documented where they change the code:
-
-- `src/ARMJIT.cpp` — skips `pthread_jit_write_protect_np`, which the Catalyst
-  SDK marks unavailable; Catalyst's JIT pages stay writable without it.
-- `src/GPU2D_Soft.cpp` — calls the renderer's `PrepareCaptureFrame` for any
-  accelerated renderer, not only the OpenGL one. Display capture reads the 3D
-  layer back on the CPU, and a Metal renderer needs the same call.
-- The build itself lives in `MelonDS/CMakeLists.txt`, which includes upstream's
-  `src/CMakeLists.txt` rather than copying its source list.
-
-To move to a newer melonDS: replace `src/` with the new release, re-apply those
-patches, and rebuild.

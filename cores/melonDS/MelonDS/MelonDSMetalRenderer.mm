@@ -1795,7 +1795,7 @@ void Rasterizer3D::CompareWithSoftware(GPU& gpu, SoftRenderer& software) noexcep
             // order, so it is clear how many of them compete for each.
             {
                 const u32* lineOffsets = (const u32*) _linePolyOffsets.contents;
-                static const int probes[][2] = { {100,20}, {60,20} };
+                static const int probes[][2] = { {100,10}, {203,0} };
                 for (int slot = 0; slot < 2; slot++)
                 {
                     const int px = probes[slot][0], py = probes[slot][1];
@@ -1973,8 +1973,8 @@ void Rasterizer3D::CompareWithSoftware(GPU& gpu, SoftRenderer& software) noexcep
                     // and the modulate can be inverted, so the texel it must
                     // have sampled can be found by searching the texture.
                     {
-                        const int px = slot == 0 ? 100 : 60;
-                        const u32 soft = software.GetLine(20)[px];
+                        const int px = slot == 0 ? 100 : 203;
+                        const u32 soft = software.GetLine(slot == 0 ? 10 : 0)[px];
                         const u32 sr = soft & 0x3F, sg = (soft >> 8) & 0x3F, sb = (soft >> 16) & 0x3F;
                         const u32 vr6 = r[16] & 0xFF, vg6 = (r[16] >> 8) & 0xFF, vb6 = (r[16] >> 16) & 0xFF;
                         const u32 width = _polygons[p].TexWidth, height = _polygons[p].TexHeight;
