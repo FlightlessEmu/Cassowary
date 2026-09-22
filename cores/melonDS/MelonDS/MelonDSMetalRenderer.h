@@ -150,6 +150,10 @@ struct MetaUniform
     u32 ClearColor, ClearDepth, ClearAttr;
 
     u32 FogOffset, FogShift, FogColor;
+
+    /// Counts frames, so the comparison harness can tell records written for
+    /// this frame from ones a later frame has already overwritten.
+    u32 FrameIndex;
 };
 
 /// Draws the DS's 3D layer with Metal compute shaders.
@@ -254,6 +258,9 @@ private:
     /// textures go into a table the shader indexes per polygon; every texture
     /// the frame uses is also told to the dispatch so it stays alive.
     TexcacheMetal _texcache;
+
+    /// Counts frames for the comparison harness. See MetaUniform::FrameIndex.
+    u32 _frameIndex = 0;
 
     /// The frame's texture table: at most one array texture per size the
     /// frame's polygons use, each in a fixed slot.

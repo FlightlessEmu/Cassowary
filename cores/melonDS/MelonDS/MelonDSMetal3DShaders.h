@@ -30,6 +30,7 @@
 /// `MelonDSMetalRenderer.h`, because they are the same buffers.
 static const char *kMelonDSMetal3DSource = R"MSL(
 #include <metal_stdlib>
+#include <metal_atomic>
 using namespace metal;
 
 // MARK: - The buffers
@@ -68,6 +69,8 @@ struct MelonDSMetaUniform
     uint ClearColor, ClearDepth, ClearAttr;
 
     uint FogOffset, FogShift, FogColor;
+
+    uint FrameIndex;
 };
 
 struct MelonDSSpanSetupX
@@ -617,11 +620,20 @@ kernel void melonds_rasterise(
 
         const uint color = r | (g << 8) | (b << 16) | (a << 24);
 
-        // Diagnostic: what the shader saw for two fixed pixels.
+        // Diagnostic: what the shader saw for two fixed pixels. Each visit
+        // appends a record, so the whole sequence of writes to those pixels is
+        // visible rather than only the last one. The counters live past the
+        // records, at word 1024.
+        uint dbgIdx = 0xFFFFFFFFU;
         if ((pixel.x == 100 && pixel.y == 20) || (pixel.x == 60 && pixel.y == 20))
         {
             const uint slot = (pixel.x == 100) ? 0U : 1U;
-            device uint *rec = debugBuffer + slot * 32;
+            device atomic_uint *counters = (device atomic_uint *) (debugBuffer + 1024);
+            dbgIdx = atomic_fetch_add_explicit(&counters[slot], 1U, memory_order_relaxed);
+
+            if (dbgIdx < 16U)
+            {
+            device uint *rec = debugBuffer + (slot * 16U + dbgIdx) * 32U;
             rec[0] = linePolyIndices[k];
             rec[1] = polygon.TexMode;
             rec[2] = polygon.TexSlot;
@@ -641,6 +653,8 @@ kernel void melonds_rasterise(
             rec[16] = uint(vr >> 3) | (uint(vg >> 3) << 8) | (uint(vb >> 3) << 16);
             rec[17] = colorBuffer[pixeladdr];
             rec[19] = attrBuffer[pixeladdr];
+            rec[21] = meta.FrameIndex;
+            }
         }
 
         // What the software rasteriser calls polyattr: the polygon's identity,
@@ -650,39 +664,67 @@ kernel void melonds_rasterise(
         if (!(polygon.Attr & (1U << 6))) // not facing the view: back facing
             polyattr |= (1U << 4);
 
-        if (a == 31)
+        // The software rasteriser depth-tests every pixel, translucent ones
+        // included, and when the test fails against the topmost pixel it tests
+        // against the pixel underneath — the one an antialiased edge pushed
+        // down — and draws there if that one passes instead.
+        bool dstBottom = false;
         {
-            const int dstz = int(depthBuffer[pixeladdr]);
+            bool pass;
             const uint dstattr = attrBuffer[pixeladdr];
 
-            bool pass;
             if (polygon.Attr & (1U << 14))
-                pass = polygon.WBuffer != 0 ? MelonDSDepthTest_W(dstz, int(z))
-                                            : MelonDSDepthTest_Z(dstz, int(z));
+                pass = polygon.WBuffer != 0 ? MelonDSDepthTest_W(int(depthBuffer[pixeladdr]), int(z))
+                                            : MelonDSDepthTest_Z(int(depthBuffer[pixeladdr]), int(z));
             else if (polygon.Attr & (1U << 6))
-                pass = MelonDSDepthTest_LessThan_FrontFacing(dstz, int(z), dstattr);
+                pass = MelonDSDepthTest_LessThan_FrontFacing(int(depthBuffer[pixeladdr]), int(z), dstattr);
             else
-                pass = MelonDSDepthTest_LessThan(dstz, int(z));
+                pass = MelonDSDepthTest_LessThan(int(depthBuffer[pixeladdr]), int(z));
 
             if (!pass)
-                continue;
+            {
+                if ((dstattr & 0xFU) == 0U)
+                    continue;
 
+                dstBottom = true;
 
+                if (polygon.Attr & (1U << 14))
+                    pass = polygon.WBuffer != 0 ? MelonDSDepthTest_W(int(depthBufferB[pixeladdr]), int(z))
+                                                : MelonDSDepthTest_Z(int(depthBufferB[pixeladdr]), int(z));
+                else if (polygon.Attr & (1U << 6))
+                    pass = MelonDSDepthTest_LessThan_FrontFacing(int(depthBufferB[pixeladdr]), int(z),
+                                                                 attrBufferB[pixeladdr]);
+                else
+                    pass = MelonDSDepthTest_LessThan(int(depthBufferB[pixeladdr]), int(z));
 
-            if ((meta.DispCnt & (1U << 4)) != 0U && (attr & 0xFU) != 0U)
+                if (!pass)
+                    continue;
+            }
+        }
+
+        device uint *dstColor = dstBottom ? colorBufferB : colorBuffer;
+        device uint *dstDepth = dstBottom ? depthBufferB : depthBuffer;
+        device uint *dstAttrBuffer = dstBottom ? attrBufferB : attrBuffer;
+
+        if (a == 31)
+        {
+            if ((meta.DispCnt & (1U << 4)) != 0U && !dstBottom)
             {
                 // anti-aliasing: push the covered pixel down before drawing
                 // over it, so the final pass can blend edge pixels with what
-                // is underneath them. Only edge pixels need it — that is the
-                // only place the buffer underneath is ever read.
+                // is underneath them. The software rasteriser pushes down for
+                // every opaque write while anti-aliasing is on, not only for
+                // edge pixels: the buffer underneath is also read by pixels
+                // whose coverage came out zero, and those have to find the
+                // same value there that the software rasteriser left.
                 colorBufferB[pixeladdr] = colorBuffer[pixeladdr];
                 depthBufferB[pixeladdr] = depthBuffer[pixeladdr];
                 attrBufferB[pixeladdr] = attrBuffer[pixeladdr];
             }
 
-            depthBuffer[pixeladdr] = z;
-            colorBuffer[pixeladdr] = color;
-            attrBuffer[pixeladdr] = polyattr | attr;
+            dstDepth[pixeladdr] = z;
+            dstColor[pixeladdr] = color;
+            dstAttrBuffer[pixeladdr] = polyattr | attr;
         }
         else
         {
@@ -690,23 +732,23 @@ kernel void melonds_rasterise(
             if (!(polygon.Attr & (1U << 11)))
                 blendz = -1;
 
-            const uint entryAttr = attrBuffer[pixeladdr];
-            MelonDSPlotTranslucentPixel(meta, colorBuffer, depthBuffer, attrBuffer,
+            const uint entryAttr = dstAttrBuffer[pixeladdr];
+            MelonDSPlotTranslucentPixel(meta, dstColor, dstDepth, dstAttrBuffer,
                                         pixeladdr, color, blendz, polyattr, false);
 
             // blend with the pixel underneath too, if needed
-            if ((entryAttr & 0xFU) != 0U)
+            if ((entryAttr & 0xFU) != 0U && !dstBottom)
             {
                 MelonDSPlotTranslucentPixel(meta, colorBufferB, depthBufferB, attrBufferB,
                                             pixeladdr, color, blendz, polyattr, false);
             }
         }
-
-        if ((pixel.x == 100 && pixel.y == 20) || (pixel.x == 60 && pixel.y == 20))
+        if (dbgIdx < 16U)
         {
             const uint slot = (pixel.x == 100) ? 0U : 1U;
-            debugBuffer[slot * 32 + 18] = colorBuffer[pixeladdr];
-            debugBuffer[slot * 32 + 20] = attrBuffer[pixeladdr];
+            device uint *rec = debugBuffer + (slot * 16U + dbgIdx) * 32U;
+            rec[18] = colorBuffer[pixeladdr];
+            rec[20] = attrBuffer[pixeladdr];
         }
     }
 }

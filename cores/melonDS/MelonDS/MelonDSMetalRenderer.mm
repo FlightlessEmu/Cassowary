@@ -831,7 +831,8 @@ Rasterizer3D::Rasterizer3D(id<MTLDevice> device, id<MTLCommandQueue> queue) noex
                                             options:MTLResourceStorageModeShared];
     _linePolyIndices = [_device newBufferWithLength:sizeof(u32) * MaxSpanIndices
                                              options:MTLResourceStorageModeShared];
-    _debugBuffer = [_device newBufferWithLength:sizeof(u32) * 64
+    // 2 probe pixels x 16 records x 32 words, then the two write counters.
+    _debugBuffer = [_device newBufferWithLength:sizeof(u32) * 1032
                                         options:MTLResourceStorageModeShared];
 
     // Bound when a variant uses no texture, so there is always something to
@@ -1570,6 +1571,7 @@ void Rasterizer3D::SetupFrame(GPU& gpu) noexcept
            sizeof(u32) * lineOffsets[kScreenHeight]);
 
     MetaUniform meta {};
+    meta.FrameIndex = _frameIndex++;
     meta.DispCnt = gpu.GPU3D.RenderDispCnt;
     meta.NumPolygons = gpu.GPU3D.RenderNumPolygons;
     meta.AlphaRef = gpu.GPU3D.RenderAlphaRef;
@@ -1668,6 +1670,9 @@ void Rasterizer3D::Render(GPU& gpu, id<MTLTexture> output) noexcept
         [encoder setBuffer:_depthBufferB offset:0 atIndex:9];
         [encoder setBuffer:_attrBufferB offset:0 atIndex:10];
         [encoder setBuffer:_debugBuffer offset:0 atIndex:11];
+
+        // The probe counters accumulate over the frame, so start them at zero.
+        memset((u8*) _debugBuffer.contents + sizeof(u32) * 1024, 0, sizeof(u32) * 2);
 
         id<MTLTexture> textures[MaxTextureSlots];
         for (u32 s = 0; s < MaxTextureSlots; s++)
@@ -1783,6 +1788,8 @@ void Rasterizer3D::CompareWithSoftware(GPU& gpu, SoftRenderer& software) noexcep
             }
 
             const u32* rec = (const u32*) _debugBuffer.contents;
+            const u32* counters = rec + 1024;
+            const u32 frameIndex = _frameIndex - 1;
 
             // Which polygons' spans cover the probe pixels, in submission
             // order, so it is clear how many of them compete for each.
@@ -1842,7 +1849,10 @@ void Rasterizer3D::CompareWithSoftware(GPU& gpu, SoftRenderer& software) noexcep
                                     // vertex colour; the record has the colour
                                     // the Metal rasteriser used, and the two
                                     // rasterisers agree on vertex colours.
-                                    const u32* rrec = rec + slot * 32;
+                                    u32 lastIdx = counters[slot] == 0 ? 0 : counters[slot] - 1;
+                                    if (lastIdx > 15)
+                                        lastIdx = 15;
+                                    const u32* rrec = rec + (slot * 16 + lastIdx) * 32;
                                     const u32 vr6 = rrec[16] & 0xFF, vg6 = (rrec[16] >> 8) & 0xFF, vb6 = (rrec[16] >> 16) & 0xFF;
                                     const u32 mr = ((tr + 1) * (vr6 + 1) - 1) >> 6;
                                     const u32 mg = ((tg + 1) * (vg6 + 1) - 1) >> 6;
@@ -1890,10 +1900,36 @@ void Rasterizer3D::CompareWithSoftware(GPU& gpu, SoftRenderer& software) noexcep
 
             for (int slot = 0; slot < 2; slot++)
             {
-                const u32* r = rec + slot * 32;
+                u32 count = counters[slot];
+                if (count > 16)
+                    count = 16;
+
+                fprintf(stderr, "[probe] slot %d: %u visit(s) to the pixel, in submission order:\n",
+                        slot, counters[slot]);
+
+                for (u32 i = 0; i < count; i++)
+                {
+                    const u32* v = rec + (slot * 16 + i) * 32;
+                    if (v[15] != 0xDEADBEEFU)
+                        continue;
+
+                    const u32 src = v[9];
+                    const u32 srcA = (src >> 24) & 0xFF;
+                    fprintf(stderr, "[probe] slot %d:   #%u poly %u mode %u u %d v %d texel (%u,%u) %08x"
+                            " src %08x (a %u %s) pixel %08x -> %08x attr %08x -> %08x%s\n",
+                            slot, i, v[0], v[1], (int) v[4], (int) v[5], v[6], v[7], v[8],
+                            src, srcA, srcA == 31 ? "opaque" : "translucent",
+                            v[17], v[18], v[19], v[20],
+                            v[21] == frameIndex ? "" : "  (stale record: written by a later frame)");
+                }
+
+                if (count == 0)
+                    continue;
+
+                const u32* r = rec + (slot * 16 + count - 1) * 32;
                 if (r[15] != 0xDEADBEEFU)
                 {
-                    fprintf(stderr, "[probe] slot %d: not written\n", slot);
+                    fprintf(stderr, "[probe] slot %d: the last visit did not reach the record point\n", slot);
                     continue;
                 }
                 fprintf(stderr, "[probe] slot %d: attr %08x texmode %u slot %u layer %u"
