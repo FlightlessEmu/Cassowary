@@ -142,8 +142,10 @@ static ATR800GameCore *_currentCore;
     }
     else if([[self systemIdentifier] isEqualToString:@"openemu.system.atari8bit"])
     {
-        // Custom NTSC palette for Atari 8-bit
-        NSString *palettePath = [[[NSBundle bundleForClass:[self class]] resourcePath] stringByAppendingPathComponent:@"Default.act"];
+        // Custom NTSC palette for Atari 8-bit. The file is spelled lower-case
+        // in the bundle; matching that keeps it loading on iOS, whose storage
+        // is case-sensitive (macOS is not, which hid the mismatch).
+        NSString *palettePath = [[[NSBundle bundleForClass:[self class]] resourcePath] stringByAppendingPathComponent:@"default.act"];
         strcpy(COLOURS_NTSC_external.filename, palettePath.fileSystemRepresentation);
         COLOURS_NTSC_external.loaded = TRUE;
 
