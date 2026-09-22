@@ -186,15 +186,21 @@ struct GameView: View {
                     }
                     .pickerStyle(.menu)
 
-                    Picker("Upscaling: \(metalFXOn ? "MetalFX Spatial" : "Off")", selection: upscalingBinding) {
-                        Text("Off").tag(false)
-                        Text(metalFXAvailable ? "MetalFX Spatial" : "MetalFX Spatial (Unavailable)").tag(true)
+                    Picker("Upscaling: \(metalFXOn ? "MetalFX Spatial" : "Off")", selection: metalFXBinding) {
+                        if game.system != nil {
+                            Text("Use Default").tag(UpscalingOptions.Choice.automatic)
+                        }
+                        Text("Off").tag(UpscalingOptions.Choice.off)
+                        Text(metalFXAvailable ? "MetalFX Spatial" : "MetalFX Spatial (Unavailable)").tag(UpscalingOptions.Choice.on)
                     }
                     .pickerStyle(.menu)
 
                     Picker("Scaling: \(integerScalingOn ? "Pixel Perfect" : "Fill")", selection: integerScalingBinding) {
-                        Text("Fill").tag(false)
-                        Text("Pixel Perfect").tag(true)
+                        if game.system != nil {
+                            Text("Use Default").tag(UpscalingOptions.Choice.automatic)
+                        }
+                        Text("Fill").tag(UpscalingOptions.Choice.off)
+                        Text("Pixel Perfect").tag(UpscalingOptions.Choice.on)
                     }
                     .pickerStyle(.menu)
 
@@ -322,22 +328,22 @@ struct GameView: View {
     ///
     /// The pick is remembered for this system, and the engine quietly keeps
     /// the plain picture where MetalFX cannot run. Picking it on hardware
-    /// without MetalFX leaves the setting on Off and says so.
-    private func applyMetalFXUpscaling(_ enabled: Bool) {
-        guard !enabled || metalFXAvailable else {
+    /// without MetalFX leaves the setting where it was and says so.
+    private func applyMetalFXUpscaling(_ choice: UpscalingOptions.Choice) {
+        guard choice != .on || metalFXAvailable else {
             show(notice: "MetalFX is not available on this device")
             return
         }
 
-        store(enabled, for: .metalFX)
-        session?.setMetalFXUpscalingEnabled(enabled)
-        show(notice: enabled ? "MetalFX upscaling on" : "MetalFX upscaling off")
+        store(choice, for: .metalFX)
+        session?.setMetalFXUpscalingEnabled(upscalingOptions.isEnabled(.metalFX, forSystem: game.system?.identifier))
+        show(notice: metalFXOn ? "MetalFX upscaling on" : "MetalFX upscaling off")
     }
 
-    /// The upscaling picker's binding.
-    private var upscalingBinding: Binding<Bool> {
+    /// The MetalFX picker's binding.
+    private var metalFXBinding: Binding<UpscalingOptions.Choice> {
         Binding(
-            get: { metalFXOn },
+            get: { upscalingChoice(for: .metalFX) },
             set: { applyMetalFXUpscaling($0) }
         )
     }
@@ -346,27 +352,36 @@ struct GameView: View {
     ///
     /// The pick is remembered for this system. The engine keeps the picture
     /// filling the screen when it would not fit a whole number of times.
-    private func applyIntegerScaling(_ enabled: Bool) {
-        store(enabled, for: .integerScaling)
-        session?.setIntegerScalingEnabled(enabled)
-        show(notice: enabled ? "Pixel-perfect scaling on" : "Fill scaling on")
+    private func applyIntegerScaling(_ choice: UpscalingOptions.Choice) {
+        store(choice, for: .integerScaling)
+        session?.setIntegerScalingEnabled(upscalingOptions.isEnabled(.integerScaling, forSystem: game.system?.identifier))
+        show(notice: integerScalingOn ? "Pixel-perfect scaling on" : "Fill scaling on")
     }
 
     /// The scaling picker's binding.
-    private var integerScalingBinding: Binding<Bool> {
+    private var integerScalingBinding: Binding<UpscalingOptions.Choice> {
         Binding(
-            get: { integerScalingOn },
+            get: { upscalingChoice(for: .integerScaling) },
             set: { applyIntegerScaling($0) }
         )
     }
 
+    /// What this game's system is set to for an option. A game with no system
+    /// has no per-system pick, so the app-wide choice reads back as on or off.
+    private func upscalingChoice(for option: UpscalingOptions.Option) -> UpscalingOptions.Choice {
+        if let systemID = game.system?.identifier {
+            return upscalingOptions.choice(for: option, system: systemID)
+        }
+        return upscalingOptions.isOn(option) ? .on : .off
+    }
+
     /// Remember an upscaling pick for this system, or app-wide when the game
     /// has no system — the same rule the video filter follows.
-    private func store(_ enabled: Bool, for option: UpscalingOptions.Option) {
+    private func store(_ choice: UpscalingOptions.Choice, for option: UpscalingOptions.Option) {
         if let systemID = game.system?.identifier {
-            upscalingOptions.setChoice(enabled ? .on : .off, for: option, system: systemID)
+            upscalingOptions.setChoice(choice, for: option, system: systemID)
         } else {
-            upscalingOptions.setOn(enabled, for: option)
+            upscalingOptions.setOn(choice == .on, for: option)
         }
     }
 
@@ -649,6 +664,19 @@ struct GameView: View {
                 try? await Task.sleep(for: .seconds(3))
                 session.setMetalFXUpscalingEnabled(false)
                 NSLog("[Cassowary] test MetalFX upscaling off")
+            }
+        }
+
+        // Turn whole-number scaling on, then off again, the same way.
+        if UserDefaults.standard.bool(forKey: "cassowary.testIntegerScaling") {
+            Task {
+                try? await Task.sleep(for: .seconds(3))
+                session.setIntegerScalingEnabled(true)
+                NSLog("[Cassowary] test integer scaling on")
+
+                try? await Task.sleep(for: .seconds(3))
+                session.setIntegerScalingEnabled(false)
+                NSLog("[Cassowary] test integer scaling off")
             }
         }
 #endif

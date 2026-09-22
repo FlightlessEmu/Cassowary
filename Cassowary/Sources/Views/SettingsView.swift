@@ -177,7 +177,7 @@ struct SettingsView: View {
                         Text("Fill").tag(false)
                         Text("Pixel Perfect").tag(true)
                     }
-                    Text("Applies to every game unless a system sets its own below. A filter compiles the first time it is used, which takes a moment.")
+                    Text("Applies to every game unless a system sets its own below. A filter compiles the first time it is used, which takes a moment. MetalFX runs only on devices that support it; elsewhere the picture is drawn the normal way.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 } header: {
@@ -331,7 +331,10 @@ private struct SystemCoresView: View {
                     } header: {
                         Text("Video")
                     } footer: {
-                        Text("\(shaderSummary(for: system)) \(upscalingSummary(for: system))")
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(shaderSummary(for: system))
+                            Text(upscalingSummary(for: system))
+                        }
                     }
 
                     Section {
@@ -419,9 +422,9 @@ private struct SystemCoresView: View {
         )
     }
 
-    /// One line explaining what this system will actually do for upscaling.
+    /// Two lines explaining what this system will actually do for upscaling.
     private func upscalingSummary(for system: SystemEntry) -> String {
-        "MetalFX: \(upscalingOptions.summary(.metalFX, forSystem: system.id)) Pixel Perfect: \(upscalingOptions.summary(.integerScaling, forSystem: system.id))"
+        "MetalFX: \(upscalingOptions.summary(.metalFX, forSystem: system.id))\nPixel Perfect: \(upscalingOptions.summary(.integerScaling, forSystem: system.id))"
     }
 }
 
@@ -487,7 +490,7 @@ struct AboutView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("OpenEmu shader presets")
                         .font(.headline)
-                    Text("The video filters — CRT Geom, CRT Royale Kurozumi, MAME HLSL, NTSC, VHS, and the rest — are the shader presets from the OpenEmu project, by their original authors (cgwg, Themaister, hunterk, TroggleMonkey, and others). They keep their authors' licenses: MIT, BSD-3-Clause, or GPL.")
+                    Text("The video filters — CRT Geom, CRT Royale Kurozumi, MAME HLSL, NTSC, VHS, and the rest — are the shader presets from the OpenEmu project, by their original authors (cgwg, Themaister, hunterk, TroggleMonkey, and others). The pixel-art scalers (Scale2x, Scale3x, 2xSaI, Super 2xSaI, Super Eagle, HQ2x, HQ3x, HQ4x) come from the libretro slang-shaders collection, by Andrea Mazzoleni, Derek Liauw Kie Fa, Maxim Stepin, and others. Each preset keeps its author's license: MIT, BSD-3-Clause, GPL, or LGPL.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

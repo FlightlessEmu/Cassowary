@@ -189,9 +189,9 @@ scalers, CRT/LCD looks, and a hardware upscaler. The bitmap-core gap is about
    `.slangp` presets, exactly like the xBRZ one already there. **No code.**
 2. **No pixel-perfect / integer scaling.** The final draw stretches the source
    to the whole drawable, so 256x240 on a non-integer scale produces a pixel
-   grid with uneven rows/columns. An "integer scale" option (letterbox the
-   remainder) or a small "scale" step would fix that. This is a code change in
-   the final-pass viewport math (`FilterChain.swift:369-392`, `:708-727`).
+   grid with uneven rows/columns. An "integer scale" option (scale each axis by
+   its own whole number and letterbox the remainder) would fix that. This is a
+   code change in the final-pass viewport math (`FilterChain.swift`).
 3. **No per-system default upscaler.** Filters are opt-in and remembered per
    system (good), but there is no shipped notion of "this system looks best
    with xBRZ". That is a data/choice question, not engine work.
@@ -303,21 +303,24 @@ before commit; all 27 pass the glslang → SPIR-V → Metal translation the app
 performs at runtime.
 
 **Phase 2 — pixel-perfect (integer) scaling.**
-A new "Scaling" picker in `GameView` (Fill / Pixel Perfect) drives a new
+A new "Scaling" picker (Fill / Pixel Perfect) drives a new
 `integerScaleEnabled` flag on `FilterChain`
 (`OpenEmu-Shaders/Source/FilterChain.swift`). When on, the final picture is
 enlarged by the largest whole number that fits and centred, instead of being
-stretched to any size. It applies to the unfiltered picture and to presets
-whose last pass is sized from the source; when a preset already renders at
-screen size, or the picture would not fit even once, it falls back to the
-normal fill. It is safe to toggle mid-game.
+stretched to any size. Each axis gets its own whole number, so a picture whose
+pixels are not square — a 4:3 console, say — keeps its shape instead of being
+narrowed to square pixels. The picture that gets enlarged is the core's own
+frame, or the picture a preset hands to its final stretch to the screen; when
+a preset's chain cannot be measured up front, or the picture would not fit
+even once, it falls back to the normal fill. It is safe to toggle mid-game.
 
-Both upscaling switches now work the same way as the video filter: an
-app-wide default in Settings → Video, a per-system override in Settings →
-[a system] → Video (`Use Default` / `Off` / `On`), and the same three
-pickers in the in-game menu. `UpscalingOptions`
-(`Cassowary/Sources/Models/UpscalingOptions.swift`) mirrors
-`ShaderCatalog`'s storage, so all three video options behave identically.
+Both upscaling switches work the same way as the video filter: an app-wide
+default in Settings → Video, a per-system override in Settings →
+[a system] → Video (`Use Default` / `Off` / `On`), and the same picks in the
+in-game menu, including `Use Default` to hand a system back to the app-wide
+choice. `UpscalingOptions` (`Cassowary/Sources/Models/UpscalingOptions.swift`)
+mirrors `ShaderCatalog`'s storage, so all three video options behave
+identically.
 
 Files touched: `OpenEmu-Shaders/Source/FilterChain.swift`,
 `OpenEmuKit/Source/OpenEmuHelperApp.swift`,

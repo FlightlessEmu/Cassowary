@@ -366,7 +366,7 @@ public final class FilterChain {
      * which is centered inside 'bounds' and has aspect ratio 'aspectSize'.
      * Currently we try to fill the window, but maybe someday we'll support fixed zooms.
      */
-    private static func fitAspectRectIntoRect(aspectSize: CGSize, size: CGSize) -> CGRect {
+    private static func fitAspectRectIntoRect(aspectSize: CGSize, size: CGSize, integral: Bool = true) -> CGRect {
         let wantAspect = aspectSize.width / aspectSize.height
         let viewAspect = size.width / size.height
         
@@ -388,31 +388,34 @@ public final class FilterChain {
                              size: outRectSize)
         
         // This is going into a Nearest Neighbor, so the edges should be on pixels!
-        return outRect.integral
+        return integral ? outRect.integral : outRect
     }
     
-    /// The largest whole-number multiple of `base` that fits in `size`, centred.
-    /// Nil when the base is unknown or does not fit even once, which lets the
-    /// caller fall back to the normal fill.
-    private static func integerScaleRect(base: CGSize, size: CGSize) -> CGRect? {
+    /// The largest whole-number multiple of `base` on each axis that fits in
+    /// `bounds`, centred. Each axis gets its own whole number, so a picture
+    /// whose pixels are not square — a 4:3 console, say — keeps its shape while
+    /// its pixels still land on the screen's grid. Nil when the base is unknown
+    /// or does not fit even once, which lets the caller fall back to the fill.
+    private static func integerScaleRect(base: CGSize, bounds: CGRect) -> CGRect? {
+        let base = CGSize(width: base.width.rounded(), height: base.height.rounded())
         guard base.width >= 1, base.height >= 1,
-              size.width >= base.width, size.height >= base.height else { return nil }
+              bounds.width >= base.width, bounds.height >= base.height else { return nil }
 
-        let scale = floor(min(size.width / base.width, size.height / base.height))
-        guard scale >= 1 else { return nil }
+        let scaleX = floor(bounds.width / base.width)
+        let scaleY = floor(bounds.height / base.height)
+        guard scaleX >= 1, scaleY >= 1 else { return nil }
 
-        let scaled = CGSize(width: (base.width * scale).rounded(),
-                            height: (base.height * scale).rounded())
-        return CGRect(origin: .init(x: ((size.width - scaled.width) / 2).rounded(),
-                                    y: ((size.height - scaled.height) / 2).rounded()),
+        let scaled = CGSize(width: (base.width * scaleX).rounded(),
+                            height: (base.height * scaleY).rounded())
+        return CGRect(origin: .init(x: (bounds.midX - scaled.width / 2).rounded(),
+                                    y: (bounds.midY - scaled.height / 2).rounded()),
                       size: scaled)
     }
 
     /// The pixel size of the picture integer scaling should enlarge: the core's
-    /// own frame when there is no shader, or a shader's output when its last
-    /// pass is sized from the source. Zero when the size cannot be known up
-    /// front — a viewport-sized pass in the middle of the chain — so the caller
-    /// falls back to the normal fill.
+    /// own frame when there is no shader, or the picture a shader hands to its
+    /// final stretch to the screen. Zero when the size cannot be known up
+    /// front, so the caller falls back to the normal fill.
     private func finalPictureSize() -> CGSize {
         guard hasShader, passCount > 0 else { return sourceRect.size }
 
@@ -428,21 +431,28 @@ public final class FilterChain {
                 continue
             }
 
-            let xIsViewport: Bool
-            if case .viewport = scaleX { xIsViewport = true } else { xIsViewport = false }
-            let yIsViewport: Bool
-            if case .viewport = scaleY { yIsViewport = true } else { yIsViewport = false }
+            let viewportX = Self.viewportScale(scaleX)
+            let viewportY = Self.viewportScale(scaleY)
 
             if isLast {
-                // A viewport-sized last pass is the picture the user sees, so
-                // the size to enlarge is the one it was handed.
-                if xIsViewport && yIsViewport { return size }
+                // A plain viewport-sized last pass draws the picture the user
+                // sees, so the size to enlarge is the one it was handed.
+                if let sx = viewportX, let sy = viewportY {
+                    return (sx == 1 && sy == 1) ? size : .zero
+                }
                 // Screen-sized on one axis only: nothing whole to scale.
-                if xIsViewport || yIsViewport { return .zero }
-            } else if xIsViewport || yIsViewport {
-                // Everything after this pass follows the viewport, which is
-                // what we are trying to choose.
-                return .zero
+                if viewportX != nil || viewportY != nil { return .zero }
+            } else if let sx = viewportX {
+                // The chain stretches to the viewport part-way through. The
+                // picture being enlarged is the one this pass was handed, as
+                // long as everything after it is just the final stretch.
+                guard sx == 1, viewportY == nil, Self.isUnitSource(scaleY),
+                      remainingPassesAreFinalStretch(after: i) else { return .zero }
+                return size
+            } else if let sy = viewportY {
+                guard sy == 1, Self.isUnitSource(scaleX),
+                      remainingPassesAreFinalStretch(after: i) else { return .zero }
+                return size
             }
 
             switch scaleX {
@@ -459,10 +469,42 @@ public final class FilterChain {
         return size
     }
 
+    /// A pass axis sized to the viewport, and by how much, or nil when it is
+    /// sized some other way.
+    private static func viewportScale(_ scale: ShaderPassScale) -> CGFloat? {
+        if case .viewport(let value) = scale { return value }
+        return nil
+    }
+
+    /// A pass axis that keeps the size it was handed.
+    private static func isUnitSource(_ scale: ShaderPassScale) -> Bool {
+        if case .source(let value) = scale { return value == 1 }
+        return false
+    }
+
+    /// True when every pass after `index` is just the final stretch to the
+    /// screen — unscaled, or a plain 1:1 viewport draw — so the picture's own
+    /// pixel size is still the one at `index`.
+    private func remainingPassesAreFinalStretch(after index: Int) -> Bool {
+        for j in (index + 1)..<passCount {
+            let p = pass[j]
+            guard p.isScaled, let scaleX = p.scaleX, let scaleY = p.scaleY else { continue }
+            guard let sx = Self.viewportScale(scaleX), let sy = Self.viewportScale(scaleY),
+                  sx == 1, sy == 1 else { return false }
+        }
+        return true
+    }
+
     private func resize() {
-        var bounds = Self.fitAspectRectIntoRect(aspectSize: aspectSize, size: drawableSize)
+        let fill = Self.fitAspectRectIntoRect(aspectSize: aspectSize, size: drawableSize)
+        var bounds = fill
         if integerScaleEnabled,
-           let rect = Self.integerScaleRect(base: finalPictureSize(), size: drawableSize) {
+           // Measure against the exact aspect rect, not the pixel-aligned one:
+           // rounding it first can tip the two whole-number scales apart.
+           let rect = Self.integerScaleRect(base: finalPictureSize(),
+                                            bounds: Self.fitAspectRectIntoRect(aspectSize: aspectSize,
+                                                                               size: drawableSize,
+                                                                               integral: false)) {
             bounds = rect
         }
         if outputBounds == bounds {
@@ -503,8 +545,9 @@ public final class FilterChain {
     
     /// Enlarge the picture by whole numbers only, so its pixels land on the
     /// screen's pixel grid instead of being stretched to an arbitrary size.
-    /// Off by default: the picture fills the screen at any size. When the
-    /// picture would not fit even once, the normal fill is used.
+    /// Each axis is scaled by its own whole number, so the picture keeps the
+    /// shape the core asked for. Off by default: the picture fills the screen
+    /// at any size. When the picture would not fit even once, the fill is used.
     public var integerScaleEnabled = false {
         didSet {
             guard integerScaleEnabled != oldValue else { return }

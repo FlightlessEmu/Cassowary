@@ -108,14 +108,13 @@ final class UpscalingOptions: ObservableObject {
 
     /// One line explaining what a system will actually do.
     func summary(_ option: Option, forSystem system: String) -> String {
-        let on = isEnabled(option, forSystem: system)
         switch choice(for: option, system: system) {
         case .automatic:
-            return on ? "Following the app-wide setting: on." : "Following the app-wide setting: off."
+            return isOn(option) ? "on, from the app-wide setting." : "off, from the app-wide setting."
         case .off:
-            return "Off for this system."
+            return "off for this system."
         case .on:
-            return "On for this system."
+            return "on for this system."
         }
     }
 }
