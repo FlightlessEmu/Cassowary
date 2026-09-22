@@ -208,8 +208,18 @@ alpha, which comes back to the texture coordinates.
 
 The probe is the tool to follow that chain: it reports, in submission order,
 every polygon whose span covers the pixel, whether the span covers it, whether
-any texel of its texture could produce the software's colour, and the pixel
-before and after each write.
+any texel of its texture could produce the software's colour, and the pixel and
+attributes before and after each write.
+
+The attributes narrow it one more step. At the probe pixel the write before
+117's is opaque (its polygon-ID bits are zero), so 117's translucent write is
+allowed; in the software the pixel must already hold a *translucent* write from
+the same material for the skip to fire. Two polygons of that material, 55 and
+73, cover the pixel in both rasterisers, so one of them is writing translucently
+in the software and either opaquely or not at all in the Metal one — which
+comes down to its texel's alpha, and so to the texture coordinates again. That
+is the step to check next: the texel alpha, and whether the polygon's write
+survives the depth test in each rasteriser.
 
 Until step 3 lands, the 3D layer comes from the software rasteriser (see
 above), and with it the Metal picture is pixel-for-pixel identical to the

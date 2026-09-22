@@ -640,6 +640,7 @@ kernel void melonds_rasterise(
             rec[15] = 0xDEADBEEFU;
             rec[16] = uint(vr >> 3) | (uint(vg >> 3) << 8) | (uint(vb >> 3) << 16);
             rec[17] = colorBuffer[pixeladdr];
+            rec[19] = attrBuffer[pixeladdr];
         }
 
         // What the software rasteriser calls polyattr: the polygon's identity,
@@ -702,7 +703,11 @@ kernel void melonds_rasterise(
         }
 
         if ((pixel.x == 100 && pixel.y == 20) || (pixel.x == 60 && pixel.y == 20))
-            debugBuffer[((pixel.x == 100) ? 0U : 1U) * 32 + 18] = colorBuffer[pixeladdr];
+        {
+            const uint slot = (pixel.x == 100) ? 0U : 1U;
+            debugBuffer[slot * 32 + 18] = colorBuffer[pixeladdr];
+            debugBuffer[slot * 32 + 20] = attrBuffer[pixeladdr];
+        }
     }
 }
 
