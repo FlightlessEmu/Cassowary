@@ -18,6 +18,7 @@
 
 #import "MelonDSMetalRenderer.h"
 #import "MelonDSMetalShaders.h"
+#import "MelonDSMetal3DShaders.h"
 
 #include "GPU.h"
 #include "GPU3D_Soft.h"
@@ -113,7 +114,7 @@ Renderer::Renderer(id<MTLDevice> device, u32 width, u32 height) noexcept
                                                                                       width:kScreenWidth
                                                                                      height:kScreenHeight
                                                                                   mipmapped:NO];
-    threeD.usage = MTLTextureUsageRenderTarget | MTLTextureUsageShaderRead;
+    threeD.usage = MTLTextureUsageRenderTarget | MTLTextureUsageShaderRead | MTLTextureUsageShaderWrite;
     threeD.storageMode = MTLStorageModeShared;
     _threeDTexture = [_device newTextureWithDescriptor:threeD];
     _threeDTexture.label = @"melonDS 3D";
@@ -203,7 +204,7 @@ void Renderer::RenderFrame(GPU& gpu)
     else
     {
         if (_rasterizer == nullptr)
-            _rasterizer = std::make_unique<Rasterizer3D>(_device);
+            _rasterizer = std::make_unique<Rasterizer3D>(_device, _queue);
 
         _rasterizer->Render(gpu, _threeDTexture);
     }
@@ -531,13 +532,35 @@ void EdgeParams_YMajor(bool side, s32 dx, const SpanSetupY& span, s32& edgelen, 
 
 } // namespace
 
-Rasterizer3D::Rasterizer3D(id<MTLDevice> device) noexcept
+Rasterizer3D::Rasterizer3D(id<MTLDevice> device, id<MTLCommandQueue> queue) noexcept
     : _device(device),
+      _queue(queue),
       _ready(false)
 {
-    if (_device == nil)
+    if (_device == nil || _queue == nil)
     {
-        NSLog(@"[melonDS] rasteriser: no device");
+        NSLog(@"[melonDS] rasteriser: no device or queue");
+        return;
+    }
+
+    NSError *error = nil;
+    _library = [_device newLibraryWithSource:@(kMelonDSMetal3DSource) options:nil error:&error];
+    if (_library == nil)
+    {
+        NSLog(@"[melonDS] could not build the Metal 3D shaders: %@", error);
+        return;
+    }
+
+    _clearPipeline = [_device newComputePipelineStateWithFunction:[_library newFunctionWithName:@"melonds_3d_clear"]
+                                                           error:&error];
+    _rasterisePipeline = [_device newComputePipelineStateWithFunction:[_library newFunctionWithName:@"melonds_rasterise"]
+                                                               error:&error];
+    _outputPipeline = [_device newComputePipelineStateWithFunction:[_library newFunctionWithName:@"melonds_3d_output"]
+                                                            error:&error];
+
+    if (_clearPipeline == nil || _rasterisePipeline == nil || _outputPipeline == nil)
+    {
+        NSLog(@"[melonDS] could not build the Metal 3D pipelines: %@", error);
         return;
     }
 
@@ -552,8 +575,14 @@ Rasterizer3D::Rasterizer3D(id<MTLDevice> device) noexcept
     _metaUniform = [_device newBufferWithLength:sizeof(MetaUniform)
                                         options:MTLResourceStorageModeShared];
 
+    const NSUInteger layerBytes = kScreenWidth * kScreenHeight * sizeof(u32);
+    _colorBuffer = [_device newBufferWithLength:layerBytes options:MTLResourceStorageModeShared];
+    _depthBuffer = [_device newBufferWithLength:layerBytes options:MTLResourceStorageModeShared];
+    _attrBuffer = [_device newBufferWithLength:layerBytes options:MTLResourceStorageModeShared];
+
     if (_ySpanSetups == nil || _xSpanSetups == nil || _yspanIndices == nil
-        || _renderPolygons == nil || _metaUniform == nil)
+        || _renderPolygons == nil || _metaUniform == nil
+        || _colorBuffer == nil || _depthBuffer == nil || _attrBuffer == nil)
     {
         NSLog(@"[melonDS] rasteriser: could not create its buffers");
         return;
@@ -965,13 +994,14 @@ void Rasterizer3D::SetupFrame(GPU& gpu) noexcept
 
         RenderPolygon& rp = _polygons[i];
         rp.FirstXSpan = numSpanIndices;
-        rp.Attr = polygon->Attr;
+        rp.Attr = polygon->Attr | (polygon->FacingView ? (1U << 6) : 0U);
 
         // Textures are not drawn yet, so every polygon is the same variant.
         // When the texture cache lands, this is where the array-texture layer
         // and sampler are chosen, as melonDS does.
         rp.Variant = 0;
         rp.TextureLayer = 0.0f;
+        rp.WBuffer = polygon->WBuffer ? 1 : 0;
 
         if (polygon->FacingView)
         {
@@ -1166,12 +1196,46 @@ void Rasterizer3D::Render(GPU& gpu, id<MTLTexture> output) noexcept
 
     SetupFrame(gpu);
 
-    if (_numSpans == 0)
-        return;
+    id<MTLCommandBuffer> commandBuffer = [_queue commandBuffer];
+    const MTLSize layer = MTLSizeMake(kScreenWidth, kScreenHeight, 1);
+    const MTLSize group = MTLSizeMake(8, 8, 1);
 
-    // The passes that walk the spans are the next piece of the port. Until
-    // they are in, the 3D layer is left as it was and the picture shows the 2D
-    // layers alone — which is what MELONDS_3D=metal asks for.
+    {
+        id<MTLComputeCommandEncoder> encoder = [commandBuffer computeCommandEncoder];
+        [encoder setComputePipelineState:_clearPipeline];
+        [encoder setBuffer:_metaUniform offset:0 atIndex:0];
+        [encoder setBuffer:_colorBuffer offset:0 atIndex:1];
+        [encoder setBuffer:_depthBuffer offset:0 atIndex:2];
+        [encoder setBuffer:_attrBuffer offset:0 atIndex:3];
+        [encoder dispatchThreads:layer threadsPerThreadgroup:group];
+        [encoder endEncoding];
+    }
+
+    if (_numPolygons > 0)
+    {
+        id<MTLComputeCommandEncoder> encoder = [commandBuffer computeCommandEncoder];
+        [encoder setComputePipelineState:_rasterisePipeline];
+        [encoder setBuffer:_renderPolygons offset:0 atIndex:0];
+        [encoder setBuffer:_xSpanSetups offset:0 atIndex:1];
+        [encoder setBuffer:_metaUniform offset:0 atIndex:2];
+        [encoder setBuffer:_colorBuffer offset:0 atIndex:3];
+        [encoder setBuffer:_depthBuffer offset:0 atIndex:4];
+        [encoder setBuffer:_attrBuffer offset:0 atIndex:5];
+        [encoder dispatchThreads:layer threadsPerThreadgroup:group];
+        [encoder endEncoding];
+    }
+
+    {
+        id<MTLComputeCommandEncoder> encoder = [commandBuffer computeCommandEncoder];
+        [encoder setComputePipelineState:_outputPipeline];
+        [encoder setBuffer:_colorBuffer offset:0 atIndex:0];
+        [encoder setTexture:output atIndex:0];
+        [encoder dispatchThreads:layer threadsPerThreadgroup:group];
+        [encoder endEncoding];
+    }
+
+    [commandBuffer commit];
+    [commandBuffer waitUntilCompleted];
 }
 
 } // namespace MelonDSMetal

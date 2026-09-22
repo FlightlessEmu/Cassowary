@@ -118,6 +118,9 @@ struct RenderPolygon
     u32 Attr;
 
     float TextureLayer;
+
+    /// True when the polygon interpolates W for its depth rather than Z.
+    u32 WBuffer;
 };
 
 /// Values that are the same for every polygon in a frame.
@@ -148,7 +151,7 @@ struct MetaUniform
 class Rasterizer3D
 {
 public:
-    Rasterizer3D(id<MTLDevice> device) noexcept;
+    Rasterizer3D(id<MTLDevice> device, id<MTLCommandQueue> queue) noexcept;
     ~Rasterizer3D() noexcept;
 
     /// True when the shaders and buffers were built.
@@ -164,7 +167,21 @@ private:
     static constexpr int MaxPolygons = 2048;
 
     __strong id<MTLDevice> _device;
+    __strong id<MTLCommandQueue> _queue;
     __strong id<MTLLibrary> _library;
+
+    /// The three passes: clear the layer, draw the polygons, hand the layer to
+    /// the compositor.
+    __strong id<MTLComputePipelineState> _clearPipeline;
+    __strong id<MTLComputePipelineState> _rasterisePipeline;
+    __strong id<MTLComputePipelineState> _outputPipeline;
+
+    /// The 3D layer while it is being drawn, in the DS's own layouts: a colour
+    /// per pixel (six bits each of red, green and blue, five of alpha), a
+    /// depth, and the attributes the depth test and edge marking read.
+    __strong id<MTLBuffer> _colorBuffer;
+    __strong id<MTLBuffer> _depthBuffer;
+    __strong id<MTLBuffer> _attrBuffer;
 
     /// The spans of every polygon in the frame, the polygons themselves, and
     /// the values that are the same for all of them.
