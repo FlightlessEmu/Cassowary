@@ -946,58 +946,56 @@ private struct GameTile: View {
 
     var body: some View {
         VStack(spacing: 10) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(.quaternary)
-
-                if let artwork {
-                    Image(uiImage: artwork)
-                        .resizable()
-                        .scaledToFit()
-                } else if let icon = system?.icon {
-                    Image(uiImage: icon)
-                        .resizable()
-                        .scaledToFit()
-                        .padding(16)
-                } else if let icon = game.system?.icon {
-                    Image(uiImage: icon)
-                        .resizable()
-                        .scaledToFit()
-                        .padding(16)
-                } else {
-                    Image(systemName: "gamecontroller")
-                        .font(.system(size: 44))
-                        .foregroundStyle(.secondary)
-                }
-
-                if hasSaveState || isFetching {
-                    VStack {
-                        HStack {
-                            Spacer()
-                            if hasSaveState {
-                                Image(systemName: "bookmark.fill")
-                                    .font(.caption)
-                                    .foregroundStyle(.white)
-                                    .padding(7)
-                                    .background(.black.opacity(0.45), in: .circle)
-                            }
-                        }
-                        Spacer()
-                        HStack {
-                            if isFetching {
-                                ProgressView()
-                                    .controlSize(.small)
-                                    .tint(.white)
-                                    .padding(6)
-                                    .background(.black.opacity(0.45), in: .circle)
-                            }
-                            Spacer()
-                        }
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(.quaternary)
+                .overlay {
+                    // Art, or the system's icon when there is no art, always
+                    // filling the tile: box art comes in every shape, and
+                    // cropping it to the square keeps the grid even.
+                    if let artwork {
+                        Image(uiImage: artwork)
+                            .resizable()
+                            .scaledToFill()
+                    } else if let icon = system?.icon ?? game.system?.icon {
+                        Image(uiImage: icon)
+                            .resizable()
+                            .scaledToFill()
+                    } else {
+                        Image(systemName: "gamecontroller")
+                            .font(.system(size: 44))
+                            .foregroundStyle(.secondary)
                     }
-                    .padding(8)
                 }
-            }
-            .aspectRatio(1, contentMode: .fit)
+                .overlay {
+                    if hasSaveState || isFetching {
+                        VStack {
+                            HStack {
+                                Spacer()
+                                if hasSaveState {
+                                    Image(systemName: "bookmark.fill")
+                                        .font(.caption)
+                                        .foregroundStyle(.white)
+                                        .padding(7)
+                                        .background(.black.opacity(0.45), in: .circle)
+                                }
+                            }
+                            Spacer()
+                            HStack {
+                                if isFetching {
+                                    ProgressView()
+                                        .controlSize(.small)
+                                        .tint(.white)
+                                        .padding(6)
+                                        .background(.black.opacity(0.45), in: .circle)
+                                }
+                                Spacer()
+                            }
+                        }
+                        .padding(8)
+                    }
+                }
+                .aspectRatio(1, contentMode: .fit)
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
 
             VStack(spacing: 2) {
                 Text(game.title)
