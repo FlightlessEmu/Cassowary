@@ -1,4 +1,5 @@
 #include "core/host_interface.h"
+#include "core/metal_device.h"
 #include "common/byte_stream.h"
 #include "common/file_system.h"
 #include "common/log.h"
@@ -2048,6 +2049,14 @@ bool HostInterface::RequestHardwareRendererContext()
 #endif
 #endif
 
+    case GPURenderer::HardwareMetal:
+      // There is nothing to ask the frontend for. Marking the context valid
+      // routes the caller to SwitchToHardwareRenderer, which builds the
+      // display directly; see the Metal case there.
+      m_hw_render_callback_valid = true;
+      m_hw_render_callback.context_type = RETRO_HW_CONTEXT_NONE;
+      break;
+
 #ifndef SWANSTATION_NO_HW_RENDER_APIS
     case GPURenderer::HardwareVulkan:
       m_hw_render_callback_valid = LibretroVulkanHostDisplay::RequestHardwareRendererContext(&m_hw_render_callback);
@@ -2108,7 +2117,13 @@ void HostInterface::SwitchToHardwareRenderer()
 
   if (!display)
   {
-    renderer = RetroHwContextToRenderer(m_hw_render_callback.context_type);
+    // Metal has no libretro context type to map from - the renderer the
+    // setting names is the one to build.
+    if (g_settings.gpu_renderer == GPURenderer::HardwareMetal)
+      renderer = GPURenderer::HardwareMetal;
+    else
+      renderer = RetroHwContextToRenderer(m_hw_render_callback.context_type);
+
     if (!renderer.has_value())
     {
       Log_ErrorPrintf("Unknown context type %u", static_cast<unsigned>(m_hw_render_callback.context_type));
@@ -2117,6 +2132,10 @@ void HostInterface::SwitchToHardwareRenderer()
 
     switch (renderer.value())
     {
+      case GPURenderer::HardwareMetal:
+        display = MetalDevice::CreateHostDisplay();
+        break;
+
 #ifndef SWANSTATION_NO_HW_RENDER_APIS
       case GPURenderer::HardwareOpenGL:
         display = std::make_unique<LibretroOpenGLHostDisplay>();

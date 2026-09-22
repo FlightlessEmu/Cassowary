@@ -8,6 +8,8 @@ Worktree: `../Cassowary-ps1-metal` (branched from `main`)
 | Piece | State |
 |---|---|
 | SwanStation (DuckStation fork) core | Sources vendored, glue and project written, building |
+| SwanStation Metal shaders | All 70 variants generated as MSL and compiled with `xcrun metal` |
+| SwanStation Metal renderer | Written and building; not yet run against a game |
 | Mednafen PSX core | Plan only, not started |
 
 Two PlayStation cores are in play. Mednafen's PSX core is a software renderer
@@ -21,12 +23,16 @@ being brought up first. Its port notes live in `cores/SwanStation/README.md`.
    Done when `build-core-ios.sh SwanStation` links and a disc reaches gameplay.
 2. **Get it into the app.** Staged by `build-cassowary.sh` like every other
    core; appears in the PlayStation core picker next to Mednafen.
-3. **Metal, phase 1: the output path.** Software frames already reach a Metal
-   texture through `MTLGameRenderer`, same as Mednafen. This is enough to play.
-4. **Metal, phase 2: a GPU backend.** Port `GPU_HW` (the shared hardware
-   renderer) to Metal: ~2,000 lines of `gpu_hw.cpp` plus the texture cache,
-   stream buffer and a ShaderGen target for MSL. `SwanStationPortStubs.cpp` is
-   where the factory hook goes. This is what brings upscaling and PGXP.
+3. **Metal, phase 1: the output path.** Done. The core reports
+   `OEGameCoreRenderingMetal2`, renders into its own texture, and publishes it;
+   the app draws it. The app's device reaches the core through
+   `-createMetalTextureWithDevice:`.
+4. **Metal, phase 2: a GPU backend.** Written: `GPU_HW_Metal` plus the
+   `common/metal/` wrappers and the MSL back end in `ShaderGen`. It needs to be
+   run against a disc and checked picture by picture — geometry, texture
+   windows, transparency, the VRAM passes, the display crop. Multisampling,
+   adaptive downsampling, texture replacements and the software cursor are
+   deliberately not written yet.
 5. **Fill in the gaps**: multi-disc swapping (needs the libretro disk control
    interface), rumble, RetroAchievements, and the core's option list surfaced
    as `OEGameCore` display modes.

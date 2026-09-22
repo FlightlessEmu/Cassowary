@@ -7,6 +7,10 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0D554D4B2F3141538D3BF37C /* shader_cache.mm in Sources */ = {isa = PBXBuildFile; fileRef = 7731109A08BF4B97B90B7935 /* shader_cache.mm */; };
+		1545DFB29D424C84A6DB6EFB /* stream_buffer.mm in Sources */ = {isa = PBXBuildFile; fileRef = 910CEA55910F41DF8D3ACE01 /* stream_buffer.mm */; };
+		3F58480E294247229F5EC9B4 /* texture.mm in Sources */ = {isa = PBXBuildFile; fileRef = 72AC59F1FC5F4A62A9DD4007 /* texture.mm */; };
+		C3025BFD4230433E971B1209 /* gpu_hw_metal.mm in Sources */ = {isa = PBXBuildFile; fileRef = A19902ED28C647BDBC8AC162 /* gpu_hw_metal.mm */; };
 		000000000000000000000005 /* SwanStationGameCore.mm in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000004 /* SwanStationGameCore.mm */; };
 		000000000000000000000007 /* SwanStationLibretroBridge.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000006 /* SwanStationLibretroBridge.cpp */; };
 		00000000000000000000000A /* SwanStationPortStubs.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000009 /* SwanStationPortStubs.cpp */; };
@@ -105,9 +109,17 @@
 		000000000000000000000038 /* vfs_implementation.c in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000037 /* vfs_implementation.c */; };
 		000000000000000000000042 /* xxhash.c in Sources */ = {isa = PBXBuildFile; fileRef = 00000000000000000000003F /* xxhash.c */; };
 		00000000000000000000013C /* OpenEmuBase.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 00000000000000000000013B /* OpenEmuBase.framework */; };
+		85E08953BFB1400CACCADA04 /* gpu_hw.cpp in Sources */ = {isa = PBXBuildFile; fileRef = D3B710DB4F7048D1AC7A54DE /* gpu_hw.cpp */; };
+		A8A603F2BD9D401CB4CDE9E8 /* gpu_hw_shadergen.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 29028AA9DE684A7E967D4835 /* gpu_hw_shadergen.cpp */; };
+		04044E46D5D0415CB9D685A8 /* shadergen.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 6D1EF369124D4F9389AAD769 /* shadergen.cpp */; };
+		1154DABFCF594F17B250AB0C /* glad.c in Sources */ = {isa = PBXBuildFile; fileRef = 52C21BCA065742559077E1B0 /* glad.c */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		7731109A08BF4B97B90B7935 /* shader_cache.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = src/common/metal/shader_cache.mm; sourceTree = SOURCE_ROOT; };
+		910CEA55910F41DF8D3ACE01 /* stream_buffer.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = src/common/metal/stream_buffer.mm; sourceTree = SOURCE_ROOT; };
+		72AC59F1FC5F4A62A9DD4007 /* texture.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = src/common/metal/texture.mm; sourceTree = SOURCE_ROOT; };
+		A19902ED28C647BDBC8AC162 /* gpu_hw_metal.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = src/core/gpu_hw_metal.mm; sourceTree = SOURCE_ROOT; };
 		000000000000000000000002 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		000000000000000000000003 /* SwanStationGameCore.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SwanStationGameCore.h; sourceTree = "<group>"; };
 		000000000000000000000004 /* SwanStationGameCore.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = SwanStationGameCore.mm; sourceTree = "<group>"; };
@@ -299,6 +311,10 @@
 		000000000000000000000135 /* libretro_settings_interface.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = libretro_settings_interface.h; sourceTree = "<group>"; };
 		00000000000000000000013A /* SwanStation.oecoreplugin */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SwanStation.oecoreplugin; sourceTree = BUILT_PRODUCTS_DIR; };
 		00000000000000000000013B /* OpenEmuBase.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = OpenEmuBase.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		D3B710DB4F7048D1AC7A54DE /* gpu_hw.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = src/core/gpu_hw.cpp; sourceTree = SOURCE_ROOT; };
+		29028AA9DE684A7E967D4835 /* gpu_hw_shadergen.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = src/core/gpu_hw_shadergen.cpp; sourceTree = SOURCE_ROOT; };
+		6D1EF369124D4F9389AAD769 /* shadergen.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = src/core/shadergen.cpp; sourceTree = SOURCE_ROOT; };
+		52C21BCA065742559077E1B0 /* glad.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = dep/glad/src/glad.c; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -316,6 +332,14 @@
 		000000000000000000000001 /* SwanStation */ = {
 			isa = PBXGroup;
 			children = (
+				A19902ED28C647BDBC8AC162 /* gpu_hw_metal.mm */,
+				72AC59F1FC5F4A62A9DD4007 /* texture.mm */,
+				910CEA55910F41DF8D3ACE01 /* stream_buffer.mm */,
+				7731109A08BF4B97B90B7935 /* shader_cache.mm */,
+				D3B710DB4F7048D1AC7A54DE /* gpu_hw.cpp */,
+				29028AA9DE684A7E967D4835 /* gpu_hw_shadergen.cpp */,
+				6D1EF369124D4F9389AAD769 /* shadergen.cpp */,
+				52C21BCA065742559077E1B0 /* glad.c */,
 				000000000000000000000002 /* Info.plist */,
 				000000000000000000000003 /* SwanStationGameCore.h */,
 				000000000000000000000004 /* SwanStationGameCore.mm */,
@@ -744,6 +768,10 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				0D554D4B2F3141538D3BF37C /* shader_cache.mm in Sources */,
+				1545DFB29D424C84A6DB6EFB /* stream_buffer.mm in Sources */,
+				3F58480E294247229F5EC9B4 /* texture.mm in Sources */,
+				C3025BFD4230433E971B1209 /* gpu_hw_metal.mm in Sources */,
 				000000000000000000000005 /* SwanStationGameCore.mm in Sources */,
 				000000000000000000000007 /* SwanStationLibretroBridge.cpp in Sources */,
 				00000000000000000000000A /* SwanStationPortStubs.cpp in Sources */,
@@ -841,6 +869,10 @@
 				000000000000000000000036 /* vfs_hybrid.c in Sources */,
 				000000000000000000000038 /* vfs_implementation.c in Sources */,
 				000000000000000000000042 /* xxhash.c in Sources */,
+				85E08953BFB1400CACCADA04 /* gpu_hw.cpp in Sources */,
+				A8A603F2BD9D401CB4CDE9E8 /* gpu_hw_shadergen.cpp in Sources */,
+				04044E46D5D0415CB9D685A8 /* shadergen.cpp in Sources */,
+				1154DABFCF594F17B250AB0C /* glad.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

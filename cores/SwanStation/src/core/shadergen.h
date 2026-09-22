@@ -5,6 +5,11 @@
 #include <string>
 #include <vector>
 
+/// The names the Metal backend looks the two entry points up by. Every Metal
+/// shader this core generates defines both, so they only have to be stable.
+extern const char* const METAL_VERTEX_FUNCTION_NAME;
+extern const char* const METAL_FRAGMENT_FUNCTION_NAME;
+
 class ShaderGen
 {
 public:

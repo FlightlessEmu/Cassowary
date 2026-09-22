@@ -24,6 +24,11 @@
 
 #include "SwanStationLibretroBridge.h"
 
+#include "core/host_display.h"
+#include "core/host_interface.h"
+#include "core/metal_device.h"
+#include "core/settings.h"
+
 #include <libretro.h>
 
 #include <cstdarg>
@@ -61,6 +66,7 @@ std::string s_save_dir;
 
 bool s_initialized = false;
 bool s_game_loaded = false;
+bool s_metal_renderer_enabled = false;
 
 AudioCallback s_audio_callback = nullptr;
 void* s_audio_userdata = nullptr;
@@ -248,10 +254,47 @@ bool IsGameLoaded()
   return s_game_loaded;
 }
 
+void SetMetalRendererEnabled(bool enabled)
+{
+  s_metal_renderer_enabled = enabled;
+}
+
+bool MetalRendererEnabled()
+{
+  return s_metal_renderer_enabled;
+}
+
+void SetMetalDevice(void* device)
+{
+  MetalDevice::SetDevice(device);
+}
+
+void* DisplayTextureHandle()
+{
+  HostDisplay* display = g_host_interface ? g_host_interface->GetDisplay() : nullptr;
+  return display ? const_cast<void*>(display->GetDisplayTextureHandle()) : nullptr;
+}
+
+bool DisplaySize(unsigned* width, unsigned* height)
+{
+  HostDisplay* display = g_host_interface ? g_host_interface->GetDisplay() : nullptr;
+  if (!display || display->GetDisplayWidth() <= 0 || display->GetDisplayHeight() <= 0)
+    return false;
+
+  *width = static_cast<unsigned>(display->GetDisplayWidth());
+  *height = static_cast<unsigned>(display->GetDisplayHeight());
+  return true;
+}
+
 bool LoadGame(const char* path)
 {
   if (!s_initialized || s_game_loaded || !path)
     return false;
+
+  // The renderer is chosen before the game boots: the GPU is built from the
+  // settings during retro_load_game.
+  if (s_metal_renderer_enabled && MetalDevice::HasDevice())
+    g_settings.gpu_renderer = GPURenderer::HardwareMetal;
 
   retro_game_info game_info = {};
   game_info.path = path;

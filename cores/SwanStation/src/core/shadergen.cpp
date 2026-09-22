@@ -151,9 +151,10 @@ void ShaderGen::WriteMetalResourceParameters(std::stringstream& ss) const
   {
     // The GL and HLSL dialects bind the VRAM data as a buffer texture and read
     // it as a vector (the body uses .r). Metal has no buffer textures on every
-    // device it has to run on, so this is a plain buffer, and the reader macro
-    // wraps it back up into a vector.
-    ss << ", device const uint* " << buffer.name << " [[buffer(" << (METAL_TEXTURE_BUFFER_INDEX + buffer.index)
+    // device it has to run on, so this is a plain buffer. The data is 16-bit
+    // and the shader indexes it in 16-bit units, so the pointer is too, and the
+    // reader macro wraps the value back up into a vector.
+    ss << ", device const uint16_t* " << buffer.name << " [[buffer(" << (METAL_TEXTURE_BUFFER_INDEX + buffer.index)
        << ")]]";
   }
 }

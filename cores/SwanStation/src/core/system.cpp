@@ -810,6 +810,10 @@ bool CreateGPU(GPURenderer renderer)
       g_gpu = GPU::CreateHardwareVulkanRenderer();
       break;
 
+    case GPURenderer::HardwareMetal:
+      g_gpu = GPU::CreateHardwareMetalRenderer();
+      break;
+
 #ifdef _WIN32
     case GPURenderer::HardwareD3D11:
       g_gpu = GPU::CreateHardwareD3D11Renderer();

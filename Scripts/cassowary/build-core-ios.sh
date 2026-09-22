@@ -214,6 +214,11 @@ case "$CORE" in
       LINK_FRAMEWORKS+=(-framework OpenGL)
     fi
     ;;
+  SwanStation)
+    # The Metal renderer talks to the GPU directly: the app hands the core its
+    # device, and the core builds its own textures and pipelines from it.
+    LINK_FRAMEWORKS+=(-framework Metal)
+    ;;
   VirtualC64)
     # The emulator is VirtualC64's VCCore, a CMake project, so it is built
     # separately as a set of static libraries. Build it here if it is missing

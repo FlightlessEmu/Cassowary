@@ -127,6 +127,9 @@ public:
   // gpu_hw_vulkan.cpp
   static std::unique_ptr<GPU> CreateHardwareVulkanRenderer();
 
+  // gpu_hw_metal.mm
+  static std::unique_ptr<GPU> CreateHardwareMetalRenderer();
+
   // gpu_sw.cpp
   static std::unique_ptr<GPU> CreateSoftwareRenderer();
 

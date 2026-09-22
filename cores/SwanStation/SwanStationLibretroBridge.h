@@ -40,6 +40,22 @@ namespace SwanStationBridge {
 /// Called before Initialize. Both are absolute paths that must exist.
 void SetDirectories(const char* system_dir, const char* save_dir);
 
+/// Whether the game should run on the GPU. The app decides this before the
+/// game loads; when it is on, the core boots with its Metal renderer (and
+/// falls back to software rendering if that cannot start).
+void SetMetalRendererEnabled(bool enabled);
+bool MetalRendererEnabled();
+
+/// The app's Metal device. Handed over before the game loads.
+void SetMetalDevice(void* device);
+
+/// The texture the renderer published for the last frame, or nullptr. The
+/// caller draws it; the core does not own it.
+void* DisplayTextureHandle();
+
+/// The size of that texture, or false when nothing has been rendered yet.
+bool DisplaySize(unsigned* width, unsigned* height);
+
 /// Sets up the libretro callbacks and boots the core (retro_init).
 bool Initialize();
 

@@ -21,9 +21,8 @@ What the iOS build leaves out, and why:
 
 - **The OpenGL and Vulkan GPU backends.** Vulkan would need MoltenVK, and the
   OpenGL backend wants GLES 3.1 core-profile entry points iOS does not expose.
-  `SwanStationPortStubs.cpp` returns an empty pointer from both factories;
-  `System::CreateGPU` already treats that as "use the software renderer".
-  This is the hook a Metal backend would replace.
+  `SwanStationPortStubs.cpp` returns an empty pointer from both factories.
+  The Metal backend below is what replaced them.
 - **CHD disc images.** libchdr carries its own zstd, lzma and miniz copies.
   `CDImage::OpenCHDImage` is stubbed, so `.chd` files fail to open instead of
   failing to link. Everything else — cue/bin, img, ECM, MDS, PBP, m3u — is in.
@@ -32,6 +31,47 @@ What the iOS build leaves out, and why:
   are left in the tree, unused.
 - **Disk control (multi-disc swapping), rumble and RetroAchievements** are not
   wired up yet.
+
+## The Metal renderer
+
+The PlayStation GPU has two renderers: a software one that draws on the CPU,
+and a hardware one that batches the console's primitives and runs them on the
+GPU at higher internal resolution. On iOS the hardware renderer is Metal.
+
+| File | What it does |
+|---|---|
+| `src/core/gpu_hw_metal.{h,mm}` | The renderer and its host display. Batches primitives, runs the shaders, manages VRAM, and publishes each finished frame. |
+| `src/common/metal/` | Thin wrappers over `MTLTexture`, `MTLBuffer` and `MTLLibrary`, in the same shape as `common/gl/`. |
+| `src/core/metal_device.h` | Where the app's device is parked so the host interface can build the display without being Objective-C++ itself. |
+
+How it reaches the screen, since there is no libretro hardware context here:
+the app makes a Metal device, hands it to the core through
+`-createMetalTextureWithDevice:`, and the core renders into its own textures.
+Each frame it draws the display area into a texture and publishes that;
+the app samples it. The core waits for its own command buffer to finish before
+handing the frame over, because the app samples from a different queue.
+
+The shaders are the same ones the other back ends run, generated as Metal
+Shading Language. `ShaderGen` already had GLSL and HLSL back ends; MSL is the
+third, and the shared shader bodies read the same in all three. Every variant
+the renderer can ask for — 70 of them, across texture modes, transparency
+modes, dithering, interlacing, multisampling, the VRAM passes and the
+downsample — was compiled with `xcrun metal` before any of this was run on a
+GPU.
+
+What is deliberately not there yet:
+
+- **Multisampling.** The renderer caps itself at one sample. It needs
+  multisampled targets and a resolve pass that have not been written.
+- **Adaptive downsampling.** Box filter only.
+- **Texture replacements** (high-resolution texture packs).
+- **The software cursor.**
+- **Save states** move VRAM through a full readback and re-upload rather than
+  copying GPU-side, which is slower but correct.
+
+The renderer is on by default. Set the `SwanStationMetalRenderer` user default
+to `NO` to fall back to software rendering; if the Metal renderer cannot start,
+the core falls back on its own.
 
 Two port details worth knowing:
 

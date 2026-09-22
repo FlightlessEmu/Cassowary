@@ -60,6 +60,9 @@ enum class GPURenderer : uint8_t
 #endif
   HardwareVulkan,
   HardwareOpenGL,
+  /// The app's own renderer. It is not reached through a libretro hardware
+  /// context; see LibretroMetalHostDisplay.
+  HardwareMetal,
   Software,
   Count
 };

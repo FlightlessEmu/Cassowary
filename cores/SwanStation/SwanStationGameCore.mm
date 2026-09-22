@@ -134,6 +134,7 @@ static int16_t SwanStationInputState(unsigned port, unsigned device, unsigned in
     uint8_t *_frameBuffer;
     NSUInteger _frameBufferSize;
     OEIntSize _frameSize;
+    __strong id<MTLDevice> _metalDevice;
 }
 
 - (id)init
@@ -157,10 +158,40 @@ static int16_t SwanStationInputState(unsigned port, unsigned device, unsigned in
     free(_frameBuffer);
 }
 
+#pragma mark - Renderer
+
+// Whether the game runs on the GPU. This is the core's reason to exist, so it
+// is on unless it is turned off: set the `SwanStationMetalRenderer` user
+// default to NO to fall back to software rendering.
+- (BOOL)usesMetalRenderer
+{
+    NSNumber *value = [[NSUserDefaults standardUserDefaults] objectForKey:@"SwanStationMetalRenderer"];
+    return (value == nil) ? YES : [value boolValue];
+}
+
+- (OEGameCoreRendering)gameCoreRendering
+{
+    return [self usesMetalRenderer] ? OEGameCoreRenderingMetal2 : [super gameCoreRendering];
+}
+
+- (void)createMetalTextureWithDevice:(id<MTLDevice>)device
+{
+    _metalDevice = device;
+    SwanStationBridge::SetMetalDevice((__bridge void *)device);
+}
+
+- (id<MTLTexture>)metalTexture
+{
+    void *handle = SwanStationBridge::DisplayTextureHandle();
+    return handle ? (__bridge id<MTLTexture>)handle : nil;
+}
+
 #pragma mark - Emulation
 
 - (BOOL)loadFileAtPath:(NSString *)path error:(NSError **)error
 {
+    SwanStationBridge::SetMetalRendererEnabled([self usesMetalRenderer]);
+
     NSString *systemDirectory = self.biosDirectoryPath;
     NSString *saveDirectory = self.batterySavesDirectoryPath;
 
@@ -287,29 +318,42 @@ static int16_t SwanStationInputState(unsigned port, unsigned device, unsigned in
 
 - (OEIntSize)bufferSize
 {
+    if ([self usesMetalRenderer])
+    {
+        unsigned width = 0, height = 0;
+        if (SwanStationBridge::DisplaySize(&width, &height))
+            return OEIntSizeMake(width, height);
+    }
+
     return _frameSize;
 }
 
 - (OEIntSize)aspectSize
 {
+    const OEIntSize size = self.bufferSize;
     const double aspect = SwanStationBridge::AspectRatio();
-    if (aspect <= 0.0 || _frameSize.height == 0)
+    if (aspect <= 0.0 || size.height == 0)
         return OEIntSizeMake(4, 3);
 
-    return OEIntSizeMake((NSUInteger)(_frameSize.height * aspect), _frameSize.height);
+    return OEIntSizeMake((NSUInteger)(size.height * aspect), size.height);
 }
 
 - (uint32_t)pixelFormat
 {
-    // The core hands over RGB565 (see SwanStationLibretroBridge.cpp for why
-    // that is the only format it is allowed to use), which the engine uploads
-    // as a b5g6r5 texture.
-    return OEPixelFormat_RGB;
+    // The software path hands over RGB565 (see SwanStationLibretroBridge.cpp
+    // for why that is the only format it is allowed to use). The Metal path
+    // renders RGBA8 into its own texture, which the engine samples directly.
+    return [self usesMetalRenderer] ? OEPixelFormat_RGBA : OEPixelFormat_RGB;
 }
 
 - (uint32_t)pixelType
 {
-    return OEPixelType_UNSIGNED_SHORT_5_6_5;
+    return [self usesMetalRenderer] ? OEPixelType_UNSIGNED_INT_8_8_8_8 : OEPixelType_UNSIGNED_SHORT_5_6_5;
+}
+
+- (NSUInteger)bytesPerRow
+{
+    return [self usesMetalRenderer] ? (self.bufferSize.width * 4) : [super bytesPerRow];
 }
 
 #pragma mark - Audio

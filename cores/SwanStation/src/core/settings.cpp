@@ -293,7 +293,7 @@ static constexpr auto s_gpu_renderer_names = make_array(
   "D3D11",
   "D3D12",
 #endif
-  "Vulkan", "OpenGL", "Software");
+  "Vulkan", "OpenGL", "Metal", "Software");
 
 std::optional<GPURenderer> Settings::ParseRendererName(const char* str)
 {
