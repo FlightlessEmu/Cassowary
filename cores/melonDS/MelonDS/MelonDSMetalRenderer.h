@@ -217,7 +217,7 @@ private:
     /// shaders walk. This is melonDS's `InterpSpans` pass, done on the CPU:
     /// the arithmetic is the same, written with 64-bit division, which is
     /// exactly what melonDS's 32-bit routines are a faster way of doing.
-    void SetupXSpan(SpanSetupX* xspan, SpanSetupY* spanL, SpanSetupY* spanR, u32 polyIdx, int y, u32 dispCnt) noexcept;
+    void SetupXSpan(SpanSetupX* xspan, const SpanSetupY& spanL, const SpanSetupY& spanR, u32 polyIdx, int y, u32 dispCnt) noexcept;
 };
 
 /// Draws the DS's 3D and composites its 2D layers with Metal.

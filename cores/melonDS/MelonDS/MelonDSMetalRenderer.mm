@@ -812,15 +812,21 @@ void Rasterizer3D::SetupYSpan(RenderPolygon* rp, SpanSetupY* span, Polygon* poly
     }
 }
 
-void Rasterizer3D::SetupXSpan(SpanSetupX* xspan, SpanSetupY* spanL, SpanSetupY* spanR, u32 polyIdx, int y, u32 dispCnt) noexcept
+void Rasterizer3D::SetupXSpan(SpanSetupX* xspan, const SpanSetupY& spanLIn, const SpanSetupY& spanRIn, u32 polyIdx, int y, u32 dispCnt) noexcept
 {
+    // Upstream copies the spans here and swaps the copies when the edges cross;
+    // the spans in the buffer must not be touched, because the lines below this
+    // one are still set up from them.
+    SpanSetupY spanL = spanLIn;
+    SpanSetupY spanR = spanRIn;
+
     xspan->Flags = 0;
 
-    const s32 dxl = CalculateDx(y, *spanL);
-    const s32 dxr = CalculateDx(y, *spanR);
+    const s32 dxl = CalculateDx(y, spanL);
+    const s32 dxr = CalculateDx(y, spanR);
 
-    s32 xl = CalculateX(dxl, *spanL);
-    s32 xr = CalculateX(dxr, *spanR);
+    s32 xl = CalculateX(dxl, spanL);
+    s32 xr = CalculateX(dxr, spanR);
 
     const RenderPolygon& polygon = _polygons[polyIdx];
 
@@ -828,24 +834,24 @@ void Rasterizer3D::SetupXSpan(SpanSetupX* xspan, SpanSetupY* spanL, SpanSetupY* 
 
     if (xl > xr)
     {
-        std::swap(*spanL, *spanR);
+        std::swap(spanL, spanR);
         std::swap(xl, xr);
 
-        EdgeParams_YMajor(false, dxr, *spanL, edgeLenL, xspan->EdgeCovL);
-        EdgeParams_YMajor(true, dxl, *spanR, edgeLenR, xspan->EdgeCovR);
+        EdgeParams_YMajor(false, dxr, spanL, edgeLenL, xspan->EdgeCovL);
+        EdgeParams_YMajor(true, dxl, spanR, edgeLenR, xspan->EdgeCovR);
     }
     else
     {
         // edges are the right way
-        if (spanL->Increment > 0x40000)
-            EdgeParams_XMajor(false, dxl, *spanL, edgeLenL, xspan->EdgeCovL);
+        if (spanL.Increment > 0x40000)
+            EdgeParams_XMajor(false, dxl, spanL, edgeLenL, xspan->EdgeCovL);
         else
-            EdgeParams_YMajor(false, dxl, *spanL, edgeLenL, xspan->EdgeCovL);
+            EdgeParams_YMajor(false, dxl, spanL, edgeLenL, xspan->EdgeCovL);
 
-        if (spanR->Increment > 0x40000)
-            EdgeParams_XMajor(true, dxr, *spanR, edgeLenR, xspan->EdgeCovR);
+        if (spanR.Increment > 0x40000)
+            EdgeParams_XMajor(true, dxr, spanR, edgeLenR, xspan->EdgeCovR);
         else
-            EdgeParams_YMajor(true, dxr, *spanR, edgeLenR, xspan->EdgeCovR);
+            EdgeParams_YMajor(true, dxr, spanR, edgeLenR, xspan->EdgeCovR);
     }
 
     xspan->CovLInitial = (xspan->EdgeCovL >> 12) & 0x3FF;
@@ -873,92 +879,92 @@ void Rasterizer3D::SetupXSpan(SpanSetupX* xspan, SpanSetupY* spanL, SpanSetupY* 
 
     const bool fillAllEdges = polyalpha < 31 || (dispCnt & (3U << 4)) != 0U;
 
-    if (fillAllEdges || spanL->X1 < spanL->X0 || spanL->Increment <= 0x40000)
+    if (fillAllEdges || spanL.X1 < spanL.X0 || spanL.Increment <= 0x40000)
         xspan->Flags |= kXSpanSetup_FillLeft;
-    if (fillAllEdges || (spanR->X1 >= spanR->X0 && spanR->Increment > 0x40000) || spanR->Increment == 0)
+    if (fillAllEdges || (spanR.X1 >= spanR.X0 && spanR.Increment > 0x40000) || spanR.Increment == 0)
         xspan->Flags |= kXSpanSetup_FillRight;
 
-    if (spanL->I0 == spanL->I1)
+    if (spanL.I0 == spanL.I1)
     {
-        xspan->TexcoordU0 = spanL->TexcoordU0;
-        xspan->TexcoordV0 = spanL->TexcoordV0;
-        xspan->ColorR0 = spanL->ColorR0;
-        xspan->ColorG0 = spanL->ColorG0;
-        xspan->ColorB0 = spanL->ColorB0;
-        xspan->Z0 = spanL->Z0;
-        xspan->W0 = spanL->W0;
+        xspan->TexcoordU0 = spanL.TexcoordU0;
+        xspan->TexcoordV0 = spanL.TexcoordV0;
+        xspan->ColorR0 = spanL.ColorR0;
+        xspan->ColorG0 = spanL.ColorG0;
+        xspan->ColorB0 = spanL.ColorB0;
+        xspan->Z0 = spanL.Z0;
+        xspan->W0 = spanL.W0;
     }
     else
     {
-        const s32 i = (spanL->Increment > 0x40000 ? xl : y) - spanL->I0;
-        const s32 ifactor = CalcYFactorY(*spanL, i);
-        const s32 idiff = spanL->I1 - spanL->I0;
+        const s32 i = (spanL.Increment > 0x40000 ? xl : y) - spanL.I0;
+        const s32 ifactor = CalcYFactorY(spanL, i);
+        const s32 idiff = spanL.I1 - spanL.I0;
 
-        xspan->Z0 = (s32) InterpolateZZBuffer(spanL->Z0, spanL->Z1, i, spanL->IRecip, idiff);
+        xspan->Z0 = (s32) InterpolateZZBuffer(spanL.Z0, spanL.Z1, i, spanL.IRecip, idiff);
 
-        if (!spanL->Linear)
+        if (!spanL.Linear)
         {
-            xspan->TexcoordU0 = InterpolateAttrPersp(spanL->TexcoordU0, spanL->TexcoordU1, ifactor);
-            xspan->TexcoordV0 = InterpolateAttrPersp(spanL->TexcoordV0, spanL->TexcoordV1, ifactor);
+            xspan->TexcoordU0 = InterpolateAttrPersp(spanL.TexcoordU0, spanL.TexcoordU1, ifactor);
+            xspan->TexcoordV0 = InterpolateAttrPersp(spanL.TexcoordV0, spanL.TexcoordV1, ifactor);
 
-            xspan->ColorR0 = InterpolateAttrPersp(spanL->ColorR0, spanL->ColorR1, ifactor);
-            xspan->ColorG0 = InterpolateAttrPersp(spanL->ColorG0, spanL->ColorG1, ifactor);
-            xspan->ColorB0 = InterpolateAttrPersp(spanL->ColorB0, spanL->ColorB1, ifactor);
+            xspan->ColorR0 = InterpolateAttrPersp(spanL.ColorR0, spanL.ColorR1, ifactor);
+            xspan->ColorG0 = InterpolateAttrPersp(spanL.ColorG0, spanL.ColorG1, ifactor);
+            xspan->ColorB0 = InterpolateAttrPersp(spanL.ColorB0, spanL.ColorB1, ifactor);
 
-            xspan->W0 = InterpolateAttrPersp(spanL->W0, spanL->W1, ifactor);
+            xspan->W0 = InterpolateAttrPersp(spanL.W0, spanL.W1, ifactor);
         }
         else
         {
-            xspan->TexcoordU0 = InterpolateAttrLinear(spanL->TexcoordU0, spanL->TexcoordU1, i, spanL->IRecip, idiff);
-            xspan->TexcoordV0 = InterpolateAttrLinear(spanL->TexcoordV0, spanL->TexcoordV1, i, spanL->IRecip, idiff);
+            xspan->TexcoordU0 = InterpolateAttrLinear(spanL.TexcoordU0, spanL.TexcoordU1, i, spanL.IRecip, idiff);
+            xspan->TexcoordV0 = InterpolateAttrLinear(spanL.TexcoordV0, spanL.TexcoordV1, i, spanL.IRecip, idiff);
 
-            xspan->ColorR0 = InterpolateAttrLinear(spanL->ColorR0, spanL->ColorR1, i, spanL->IRecip, idiff);
-            xspan->ColorG0 = InterpolateAttrLinear(spanL->ColorG0, spanL->ColorG1, i, spanL->IRecip, idiff);
-            xspan->ColorB0 = InterpolateAttrLinear(spanL->ColorB0, spanL->ColorB1, i, spanL->IRecip, idiff);
+            xspan->ColorR0 = InterpolateAttrLinear(spanL.ColorR0, spanL.ColorR1, i, spanL.IRecip, idiff);
+            xspan->ColorG0 = InterpolateAttrLinear(spanL.ColorG0, spanL.ColorG1, i, spanL.IRecip, idiff);
+            xspan->ColorB0 = InterpolateAttrLinear(spanL.ColorB0, spanL.ColorB1, i, spanL.IRecip, idiff);
 
-            xspan->W0 = spanL->W0; // linear mode is only taken if W0 == W1
+            xspan->W0 = spanL.W0; // linear mode is only taken if W0 == W1
         }
     }
 
-    if (spanR->I0 == spanR->I1)
+    if (spanR.I0 == spanR.I1)
     {
-        xspan->TexcoordU1 = spanR->TexcoordU0;
-        xspan->TexcoordV1 = spanR->TexcoordV0;
-        xspan->ColorR1 = spanR->ColorR0;
-        xspan->ColorG1 = spanR->ColorG0;
-        xspan->ColorB1 = spanR->ColorB0;
-        xspan->Z1 = spanR->Z0;
-        xspan->W1 = spanR->W0;
+        xspan->TexcoordU1 = spanR.TexcoordU0;
+        xspan->TexcoordV1 = spanR.TexcoordV0;
+        xspan->ColorR1 = spanR.ColorR0;
+        xspan->ColorG1 = spanR.ColorG0;
+        xspan->ColorB1 = spanR.ColorB0;
+        xspan->Z1 = spanR.Z0;
+        xspan->W1 = spanR.W0;
     }
     else
     {
-        const s32 i = (spanR->Increment > 0x40000 ? xr : y) - spanR->I0;
-        const s32 ifactor = CalcYFactorY(*spanR, i);
-        const s32 idiff = spanR->I1 - spanR->I0;
+        const s32 i = (spanR.Increment > 0x40000 ? xr : y) - spanR.I0;
+        const s32 ifactor = CalcYFactorY(spanR, i);
+        const s32 idiff = spanR.I1 - spanR.I0;
 
-        xspan->Z1 = (s32) InterpolateZZBuffer(spanR->Z0, spanR->Z1, i, spanR->IRecip, idiff);
+        xspan->Z1 = (s32) InterpolateZZBuffer(spanR.Z0, spanR.Z1, i, spanR.IRecip, idiff);
 
-        if (!spanR->Linear)
+        if (!spanR.Linear)
         {
-            xspan->TexcoordU1 = InterpolateAttrPersp(spanR->TexcoordU0, spanR->TexcoordU1, ifactor);
-            xspan->TexcoordV1 = InterpolateAttrPersp(spanR->TexcoordV0, spanR->TexcoordV1, ifactor);
+            xspan->TexcoordU1 = InterpolateAttrPersp(spanR.TexcoordU0, spanR.TexcoordU1, ifactor);
+            xspan->TexcoordV1 = InterpolateAttrPersp(spanR.TexcoordV0, spanR.TexcoordV1, ifactor);
 
-            xspan->ColorR1 = InterpolateAttrPersp(spanR->ColorR0, spanR->ColorR1, ifactor);
-            xspan->ColorG1 = InterpolateAttrPersp(spanR->ColorG0, spanR->ColorG1, ifactor);
-            xspan->ColorB1 = InterpolateAttrPersp(spanR->ColorB0, spanR->ColorB1, ifactor);
+            xspan->ColorR1 = InterpolateAttrPersp(spanR.ColorR0, spanR.ColorR1, ifactor);
+            xspan->ColorG1 = InterpolateAttrPersp(spanR.ColorG0, spanR.ColorG1, ifactor);
+            xspan->ColorB1 = InterpolateAttrPersp(spanR.ColorB0, spanR.ColorB1, ifactor);
 
-            xspan->W1 = InterpolateAttrPersp(spanR->W0, spanR->W1, ifactor);
+            xspan->W1 = InterpolateAttrPersp(spanR.W0, spanR.W1, ifactor);
         }
         else
         {
-            xspan->TexcoordU1 = InterpolateAttrLinear(spanR->TexcoordU0, spanR->TexcoordU1, i, spanR->IRecip, idiff);
-            xspan->TexcoordV1 = InterpolateAttrLinear(spanR->TexcoordV0, spanR->TexcoordV1, i, spanR->IRecip, idiff);
+            xspan->TexcoordU1 = InterpolateAttrLinear(spanR.TexcoordU0, spanR.TexcoordU1, i, spanR.IRecip, idiff);
+            xspan->TexcoordV1 = InterpolateAttrLinear(spanR.TexcoordV0, spanR.TexcoordV1, i, spanR.IRecip, idiff);
 
-            xspan->ColorR1 = InterpolateAttrLinear(spanR->ColorR0, spanR->ColorR1, i, spanR->IRecip, idiff);
-            xspan->ColorG1 = InterpolateAttrLinear(spanR->ColorG0, spanR->ColorG1, i, spanR->IRecip, idiff);
-            xspan->ColorB1 = InterpolateAttrLinear(spanR->ColorB0, spanR->ColorB1, i, spanR->IRecip, idiff);
+            xspan->ColorR1 = InterpolateAttrLinear(spanR.ColorR0, spanR.ColorR1, i, spanR.IRecip, idiff);
+            xspan->ColorG1 = InterpolateAttrLinear(spanR.ColorG0, spanR.ColorG1, i, spanR.IRecip, idiff);
+            xspan->ColorB1 = InterpolateAttrLinear(spanR.ColorB0, spanR.ColorB1, i, spanR.IRecip, idiff);
 
-            xspan->W1 = spanR->W0;
+            xspan->W1 = spanR.W0;
         }
     }
 
@@ -1055,7 +1061,7 @@ void Rasterizer3D::SetupFrame(GPU& gpu) noexcept
             _spanIndices[numSpanIndices].SpanIdxL = curSpanL;
             _spanIndices[numSpanIndices].SpanIdxR = curSpanR;
             _spanIndices[numSpanIndices].Y = ytop;
-            SetupXSpan(&_xSpans[numSpanIndices], &_spans[curSpanL], &_spans[curSpanR], i, ytop, dispCnt);
+            SetupXSpan(&_xSpans[numSpanIndices], _spans[curSpanL], _spans[curSpanR], i, ytop, dispCnt);
             numSpanIndices++;
         }
         else
@@ -1116,7 +1122,7 @@ void Rasterizer3D::SetupFrame(GPU& gpu) noexcept
                 _spanIndices[numSpanIndices].SpanIdxL = curSpanL;
                 _spanIndices[numSpanIndices].SpanIdxR = curSpanR;
                 _spanIndices[numSpanIndices].Y = y;
-                SetupXSpan(&_xSpans[numSpanIndices], &_spans[curSpanL], &_spans[curSpanR], i, y, dispCnt);
+                SetupXSpan(&_xSpans[numSpanIndices], _spans[curSpanL], _spans[curSpanR], i, y, dispCnt);
                 numSpanIndices++;
             }
         }

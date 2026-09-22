@@ -178,13 +178,13 @@ inline int MelonDSCalcYFactorX(MelonDSSpanSetupX span, int x)
 
     if (span.X0 != span.X1)
     {
-        const uint num = (uint(x) * uint(span.W0)) << kYFactorShift;
+        const ulong num = ((ulong)(uint(x) * uint(span.W0))) << kYFactorShift;
         const uint den = uint(x) * uint(span.W0) + uint(span.X1 - span.X0 - x) * uint(span.W1);
 
         if (den == 0)
             return 0;
 
-        return int((ulong)num / (ulong)den);
+        return int(num / (ulong)den);
     }
 
     return 0;
@@ -341,7 +341,7 @@ kernel void melonds_rasterise(
 
         if (pixel.y < uint(polygon.YTop) || pixel.y >= uint(polygon.YBot))
             continue;
-        if (pixel.x < uint(polygon.XMin) || pixel.x > uint(polygon.XMax))
+        if (pixel.x < uint(max(polygon.XMin, 0)) || pixel.x > uint(max(polygon.XMax, 0)))
             continue;
 
         const MelonDSSpanSetupX xspan = spans[polygon.FirstXSpan + (pixel.y - uint(polygon.YTop))];
@@ -350,7 +350,7 @@ kernel void melonds_rasterise(
         const bool insideRightEdge = pixel.x >= uint(xspan.InsideEnd);
         const bool insidePolygonInside = !insideLeftEdge && !insideRightEdge;
 
-        if (pixel.x < uint(xspan.X0) || pixel.x >= uint(xspan.X1))
+        if (pixel.x < uint(max(xspan.X0, 0)) || pixel.x >= uint(max(xspan.X1, 0)))
             continue;
         if (!((insideLeftEdge && (xspan.Flags & kXSpanSetup_FillLeft) != 0U)
               || (insideRightEdge && (xspan.Flags & kXSpanSetup_FillRight) != 0U)
