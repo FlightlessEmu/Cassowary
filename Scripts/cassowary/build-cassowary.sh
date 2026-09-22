@@ -133,6 +133,18 @@ core_output_dir() {
   esac
 }
 
+# Whether every core bundle built for this mode is already staged. A bundle
+# that was built after the last staging would otherwise be left out of an
+# app-only build.
+staged_cores_match() {
+  local src
+  for src in "$(core_output_dir)"/*.oecoreplugin; do
+    [[ -d "$src" ]] || continue
+    [[ -d "$PLUGINS_DIR/Cores/${src:t}" ]] || return 1
+  done
+  return 0
+}
+
 # The staged folders are what Xcode links against, and they can only hold one
 # mode's binaries at a time. A full build stages the mode it just built; an
 # app-only build copies that mode's binaries back if the last full build was
@@ -142,7 +154,10 @@ core_output_dir() {
 restage_for_mode() {
   local stamp="$FRAMEWORKS_DIR/.staged-mode"
 
-  if [[ -f "$stamp" ]] && [[ "$(<"$stamp")" == "$MODE" ]]; then
+  # The stamp alone is not enough: a core built after the last staging is
+  # missing from the app, and the stamp would happily skip the copy. Compare
+  # the built core bundles with the staged ones as well.
+  if [[ -f "$stamp" ]] && [[ "$(<"$stamp")" == "$MODE" ]] && staged_cores_match; then
     return 0
   fi
 

@@ -89,15 +89,48 @@ index a8ef9ff6f31..45cd93e074c 100644
 @@ -1,4 +1,14 @@
  #import <Foundation/Foundation.h>
 +#import <TargetConditionals.h>
-+#if TARGET_OS_IOS
-+// iOS Foundation has no NSSize (it is AppKit-only on macOS). The headless
-+// OSD uses it for buffer sizes, so alias it to CGSize here. This header is
-+// also imported by the OpenEmu glue, which gets the same typedef from
-+// OEPlatform.h; identical redefinition is benign.
++#if TARGET_OS_IOS || TARGET_OS_TV
++// iOS and tvOS Foundation have no NSSize (it is AppKit-only on macOS). The
++// headless OSD uses it for buffer sizes, so alias it to CGSize here. This
++// header is also imported by the OpenEmu glue, which gets the same typedef
++// from OEPlatform.h; identical redefinition is benign.
 +#import <CoreGraphics/CoreGraphics.h>
 +typedef CGSize NSSize;
 +#define NSMakeSize(w, h) CGSizeMake(w, h)
 +#endif
  #import "inputenum.h"
  #import "oecommon.h"
+ 
+diff --git a/src/osd/modules/lib/osdlib_headless.cpp b/src/osd/modules/lib/osdlib_headless.cpp
+index 3657eb3fc0e..9e19f6e55cc 100644
+--- a/src/osd/modules/lib/osdlib_headless.cpp
++++ b/src/osd/modules/lib/osdlib_headless.cpp
+@@ -7,6 +7,12 @@
+ #include <sys/types.h>
+ #include <signal.h>
+ #include <time.h>
++#if defined(__APPLE__)
++#include <TargetConditionals.h>
++#if TARGET_OS_TV
++#include <libkern/OSCacheControl.h>
++#endif
++#endif
+ #ifdef __GNUC__
+ #include <sys/time.h>
+ #endif
+@@ -180,8 +186,15 @@ private:
+ bool invalidate_instruction_cache(void const *start, std::size_t size)
+ {
+ 	char const *const begin(reinterpret_cast<char const *>(start));
++#if defined(__APPLE__) && TARGET_OS_TV
++	// tvOS has no __clear_cache: clang turns the builtin into a call to a
++	// symbol the SDK does not provide. Flush the cache through the system
++	// call instead.
++	sys_icache_invalidate(const_cast<char *>(begin), size);
++#else
+ 	char const *const end(begin + size);
+ 	__builtin___clear_cache(const_cast<char *>(begin), const_cast<char *>(end));
++#endif
+ 	return true;
+ }
  
