@@ -79,12 +79,16 @@ final class PeerBrowser: ObservableObject {
                 }()
 
                 let deviceID = record?["id"] ?? name
-                // A device sees its own advertisement; leave it out.
-                guard deviceID != DeviceIdentity.current.id else { return nil }
+                let displayName = record?["name"] ?? name
+                // A device sees its own advertisement; leave it out. Recent
+                // systems hand the browser no TXT record at all, so the name
+                // is the only thing left to recognize our own service by.
+                let identity = DeviceIdentity.current
+                guard deviceID != identity.id, displayName != identity.name else { return nil }
 
                 return FoundHost(endpoint: result.endpoint,
                                  deviceID: deviceID,
-                                 name: record?["name"] ?? name,
+                                 name: displayName,
                                  platformName: record?["platform"] ?? "")
             }
             Task { @MainActor in
@@ -125,9 +129,16 @@ enum BonjourResolver {
     /// Opens a connection far enough to learn where it went, and falls back
     /// to the classic service resolver when the path does not name a host.
     static func resolve(_ endpoint: NWEndpoint, timeout: TimeInterval = 8) async throws -> (host: String, port: UInt16) {
-        if let fromPath = try? await resolveThroughConnection(endpoint, timeout: timeout) {
-            NSLog("[Cassowary] resolved %@:%d", fromPath.host, fromPath.port)
-            return fromPath
+        // An IPv4 path first. A phone advertises a link-local IPv6 address as
+        // well, and that one cannot go in a URL: its zone is not valid there,
+        // and without the zone it is unroutable, so the request fails as if
+        // the network were down. The plain path is tried after it, for a
+        // network that is IPv6 only.
+        for preferIPv4 in [true, false] {
+            if let fromPath = try? await resolveThroughConnection(endpoint, preferIPv4: preferIPv4, timeout: timeout) {
+                NSLog("[Cassowary] resolved %@:%d", fromPath.host, fromPath.port)
+                return fromPath
+            }
         }
 
         if case let .service(name, type, domain, _) = endpoint {
@@ -142,9 +153,14 @@ enum BonjourResolver {
         throw MediaClientError.noAddress
     }
 
-    private static func resolveThroughConnection(_ endpoint: NWEndpoint, timeout: TimeInterval) async throws -> (host: String, port: UInt16)? {
+    private static func resolveThroughConnection(_ endpoint: NWEndpoint, preferIPv4: Bool, timeout: TimeInterval) async throws -> (host: String, port: UInt16)? {
         let queue = DispatchQueue(label: "org.cassowary.resolve")
-        let connection = NWConnection(to: endpoint, using: .tcp)
+        let parameters = NWParameters.tcp
+        parameters.includePeerToPeer = true
+        if preferIPv4, let ip = parameters.defaultProtocolStack.internetProtocol as? NWProtocolIP.Options {
+            ip.version = .v4
+        }
+        let connection = NWConnection(to: endpoint, using: parameters)
 
         return try await withCheckedThrowingContinuation { continuation in
             var finished = false
@@ -185,6 +201,10 @@ enum BonjourResolver {
     /// IPv4 address as-is, IPv6 in brackets because URLComponents needs them.
     /// Interface zones (`%en0`) are dropped: they are not valid in a URL, and
     /// a plain local address picks the right interface on its own.
+    ///
+    /// A link-local IPv6 address is refused: dropping its zone leaves an
+    /// address nothing can reach, and keeping the zone is not valid in a URL
+    /// either. Returning nil sends the caller on to the next way of resolving.
     private static func hostPort(from endpoint: NWEndpoint?) -> (host: String, port: UInt16)? {
         guard case let .hostPort(host, port)? = endpoint else { return nil }
 
@@ -193,7 +213,9 @@ enum BonjourResolver {
         case .ipv4(let address):
             text = stripZone("\(address)")
         case .ipv6(let address):
-            text = "[\(stripZone("\(address)"))]"
+            let value = stripZone("\(address)")
+            if isLinkLocal(value) { return nil }
+            text = "[\(value)]"
         case .name(let name, _):
             text = stripZone(name)
         @unknown default:
@@ -203,9 +225,43 @@ enum BonjourResolver {
         return (text, port.rawValue)
     }
 
+    /// `fe80::/10`, which is every address a device hands out for the local
+    /// link alone.
+    private static func isLinkLocal(_ address: String) -> Bool {
+        let prefix = address.lowercased().prefix(4)
+        guard prefix.count == 4 else { return false }
+        return prefix.hasPrefix("fe8") || prefix.hasPrefix("fe9")
+            || prefix.hasPrefix("fea") || prefix.hasPrefix("feb")
+    }
+
     private static func stripZone(_ value: String) -> String {
         guard let percent = value.firstIndex(of: "%") else { return value }
         return String(value[..<percent])
+    }
+
+    /// A discovered host, resolved to an address and asked who it is.
+    ///
+    /// Discovery cannot be trusted for the id: current systems hand the
+    /// browser no Bonjour TXT record, so a service's name stands in for it.
+    /// The host's own answer is what reuses an existing pairing, and what
+    /// recognizes the same device the next time it turns up.
+    static func identify(_ found: FoundHost, timeout: TimeInterval = 8) async throws -> MediaHost {
+        let address = try await resolve(found.endpoint, timeout: timeout)
+        let discovered = MediaHost(deviceID: found.deviceID,
+                                   name: found.name,
+                                   address: address.host,
+                                   port: address.port,
+                                   platformName: found.platformName)
+        // A real id came through with the advertisement; nothing to ask.
+        guard found.deviceID == found.name else { return discovered }
+
+        let probe = MediaClient(host: discovered, token: nil)
+        guard let info = try? await probe.info() else { return discovered }
+        return MediaHost(deviceID: info.deviceID,
+                         name: info.deviceName,
+                         address: address.host,
+                         port: address.port,
+                         platformName: found.platformName)
     }
 }
 

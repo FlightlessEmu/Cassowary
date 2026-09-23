@@ -40,17 +40,20 @@ struct TVHomeView: View {
     /// A game picked before the source was reachable, waiting for the link.
     @State private var waitingToPlay: TVStore.LocalGame?
 
+    /// The automatic start has already happened, so it will not happen again.
+    ///
+    /// Kept in memory rather than in UserDefaults on purpose. The flag arrives
+    /// as a launch argument, and a launch argument outranks anything written to
+    /// UserDefaults — so clearing it there never stuck, and closing the game
+    /// started the same game again straight away.
+    @State private var didAutoPlay = false
+
     var body: some View {
         Group {
             if let playing, let url = store.playableURL(for: playing) {
                 TVPlayerView(title: playing.title,
                              url: url,
                              onFinished: { store.finishPlaying(playing) }) {
-                    // Test runs start the first game by themselves. Clearing
-                    // the flag here, when the game closes, keeps the
-                    // download-then-play path working and still shows the
-                    // library afterwards rather than starting again.
-                    UserDefaults.standard.set(false, forKey: "cassowary.autoPlayFirstGame")
                     self.playing = nil
                 }
             } else {
@@ -78,6 +81,11 @@ struct TVHomeView: View {
             store.start()
             autoPlayIfAsked()
         }
+        .onChange(of: playing?.id) { _, id in
+            // No game in front means the controller is tvOS's again. While a
+            // game is running it is the game's, until its own controls come up.
+            ControllerCapture.setInterfaceActive(id == nil)
+        }
         .onChange(of: store.games) { _, _ in
             autoPlayIfAsked()
         }
@@ -101,19 +109,18 @@ struct TVHomeView: View {
             store.prepareForPlay(game)
             playing = game
         } else if store.connection.isConnected {
+            // Copy it down and stay in the library. Picking several games in
+            // a row is a normal thing to do, and starting the first one would
+            // get in the way; a second tap plays it once it is here.
             Task {
                 await store.download(game)
-                if let updated = store.state.games[game.id], updated.isDownloaded {
-                    store.prepareForPlay(updated)
-                    playing = updated
-                }
             }
         } else {
             // The source is away. Hold the request rather than dropping it:
-            // the game starts by itself once the phone is back.
+            // the game is copied down by itself once the phone is back.
             NSLog("[Cassowary] holding %@ until a source is back", game.title)
             waitingToPlay = game
-            store.note("\(game.title) will start as soon as a source is back.")
+            store.note("\(game.title) will be copied down as soon as a source is back.")
         }
     }
 
@@ -122,9 +129,11 @@ struct TVHomeView: View {
     /// on-appear and the on-change paths call this. In normal use the flag is
     /// not set.
     private func autoPlayIfAsked() {
-        guard UserDefaults.standard.bool(forKey: "cassowary.autoPlayFirstGame"),
+        guard !didAutoPlay,
+              UserDefaults.standard.bool(forKey: "cassowary.autoPlayFirstGame"),
               playing == nil,
               let first = store.games.first else { return }
+        didAutoPlay = true
         play(first)
     }
 }

@@ -153,7 +153,8 @@ final class TVStore: ObservableObject {
 
                 guard case .connected = self.connection else {
                     if let id = self.state.lastHostDeviceID,
-                       let match = hosts.first(where: { $0.deviceID == id }),
+                       let known = self.state.hosts[id],
+                       let match = self.discovered(known),
                        !self.isConnecting {
                         Task { await self.connect(to: match) }
                     }
@@ -163,7 +164,8 @@ final class TVStore: ObservableObject {
             .store(in: &cancellables)
 
         if let id = state.lastHostDeviceID,
-           let match = browser.hosts.first(where: { $0.deviceID == id }) {
+           let known = state.hosts[id],
+           let match = discovered(known) {
             Task { await self.connect(to: match) }
         }
 
@@ -174,6 +176,13 @@ final class TVStore: ObservableObject {
                 Task { await self.connectDirectly(address: String(parts[0]), port: port) }
             }
         }
+    }
+
+    /// The discovered host that is this known source, if it is around. The id
+    /// comes from the Bonjour TXT record when there is one and from the
+    /// service name when there is not, so both are compared.
+    private func discovered(_ known: KnownHost) -> FoundHost? {
+        browser.hosts.first { $0.deviceID == known.deviceID || $0.name == known.name }
     }
 
     private var isConnecting: Bool {
@@ -192,12 +201,7 @@ final class TVStore: ObservableObject {
         syncSummary = nil
 
         do {
-            let address = try await BonjourResolver.resolve(found.endpoint)
-            let host = MediaHost(deviceID: found.deviceID,
-                                 name: found.name,
-                                 address: address.host,
-                                 port: address.port,
-                                 platformName: found.platformName)
+            let host = try await BonjourResolver.identify(found)
             await connect(toHost: host)
         } catch {
             connection = .failed(Self.connectionMessage(for: error, host: found.name))
@@ -777,7 +781,7 @@ final class TVStore: ObservableObject {
                 // connected to anything takes the first source it sees, which
                 // saves a tap on first setup.
                 let remembered = self.state.lastHostDeviceID
-                let target = remembered.flatMap { id in self.browser.hosts.first { $0.deviceID == id } }
+                let target = remembered.flatMap { id in self.state.hosts[id].flatMap { self.discovered($0) } }
                     ?? (remembered == nil ? self.browser.hosts.first : nil)
 
                 guard let target else { continue }

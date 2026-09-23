@@ -67,6 +67,15 @@ struct TVSourcesView: View {
                         }
                     }
 
+                    if case .connected(let host) = store.connection {
+                        section("Connected") {
+                            hostCard(name: host.name,
+                                     detail: host.platformName == "tvos" ? "Apple TV" : "iPhone, iPad, or Mac",
+                                     symbol: "checkmark.circle.fill",
+                                     subtitle: nil)
+                        }
+                    }
+
                     if !discovered.isEmpty {
                         section("On Your Network") {
                             ForEach(discovered) { host in
@@ -133,52 +142,70 @@ struct TVSourcesView: View {
         }
     }
 
+    /// A card in one of the lists. Without an action it is a plain label, so
+    /// the connected source can be shown without being something to press.
     private func hostCard(name: String,
                           detail: String,
                           symbol: String,
                           subtitle: String?,
-                          action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            VStack(alignment: .leading, spacing: 14) {
-                Image(systemName: symbol)
-                    .font(.system(size: 44))
-                    .foregroundStyle(.secondary)
-                    .frame(height: 56)
+                          action: (() -> Void)? = nil) -> some View {
+        let card = VStack(alignment: .leading, spacing: 14) {
+            Image(systemName: symbol)
+                .font(.system(size: 44))
+                .foregroundStyle(.secondary)
+                .frame(height: 56)
 
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(name)
-                        .font(.title3.weight(.semibold))
-                    Text(detail)
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                    if let subtitle {
-                        Text(subtitle)
-                            .font(.caption)
-                            .foregroundStyle(.orange)
-                    }
+            VStack(alignment: .leading, spacing: 4) {
+                Text(name)
+                    .font(.title3.weight(.semibold))
+                Text(detail)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                if let subtitle {
+                    Text(subtitle)
+                        .font(.caption)
+                        .foregroundStyle(.orange)
                 }
             }
-            .frame(width: 300, height: 200, alignment: .leading)
-            .padding(24)
-            .background(.quaternary, in: .rect(cornerRadius: 24))
         }
-        .buttonStyle(.card)
+        .frame(width: 300, height: 200, alignment: .leading)
+        .padding(24)
+        .background(.quaternary, in: .rect(cornerRadius: 24))
+
+        return Group {
+            if let action {
+                Button(action: action) { card }
+                    .buttonStyle(.card)
+            } else {
+                card
+            }
+        }
     }
 
     /// Hosts the browser can see right now, other than the one connected.
+    ///
+    /// Discovery names a host by its Bonjour service name when the system
+    /// hands back no TXT record, so a name is compared as well as an id.
     private var discovered: [FoundHost] {
         store.browser.hosts.filter { host in
-            if case .connected(let connected) = store.connection, connected.deviceID == host.deviceID {
+            if case .connected(let connected) = store.connection,
+               connected.deviceID == host.deviceID || connected.name == host.name {
                 return false
             }
             return true
         }
     }
 
-    /// Hosts this TV has used before that are not around at the moment.
+    /// Hosts this TV has used before that are neither in front of us nor
+    /// still on the network. The one being played from is shown as Connected,
+    /// so it is left out here.
     private var remembered: [TVStore.KnownHost] {
         store.knownHosts.filter { known in
-            !store.browser.hosts.contains { $0.deviceID == known.deviceID }
+            if case .connected(let connected) = store.connection,
+               connected.deviceID == known.deviceID || connected.name == known.name {
+                return false
+            }
+            return !store.browser.hosts.contains { $0.deviceID == known.deviceID || $0.name == known.name }
         }
     }
 }

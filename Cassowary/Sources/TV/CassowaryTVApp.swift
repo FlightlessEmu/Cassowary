@@ -22,21 +22,32 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+import GameController
 import SwiftUI
+import UIKit
 import OpenEmuBase
 import OpenEmuSystem
 import OpenEmuKit
 
 /// The Apple TV app.
 ///
-/// This first build plays the demo ROM that ships in the bundle. That is what
-/// proves the engine, the Metal renderer, the audio and controller input all
-/// work on tvOS. Browsing a phone's library and copying games down comes next;
-/// the plan is in `docs/apple-tv-library-host-plan.md`.
+/// This is a UIKit lifecycle rather than SwiftUI's `App`, for one reason: a
+/// game controller only reaches the emulator when a `GCEventViewController`
+/// is the root of the window, and SwiftUI makes its own root and keeps it.
+/// The interface itself is still all SwiftUI — it just hangs off a root this
+/// code owns, so the controller question can be answered at all.
 @main
-struct CassowaryTVApp: App {
+final class TVAppDelegate: UIResponder, UIApplicationDelegate {
 
-    init() {
+    static func main() {
+        UIApplicationMain(CommandLine.argc,
+                          CommandLine.unsafeArgv,
+                          nil,
+                          NSStringFromClass(TVAppDelegate.self))
+    }
+
+    func application(_ application: UIApplication,
+                     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
         // tvOS will not let an app create folders inside Application Support,
         // and the engine keeps battery saves and BIOS files under there. Send
         // it to the caches folder instead, which is where tvOS wants data
@@ -48,11 +59,46 @@ struct CassowaryTVApp: App {
         // before any plugin is looked up.
         OECorePlugin.registerClass()
         OESystemPlugin.registerClass()
+
+        return true
     }
 
-    var body: some Scene {
-        WindowGroup {
-            TVHomeView()
-        }
+    func application(_ application: UIApplication,
+                     configurationForConnecting connectingSceneSession: UISceneSession,
+                     options: UIScene.ConnectionOptions) -> UISceneConfiguration {
+        let configuration = UISceneConfiguration(name: nil, sessionRole: connectingSceneSession.role)
+        configuration.delegateClass = TVSceneDelegate.self
+        return configuration
+    }
+}
+
+/// Makes the window, with the controller-aware root the game needs.
+final class TVSceneDelegate: UIResponder, UIWindowSceneDelegate {
+
+    var window: UIWindow?
+
+    func scene(_ scene: UIScene,
+               willConnectTo session: UISceneSession,
+               options connectionOptions: UIScene.ConnectionOptions) {
+        guard let windowScene = scene as? UIWindowScene else { return }
+
+        // The controller is tvOS's while the interface is in front. Playing a
+        // game turns that off, which is what lets its buttons through.
+        let root = GCEventViewController()
+        root.controllerUserInteractionEnabled = true
+        ControllerCapture.root = root
+
+        let host = UIHostingController(rootView: TVHomeView())
+        host.view.backgroundColor = .black
+        root.addChild(host)
+        host.view.frame = root.view.bounds
+        host.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        root.view.addSubview(host.view)
+        host.didMove(toParent: root)
+
+        let window = UIWindow(windowScene: windowScene)
+        window.rootViewController = root
+        self.window = window
+        window.makeKeyAndVisible()
     }
 }

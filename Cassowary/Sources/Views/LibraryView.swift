@@ -110,6 +110,7 @@ struct LibraryView: View {
     @AppStorage(CoverArtSetting.automaticKey) private var downloadCoverArt = true
 
     @Environment(\.horizontalSizeClass) private var sizeClass
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         GeometryReader { geometry in
@@ -249,6 +250,14 @@ struct LibraryView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .refreshLibrary)) { _ in
             refreshAll()
+        }
+        .onChange(of: scenePhase) { _, phase in
+            // Games can turn up while the app is away: copied in from Finder,
+            // or dropped in over file sharing. Coming back is the moment to
+            // look, rather than making the user find Refresh.
+            if phase == .active {
+                refreshAll()
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: .showSettings)) { _ in
             showSettings = true
@@ -673,7 +682,11 @@ struct LibraryView: View {
     @discardableResult
     private func addGames(_ urls: [URL]) async -> ImportSummary {
         let summary = await library.add(contentsOf: urls)
-        refreshCoverArt()
+        // Everything downstream of the library list is refreshed here: the
+        // grid, the systems sidebar, the cover art, and the list the sharing
+        // server hands the Apple TV. Without it a game that was just added is
+        // in none of them until the screen is opened again.
+        refreshAll()
         if summary.needsSystem.isEmpty {
             importNotice = notice(for: summary)
         } else {

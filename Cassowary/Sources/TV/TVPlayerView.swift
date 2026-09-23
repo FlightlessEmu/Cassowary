@@ -43,8 +43,14 @@ struct TVPlayerView: View {
 
     @State private var session: GameSession?
     @State private var errorMessage: String?
-    @State private var isPaused = false
     @State private var notice: String?
+    /// The game's menu is open. Back opens it and closes it again.
+    @State private var isMenuOpen = false
+    /// A line telling the player how to reach the menu, shown once at the
+    /// start and then out of the way. Nothing to focus, so it cannot get in
+    /// the way of the game either.
+    @State private var showsHint = true
+    @State private var hideHint: Task<Void, Never>?
 
     var body: some View {
         ZStack {
@@ -66,59 +72,91 @@ struct TVPlayerView: View {
                     }
                 )
                 .ignoresSafeArea()
-
-                if isPaused {
-                    pausedOverlay
-                }
             }
 
             if let errorMessage {
                 errorState(errorMessage)
             }
         }
-        .overlay(alignment: .top) { controls }
+        .overlay { if isMenuOpen { gameMenu } }
+        .overlay(alignment: .bottom) { hintBanner }
         .overlay(alignment: .bottom) { noticeBanner }
         .task { startGame() }
-        .onDisappear { stopGame() }
-        .onExitCommand { close() }
-    }
-
-    // MARK: - Controls
-
-    private var controls: some View {
-        HStack(spacing: 20) {
-            Button("Close") { close() }
-
-            if let session {
-                Button(isPaused ? "Resume" : "Pause") {
-                    isPaused.toggle()
-                    session.setPaused(isPaused)
-                }
-
-                Button("Save State") {
-                    session.saveState { result in
-                        report(result, success: "Saved")
-                    }
-                }
-
-                if session.hasSaveState {
-                    Button("Load State") {
-                        session.loadState { result in
-                            report(result, success: "Loaded")
-                        }
-                    }
-                }
-
-                Button("Reset") {
-                    session.resetEmulation()
-                    show(notice: "Reset")
-                }
+        .onDisappear {
+            hideHint?.cancel()
+            stopGame()
+        }
+        .onExitCommand {
+            // Back opens the game's menu and closes it again. Closing the game
+            // is a button on the menu, so a stray press can never throw a
+            // session away — which is what made the old control row dangerous.
+            if isMenuOpen {
+                closeMenu()
+            } else {
+                openMenu()
             }
         }
-        .padding(.horizontal, 24)
-        .padding(.vertical, 12)
-        .background(.ultraThinMaterial, in: .capsule)
-        .padding(.top, 28)
+    }
+
+    // MARK: - The game's menu
+
+    /// The game's menu, over the picture. The game is paused while it is up
+    /// and the controller belongs to tvOS, so its buttons can be chosen —
+    /// which is the whole reason it is a menu and not a row of buttons over
+    /// the picture.
+    private var gameMenu: some View {
+        ZStack {
+            Color.black.opacity(0.75).ignoresSafeArea()
+
+            VStack(spacing: 34) {
+                Text(title)
+                    .font(.title2.weight(.semibold))
+                    .foregroundStyle(.white)
+
+                HStack(spacing: 24) {
+                    Button("Resume") { closeMenu() }
+
+                    if let session {
+                        Button("Save State") {
+                            session.saveState { result in
+                                report(result, success: "Saved")
+                            }
+                        }
+
+                        if session.hasSaveState {
+                            Button("Load State") {
+                                session.loadState { result in
+                                    report(result, success: "Loaded")
+                                }
+                            }
+                        }
+
+                        Button("Reset") {
+                            session.resetEmulation()
+                            show(notice: "Reset")
+                        }
+                    }
+
+                    Button("Close") { close() }
+                }
+            }
+            .padding(60)
+        }
+    }
+
+    /// Tells the player how to reach the menu, then gets out of the way.
+    private var hintBanner: some View {
+        Group {
+            if showsHint, !isMenuOpen, errorMessage == nil {
+                Text("Press Back for options")
+                    .font(.callout)
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 10)
+                    .background(.ultraThinMaterial, in: .capsule)
+                    .padding(.bottom, 44)
+                    .transition(.opacity)
+            }
+        }
     }
 
     private var noticeBanner: some View {
@@ -131,20 +169,6 @@ struct TVPlayerView: View {
                     .background(.ultraThinMaterial, in: .capsule)
                     .padding(.bottom, 40)
             }
-        }
-    }
-
-    private var pausedOverlay: some View {
-        ZStack {
-            Color.black.opacity(0.55).ignoresSafeArea()
-
-            VStack(spacing: 18) {
-                Image(systemName: "pause.circle.fill")
-                    .font(.system(size: 64))
-                Text("Paused")
-                    .font(.title2.weight(.semibold))
-            }
-            .foregroundStyle(.white)
         }
     }
 
@@ -182,6 +206,24 @@ struct TVPlayerView: View {
 
             self.session = session
             session.start { }
+
+            // A word about the menu, then out of the way. Nothing focusable,
+            // so it cannot hold the game's controller.
+            hideHint = Task {
+                try? await Task.sleep(for: .seconds(5))
+                guard !Task.isCancelled else { return }
+                withAnimation(.easeInOut(duration: 0.4)) { showsHint = false }
+            }
+
+            // Used by the run script to check the game's menu without a
+            // remote: opens it a few seconds in. Only set from the command
+            // line, so normal play never sees it.
+            if UserDefaults.standard.bool(forKey: "cassowary.testOpenMenu") {
+                Task {
+                    try? await Task.sleep(for: .seconds(4))
+                    openMenu()
+                }
+            }
 
             // Used by the run script to prove input reaches the emulator with
             // no controller attached: hold the named buttons for a few seconds
@@ -230,6 +272,27 @@ struct TVPlayerView: View {
     private func stopGame() {
         session?.stop()
         session = nil
+    }
+
+    /// Opens the game's menu.
+    ///
+    /// The game pauses and the controller goes back to tvOS. Both are needed:
+    /// with the game still holding the controller nothing on screen could be
+    /// chosen, which is what made the old control row look selected but do
+    /// nothing.
+    private func openMenu() {
+        hideHint?.cancel()
+        showsHint = false
+        session?.setPaused(true)
+        ControllerCapture.setInterfaceActive(true)
+        withAnimation(.easeInOut(duration: 0.2)) { isMenuOpen = true }
+    }
+
+    /// Closes the menu and hands the controller back to the game.
+    private func closeMenu() {
+        withAnimation(.easeInOut(duration: 0.2)) { isMenuOpen = false }
+        session?.setPaused(false)
+        ControllerCapture.setInterfaceActive(false)
     }
 
     private func close() {

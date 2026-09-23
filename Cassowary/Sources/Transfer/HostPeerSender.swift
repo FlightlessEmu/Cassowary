@@ -64,12 +64,7 @@ final class HostPeerSender: ObservableObject {
         defer { sendingTo = nil }
 
         do {
-            let address = try await BonjourResolver.resolve(found.endpoint)
-            let host = MediaHost(deviceID: found.deviceID,
-                                 name: found.name,
-                                 address: address.host,
-                                 port: address.port,
-                                 platformName: found.platformName)
+            let host = try await BonjourResolver.identify(found)
 
             var token = TrustStore.shared.peer(withID: host.deviceID)?.token
             if token == nil {
