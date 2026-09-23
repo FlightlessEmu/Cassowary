@@ -1,6 +1,0 @@
-blank_issues_enabled: false
-
-contact_links:
-  - name: OpenEmu-Silicon — project README
-    url: https://github.com/OpenEmu-Silicon/OpenEmu-Silicon#readme
-    about: Setup instructions, known issues, and how to install cores

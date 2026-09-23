@@ -37,8 +37,6 @@ enum SharingDefaults {
     static let trustAllKey = "cassowary.sharing.trustAll"
     /// A pinned port, for the test scripts. Normally the system picks one.
     static let portKey = "cassowary.sharing.port"
-    /// The TV remembers which host it last used.
-    static let lastHostDeviceIDKey = "cassowary.tv.lastHost"
     /// The TV's cache budget, in bytes.
     static let cacheBudgetKey = "cassowary.tv.cacheBudget"
     static let defaultCacheBudget: Int64 = 2 * 1024 * 1024 * 1024
@@ -142,11 +140,6 @@ final class TrustStore: ObservableObject {
 
     func remove(deviceID: String) {
         peers.removeAll { $0.deviceID == deviceID }
-        save()
-    }
-
-    func removeAll() {
-        peers.removeAll()
         save()
     }
 

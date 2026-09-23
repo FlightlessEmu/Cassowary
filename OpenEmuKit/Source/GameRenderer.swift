@@ -47,11 +47,3 @@ protocol GameRenderer {
     func suspendFPSLimiting()
     func resumeFPSLimiting()
 }
-
-protocol OpenGLGameRenderer: GameRenderer {
-    var presentationFramebuffer: Any? { get }
-
-    func presentDoubleBufferedFBO()
-    func willRenderFrameOnAlternateThread()
-    func didRenderFrameOnAlternateThread()
-}

@@ -219,7 +219,7 @@ struct ShareSettingsView: View {
             Text(meta.modifiedAt.formatted(date: .abbreviated, time: .shortened))
                 .font(.caption2)
                 .foregroundStyle(.secondary)
-            Text(ByteCountFormatter.string(fromByteCount: meta.size, countStyle: .file))
+            Text(meta.size.formatted(.byteCount(style: .file)))
                 .font(.caption2)
                 .foregroundStyle(.secondary)
         }

@@ -46,12 +46,6 @@ struct ScreenScraperCredentials: Sendable, Equatable {
     var hasAccount: Bool {
         !username.isEmpty && !password.isEmpty
     }
-
-    /// Whether every field is empty.
-    var isEmpty: Bool {
-        developerID.isEmpty && developerPassword.isEmpty
-            && username.isEmpty && password.isEmpty
-    }
 }
 
 /// Reads and writes the ScreenScraper logins.
@@ -102,14 +96,6 @@ enum ScreenScraperCredentialStore {
         defaults.set(credentials.username, forKey: usernameKey)
         KeychainStore.set(credentials.developerPassword, for: developerPasswordKey)
         KeychainStore.set(credentials.password, for: passwordKey)
-    }
-
-    static func clear() {
-        let defaults = UserDefaults.standard
-        defaults.removeObject(forKey: developerIDKey)
-        defaults.removeObject(forKey: usernameKey)
-        KeychainStore.set(nil, for: developerPasswordKey)
-        KeychainStore.set(nil, for: passwordKey)
     }
 }
 

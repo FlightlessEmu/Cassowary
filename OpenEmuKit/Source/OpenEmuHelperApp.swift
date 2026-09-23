@@ -64,7 +64,7 @@ extension OSLog {
     var _gameController: OEGameCoreController!
     var _systemController: OESystemController!
     var _systemResponder: OESystemResponder!
-    var _gameAudio: GameAudioProtocol!
+    var _gameAudio: GameAudio2!
     
     // initial shader and parameters
     var _shader: URL?
@@ -159,11 +159,7 @@ extension OSLog {
         guard let gameCore else { fatalError("Expected gameCore to be set") }
         
         // 1. Audio
-        if #available(macOS 11.0, *) {
-            _gameAudio = GameAudio2(withCore: gameCore)
-        } else {
-            _gameAudio = GameAudio(withCore: gameCore)
-        }
+        _gameAudio = GameAudio2(withCore: gameCore)
         
         _gameAudio.volume = 1.0
         

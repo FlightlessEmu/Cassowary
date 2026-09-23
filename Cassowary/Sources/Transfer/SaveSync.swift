@@ -125,16 +125,6 @@ struct SaveSyncResult {
     }
 }
 
-/// Talking to the other device, whichever end we are.
-protocol SavePeer {
-    /// The other device's id, for messages.
-    var peerDeviceID: String { get }
-    func peerSavesIndex() async throws -> TransferProtocol.SavesIndex
-    func mergeSaves(_ index: TransferProtocol.SavesIndex) async throws -> TransferProtocol.MergeResponse
-    func fetchSaveBlob(_ meta: TransferProtocol.SaveBlobMeta) async throws -> Data
-    func putSaveBlob(_ meta: TransferProtocol.SaveBlobMeta, data: Data) async throws -> TransferProtocol.SavePutResponse
-}
-
 /// The rules for moving saves between two devices.
 ///
 /// The same code runs on both sides: one device calls `sync`, the other
@@ -145,7 +135,7 @@ enum SaveSyncEngine {
 
     /// Sends what the other device does not have, takes what it does, and
     /// files anything the two disagree about for the user to choose.
-    static func sync(games: [GameLocation], with peer: SavePeer) async -> SaveSyncResult {
+    static func sync(games: [GameLocation], with peer: MediaClient) async -> SaveSyncResult {
         var result = SaveSyncResult()
 
         do {

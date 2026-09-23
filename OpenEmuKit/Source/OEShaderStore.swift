@@ -197,10 +197,6 @@ extension NSNotification.Name {
     @objc public var name: String
     @objc public var url: URL
     
-    private lazy var slangShader: SlangShader? = {
-        try? SlangShader(fromURL: url)
-    }()
-    
     fileprivate init(url: URL) {
         self.name   = url.deletingLastPathComponent().lastPathComponent
         self.url    = url
@@ -212,62 +208,11 @@ extension NSNotification.Name {
         self.url  = URL(fileURLWithPath: "/shaders/\(name)")
     }
     
-    /// Returns the default parameters for the shader.
-    @objc public var defaultParameters: [ShaderParamValue] {
-        ShaderParamValue.from(parameters: slangShader?.parameters ?? [])
-    }
-    
     override public var description: String {
         return name
     }
     
     public override var debugDescription: String {
         return "\(name) \(url.absoluteString)"
-    }
-    
-    /// Returns an array of the parameter groups for the shader.
-    /// - Returns: An array of the parameter groups for the shader.
-    @objc public func readGroups() -> [ShaderParamGroupValue] {
-        guard let ss = slangShader else { return [] }
-        
-        if let groups = readGroupsModel() {
-            var all = ss.parameters
-            var dg: ShaderParamGroupValue?
-            
-            let res: [ShaderParamGroupValue] = groups.enumerated().map { (i, g) in
-                let gv = ShaderParamGroupValue(index: i, name: g.name, desc: g.desc, hidden: g.hidden)
-                
-                if g.name == "default" {
-                    dg = gv
-                }
-                
-                // return a list of parameters from SlangShader in same order as g.parameters
-                let p = g.parameters.compactMap { name in
-                    all.first { $0.name == name }
-                }
-                all.removeAll { p.contains($0) }
-                
-                gv.parameters = ShaderParamValue.from(parameters: p)
-                return gv
-            }
-            
-            if let dg = dg, !all.isEmpty {
-                dg.parameters = ShaderParamValue.from(parameters: all)
-            }
-            
-            return res
-        }
-        
-        let gv = ShaderParamGroupValue(index: 0, name: "default", desc: "Default")
-        gv.parameters = ShaderParamValue.from(parameters: ss.parameters)
-        return [gv]
-    }
-    
-    func readGroupsModel() -> [ShaderParameterGroupModel]? {
-        let groupsURL = url.deletingLastPathComponent().appendingPathComponent("parameterGroups.plist")
-        guard let data = try? Data(contentsOf: groupsURL) else { return nil }
-        
-        let dec = PropertyListDecoder()
-        return try? dec.decode([ShaderParameterGroupModel].self, from: data)
     }
 }

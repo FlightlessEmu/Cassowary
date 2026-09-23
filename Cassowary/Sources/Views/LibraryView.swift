@@ -230,23 +230,6 @@ struct LibraryView: View {
                 play(first)
             }
 
-            // Opens Settings without tapping, for screenshots and UI checks.
-            // Same deal: only set from the command line.
-            if UserDefaults.standard.bool(forKey: "cassowary.showSettings") {
-                showSettings = true
-            }
-
-            // Opens the Cover Art pane directly, for the same reason.
-            if UserDefaults.standard.bool(forKey: "cassowary.showCoverArt") {
-                showCoverArtSettings = true
-            }
-
-            // Used to exercise the add-a-game path without a drag, which the
-            // Simulator cannot perform. Same deal: only set from the command
-            // line, by a test script.
-            if let path = UserDefaults.standard.string(forKey: "cassowary.importFile") {
-                importFileForTesting(at: URL(fileURLWithPath: path))
-            }
         }
         .onReceive(NotificationCenter.default.publisher(for: .refreshLibrary)) { _ in
             refreshAll()
@@ -877,15 +860,6 @@ struct LibraryView: View {
         let shown = names.prefix(3).joined(separator: ", ")
         let remaining = names.count - min(names.count, 3)
         return remaining > 0 ? "\(shown) and \(remaining) more" : shown
-    }
-
-    /// Adds one file with no drag involved, so `simctl` can exercise the same
-    /// path. Only called when the flag is passed on the command line.
-    private func importFileForTesting(at url: URL) {
-        Task { @MainActor in
-            let summary = await addGames([url])
-            NSLog("[Cassowary] import test: \(summary.added.count) added, \(summary.needsSystem.count) needing a system, \(summary.alreadyInLibrary.count) already in the library, \(summary.unsupported.count) unsupported, \(summary.failed.count) failed")
-        }
     }
 
     // MARK: - Data

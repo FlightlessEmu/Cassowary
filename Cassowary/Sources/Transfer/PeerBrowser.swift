@@ -41,7 +41,6 @@ struct FoundHost: Identifiable, Hashable {
 final class PeerBrowser: ObservableObject {
 
     @Published private(set) var hosts: [FoundHost] = []
-    @Published private(set) var isBrowsing = false
 
     private var browser: NWBrowser?
     private let queue = DispatchQueue(label: "org.cassowary.peer-browser")
@@ -58,10 +57,7 @@ final class PeerBrowser: ObservableObject {
         browser.stateUpdateHandler = { [weak self] state in
             Task { @MainActor in
                 switch state {
-                case .ready:
-                    self?.isBrowsing = true
                 case .failed, .cancelled:
-                    self?.isBrowsing = false
                     self?.hosts = []
                 default:
                     break
@@ -103,7 +99,6 @@ final class PeerBrowser: ObservableObject {
     func stop() {
         browser?.cancel()
         browser = nil
-        isBrowsing = false
         hosts = []
     }
 

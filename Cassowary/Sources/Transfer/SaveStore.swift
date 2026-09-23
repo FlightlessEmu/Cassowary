@@ -191,7 +191,7 @@ struct SaveStore {
         let folder = SharingPaths.supportDirectory.appendingPathComponent("Backups", isDirectory: true)
         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
 
-        let stamp = ISO8601DateFormatter().string(from: Date())
+        let stamp = Date().ISO8601Format()
             .replacingOccurrences(of: ":", with: "-")
         let name = "\(meta.gameID)-\(meta.kind.replacingOccurrences(of: ":", with: "_"))-\(stamp)"
         let destination = folder.appendingPathComponent(name)

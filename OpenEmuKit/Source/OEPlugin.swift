@@ -230,14 +230,6 @@ public class OEPlugin: NSObject {
     var isOutOfSupport: Bool {
         return false
     }
-    
-    public func flushBundleCache() {
-        bundle.flushBundleCache()
-        
-        infoDictionary = bundle.infoDictionary ?? infoDictionary
-        version = infoDictionary["CFBundleVersion"] as? String ?? ""
-        displayName = infoDictionary["CFBundleName"] as? String ?? infoDictionary["CFBundleExecutable"] as? String ?? ""
-    }
 }
 
 extension OEPlugin: NSCopying {

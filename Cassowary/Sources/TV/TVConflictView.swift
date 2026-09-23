@@ -97,7 +97,7 @@ struct TVConflictView: View {
                 .font(.callout)
                 .foregroundStyle(.secondary)
 
-            Text(ByteCountFormatter.string(fromByteCount: meta.size, countStyle: .file))
+            Text(meta.size.formatted(.byteCount(style: .file)))
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

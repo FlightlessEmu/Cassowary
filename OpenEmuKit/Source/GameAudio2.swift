@@ -31,7 +31,7 @@ import OpenEmuBase.OEGameCore
 private var log = Logger(subsystem: "org.openemu.OpenEmuKit", category: "GameAudio2")
 
 @available(macOS 11.0, iOS 14.0, *)
-final public class GameAudio2: GameAudioProtocol {
+final public class GameAudio2 {
     public var volume: Float {
         didSet {
             engine.mainMixerNode.outputVolume = volume

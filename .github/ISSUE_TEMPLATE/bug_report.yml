@@ -17,7 +17,7 @@ body:
         - SNES / Super Famicom (BSNES / SNES9x)
         - Game Boy / Game Boy Color (Gambatte)
         - Game Boy Advance (mGBA)
-        - Nintendo DS (DeSmuME)
+        - Nintendo DS (melonDS)
         - Nintendo 64 (Mupen64Plus)
         - PlayStation (Mednafen)
         - PC Engine / TurboGrafx (Mednafen)
@@ -27,8 +27,6 @@ body:
         - Sega Master System / Game Gear (GenesisPlus)
         - Sega CD (GenesisPlus)
         - Dreamcast (Flycast)
-        - GameCube / Wii (Dolphin)
-        - PlayStation 2 (PCSX2)
         - PSP (PPSSPP)
         - Atari 2600 (Stella)
         - Atari 7800 (ProSystem)
@@ -55,42 +53,32 @@ body:
       required: false
 
   - type: dropdown
-    id: macos
+    id: device
     attributes:
-      label: macOS Version
+      label: iOS Device
       options:
-        - macOS 15 (Sequoia)
-        - macOS 26 (Tahoe)
-        - macOS 14 (Sonoma)
-        - macOS 13 (Ventura)
-        - macOS 12 (Monterey)
-        - macOS 11 (Big Sur)
-        - Other (describe below)
+        - iPhone
+        - iPad
+        - Mac (Catalyst)
+        - Apple TV
+        - Simulator
     validations:
       required: true
 
-  - type: dropdown
-    id: chip
+  - type: input
+    id: ios_version
     attributes:
-      label: Apple Silicon Chip
-      options:
-        - M1
-        - M1 Pro / Max / Ultra
-        - M2
-        - M2 Pro / Max / Ultra
-        - M3
-        - M3 Pro / Max / Ultra
-        - M4
-        - M4 Pro / Max / Ultra
+      label: iOS / tvOS Version
+      placeholder: e.g., iOS 18.1
     validations:
       required: true
 
   - type: input
     id: version
     attributes:
-      label: OpenEmu-Silicon Version or Commit
-      description: Found in OpenEmu-Silicon → About, or paste the git commit hash
-      placeholder: e.g., v1.4.2 or a1b2c3d
+      label: Cassowary Commit
+      description: Paste the git commit hash
+      placeholder: e.g., a1b2c3d
     validations:
       required: true
 

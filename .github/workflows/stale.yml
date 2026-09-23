@@ -34,8 +34,8 @@ jobs:
           close-issue-message: >
             This issue has been automatically closed after 14 days with no
             further activity. If the problem is still happening, please feel
-            free to reopen it or open a new issue — just include your macOS
-            version, chip model, and steps to reproduce so we can pick up
+            free to reopen it or open a new issue — just include your iOS
+            device, iOS version, and steps to reproduce so we can pick up
             where we left off.
 
           # Pull requests — never mark stale

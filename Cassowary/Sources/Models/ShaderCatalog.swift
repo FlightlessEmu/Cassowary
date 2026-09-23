@@ -53,7 +53,7 @@ final class ShaderCatalog: ObservableObject {
     /// The installed filters, sorted the way the Finder sorts.
     @Published private(set) var shaders: [OEShaderModel] = []
 
-    private let store: OEShaderStore
+    private let store = OEShaderStore(store: .standard)
 
     /// The app-wide filter choice; absent means none.
     static let globalKey = "cassowary.videoShader"
@@ -62,8 +62,7 @@ final class ShaderCatalog: ObservableObject {
         "cassowary.videoShader." + identifier
     }
 
-    init(store: OEShaderStore = OEShaderStore(store: .standard)) {
-        self.store = store
+    init() {
         refresh()
     }
 

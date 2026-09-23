@@ -57,12 +57,6 @@ enum GamepadControl: Hashable {
     case rightStickUp, rightStickDown, rightStickLeft, rightStickRight
 }
 
-/// Which analog stick a control belongs to.
-enum StickSide {
-    case left
-    case right
-}
-
 /// The emulated buttons one directional control drives.
 ///
 /// A system with a real analog stick gives the d-pad one set of buttons and
@@ -113,23 +107,10 @@ struct ControllerLayout {
     /// action cluster so they are not mistaken for four face buttons.
     let rightStick: DirectionalButtons
 
-    static let deadzone: CGFloat = 0.18
-
     var allButtons: [ControllerButton] { groups.flatMap { $0 } }
 
     /// Whether this system has controls that can be shown as buttons.
     var hasButtons: Bool { !allButtons.isEmpty }
-
-    func button(for control: GamepadControl) -> ControllerButton? {
-        gamepadControls[control]
-    }
-
-    func stickControls(_ side: StickSide) -> (up: GamepadControl, down: GamepadControl, left: GamepadControl, right: GamepadControl) {
-        switch side {
-        case .left:  return (.leftStickUp, .leftStickDown, .leftStickLeft, .leftStickRight)
-        case .right: return (.rightStickUp, .rightStickDown, .rightStickLeft, .rightStickRight)
-        }
-    }
 
     init(systemPlugin: OESystemPlugin) {
         let controller = systemPlugin.controller

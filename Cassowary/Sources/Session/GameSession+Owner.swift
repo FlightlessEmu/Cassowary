@@ -41,13 +41,9 @@ extension GameSession: OEGameCoreOwner {
         aspectSize = newAspectSize
     }
 
-    func setDiscCount(_ discCount: UInt) {
-        self.discCount = discCount
-    }
+    func setDiscCount(_ discCount: UInt) { }
 
-    func setDisplayModes(_ displayModes: [[String: Any]]) {
-        self.displayModes = displayModes
-    }
+    func setDisplayModes(_ displayModes: [[String: Any]]) { }
 
     func setRemoteContextID(_ contextID: OEContextID) {
         // macOS uses this to hand a CAContext to the host process. In-process,

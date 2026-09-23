@@ -10,30 +10,3 @@ updates:
       day: "monday"
     commit-message:
       prefix: "ci"
-
-  # ── Swift Package Manager ────────────────────────────────────────────────
-  # Track Sparkle, ZIPFoundation, and other SPM deps for the main app
-  - package-ecosystem: "swift"
-    directory: "/"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-    commit-message:
-      prefix: "deps"
-    ignore:
-      # ZIPFoundation is pinned to the 'development' branch (not a tag).
-      # This must be manually migrated to a stable release first.
-      # See: https://github.com/weichsel/ZIPFoundation/releases
-      - dependency-name: "ZIPFoundation"
-        versions: ["*"]
-
-  # npm (SPIRV-Tools) is intentionally excluded.
-  # OpenEmu-Shaders/3rdparty/SPIRV/3rdparty/SPIRV-Tools/tools/sva contains
-  # a 2019-era yarn.lock for dev-only shader validator tooling. These packages
-  # are never executed at runtime and are not shipped in the app binary.
-  #
-  # NOTE: this `ignore` mechanism only applies to version-update PRs — it does
-  # NOT stop Dependabot from generating new security alerts against this
-  # lockfile as new CVEs land. Alerts on this path recur periodically and must
-  # be dismissed manually each time with reason 'not_used'. See dismissed
-  # alerts #1-40 for precedent/comment wording.

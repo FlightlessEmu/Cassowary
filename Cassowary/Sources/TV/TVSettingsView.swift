@@ -82,7 +82,7 @@ struct TVSettingsView: View {
                 } header: {
                     Text("Downloaded Game Budget")
                 } footer: {
-                    Text("Used \(ByteCountFormatter.string(fromByteCount: store.cacheBytes, countStyle: .file)) of \(ByteCountFormatter.string(fromByteCount: store.cacheBudget, countStyle: .file)). Apple TV can remove downloaded games at any time; saves are kept separately and sent back to the phone.")
+                    Text("Used \(store.cacheBytes.formatted(.byteCount(style: .file))) of \(store.cacheBudget.formatted(.byteCount(style: .file))). Apple TV can remove downloaded games at any time; saves are kept separately and sent back to the phone.")
                 }
 
                 Section("About") {

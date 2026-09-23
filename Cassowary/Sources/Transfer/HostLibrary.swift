@@ -35,11 +35,6 @@ final class HostLibrary: ObservableObject {
 
     static let shared = HostLibrary()
 
-    /// True while files are being hashed.
-    @Published private(set) var isIndexing = false
-    @Published private(set) var indexedCount = 0
-    @Published private(set) var totalCount = 0
-
     private var indexTask: Task<Void, Never>?
 
     /// A plain copy of what hashing needs, so it can run off the main actor.
@@ -54,9 +49,6 @@ final class HostLibrary: ObservableObject {
 
     /// Makes sure every game has a content hash, then stops.
     func reindex(_ games: [Game]) {
-        totalCount = games.count
-        indexedCount = games.filter { GameIndexStore.shared.record(forPath: $0.url.path) != nil }.count
-
         guard indexTask == nil else { return }
 
         let candidates: [Candidate] = games.compactMap { game in
@@ -72,7 +64,6 @@ final class HostLibrary: ObservableObject {
                              systemName: game.systemName ?? "")
         }
 
-        isIndexing = true
         indexTask = Task { [weak self] in
             await Task.detached(priority: .utility) {
                 for candidate in candidates {
@@ -92,13 +83,10 @@ final class HostLibrary: ObservableObject {
                                                             title: candidate.title,
                                                             systemIdentifier: candidate.systemIdentifier,
                                                             systemName: candidate.systemName))
-
-                    await MainActor.run { self?.indexedCount += 1 }
                 }
                 GameIndexStore.shared.pruneMissingFiles()
             }.value
 
-            await MainActor.run { self?.isIndexing = false }
             self?.indexTask = nil
         }
     }

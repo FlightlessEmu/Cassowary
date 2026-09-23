@@ -56,10 +56,15 @@ jobs:
       - name: Determine which cores to build
         id: detect
         run: |
-          # Only these cores have been ported to iOS; the rest need OpenGL or
-          # their own platform work. Keep this list in step with the CORES
-          # array in Scripts/cassowary/build-cassowary.sh.
-          all_cores='["4DO","Atari800","Bliss","blueMSX","BSNES","CrabEmu","FCEU","Gambatte","GenesisPlus","JollyCV","MAME","Mednafen","mGBA","Nestopia","O2EM","picodrive","PokeMini","Potator-Core","ProSystem","SNES9x","Stella","VirtualJaguar"]'
+          # Single source: the CORES array in Scripts/cassowary/build-cassowary.sh.
+          # Entries are SourceDir:ProductName; the product name is what
+          # build-core-ios.sh expects and what cores/<name>/ holds.
+          all_cores=$(python3 -c "
+          import json, re
+          text = open('Scripts/cassowary/build-cassowary.sh').read()
+          block = re.search(r'CORES=\((.*?)\)', text, re.S).group(1)
+          print(json.dumps([p.split(':')[0] for p in block.split()]))
+          ")
 
           if [ "${{ github.event_name }}" != "pull_request" ]; then
             # Manual workflow_dispatch run has no PR base to diff against — build everything.

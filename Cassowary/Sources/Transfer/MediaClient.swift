@@ -34,8 +34,6 @@ struct MediaHost: Identifiable, Hashable {
     var platformName: String
 
     var id: String { deviceID }
-
-    var baseURL: URL? { URL(string: "http://\(address):\(port)") }
 }
 
 enum MediaClientError: LocalizedError {
@@ -60,9 +58,9 @@ enum MediaClientError: LocalizedError {
 
 /// Talks to one host: the library, the files, and the saves.
 ///
-/// It is the client half of the protocol and also implements `SavePeer`, so
-/// the same save-sync rules run whether the other end is a phone or a TV.
-final class MediaClient: SavePeer {
+/// It is the client half of the protocol; the same save-sync rules run whether
+/// the other end is a phone or a TV.
+final class MediaClient {
 
     let host: MediaHost
     let token: String?
@@ -79,8 +77,6 @@ final class MediaClient: SavePeer {
         configuration.waitsForConnectivity = false
         self.session = URLSession(configuration: configuration)
     }
-
-    var peerDeviceID: String { host.deviceID }
 
     // MARK: - The simple calls
 
@@ -187,7 +183,7 @@ final class MediaClient: SavePeer {
         progress?(1)
     }
 
-    // MARK: - SavePeer
+    // MARK: - Save sync
 
     func peerSavesIndex() async throws -> TransferProtocol.SavesIndex {
         try await getJSON(TransferProtocol.Path.savesIndex)

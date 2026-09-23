@@ -73,7 +73,6 @@ final class HostShareController: ObservableObject {
     @Published private(set) var pendingSaveCount = 0
     @Published private(set) var conflicts: [SaveConflict] = []
     @Published private(set) var transfers: [Transfer] = []
-    @Published private(set) var indexedGames = 0
 
     /// The library as the server sees it. The library view hands this over
     /// whenever it refreshes.
@@ -175,7 +174,6 @@ final class HostShareController: ObservableObject {
     func updateGames(_ games: [Game]) {
         self.games = games
         HostLibrary.shared.reindex(games)
-        indexedGames = HostLibrary.shared.indexedCount
         refreshSaveState()
     }
 

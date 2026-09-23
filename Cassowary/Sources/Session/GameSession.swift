@@ -43,7 +43,6 @@ final class GameSession: NSObject {
     enum SessionError: LocalizedError {
         case missingSystemPlugin(String)
         case missingCorePlugin(String)
-        case couldNotLoadROM(String)
         case saveStateFailed
         case loadStateFailed
 
@@ -53,8 +52,6 @@ final class GameSession: NSObject {
                 return "No system plugin found for \(id)."
             case .missingCorePlugin(let id):
                 return "No core found that can run \(id)."
-            case .couldNotLoadROM(let reason):
-                return "The game could not be loaded: \(reason)"
             case .saveStateFailed:
                 return "The save state could not be written."
             case .loadStateFailed:
@@ -65,7 +62,6 @@ final class GameSession: NSObject {
 
     let helper = OpenEmuHelperApp()
     private let systemPlugin: OESystemPlugin
-    private let corePlugin: OECorePlugin
     private let romURL: URL
 
     /// The engine bindings driving this game, and the bridge that keeps the
@@ -110,9 +106,6 @@ final class GameSession: NSObject {
     var videoAspectSize: OEIntSize {
         aspectSize.width > 0 && aspectSize.height > 0 ? aspectSize : (helper.gameCore?.aspectSize ?? aspectSize)
     }
-    var discCount: UInt = 0
-    var displayModes: [[String: Any]] = []
-
     /// Whether emulation is paused.
     var isPaused = false
 
@@ -167,7 +160,6 @@ final class GameSession: NSObject {
 
     private init(romURL: URL, system: OESystemPlugin, core: OECorePlugin) throws {
         systemPlugin = system
-        corePlugin = core
         self.romURL = romURL
         coreDisplayName = core.displayName
 
@@ -289,18 +281,6 @@ final class GameSession: NSObject {
         handleKeyEvent(keyCode: Int(event.keycode), isDown: true)
     }
 
-    /// Remap a button through the same call the settings screen makes, so the
-    /// automated test can prove a remap survives a relaunch.
-    func remapForTesting(buttonID: String, keyCode: Int) {
-        guard let player = systemBindings?.keyboardPlayerBindings(forPlayer: 1),
-              let event = InputBindings.keyEvent(keyCode: keyCode, isDown: true)
-        else { return }
-
-        player.assign(event, toKeyWithName: buttonID)
-        InputBindings.save()
-        NSLog("[Cassowary] test remap: %@ → %@", buttonID, KeyboardKey.name(for: keyCode))
-    }
-
     /// Hold the gamepad control with a HID usage, for the automated test.
     ///
     /// The Simulator has no hardware controller, so the test drives the same
@@ -323,17 +303,6 @@ final class GameSession: NSObject {
             return
         }
         press(button.systemKey)
-    }
-
-    /// Report an analog deflection by button name, for automated testing.
-    ///
-    /// Mirrors what the on-screen thumbstick and a physical gamepad stick do.
-    func moveAnalogButton(named name: String, value: CGFloat = 1) {
-        guard let layout, let button = layout.allButtons.first(where: { $0.id == name }) else {
-            NSLog("[Cassowary] no button named %@; have %@", name, layout?.allButtons.map(\.id).joined(separator: ",") ?? "none")
-            return
-        }
-        moveAnalog(button.systemKey, value: value)
     }
 
     /// Release a button by its name.

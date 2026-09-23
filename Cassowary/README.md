@@ -270,9 +270,9 @@ them.
 
 ## Adding a core
 
-`Scripts/cassowary/build-gambatte-ios.sh` is the model, and
 `Scripts/cassowary/build-core-ios.sh` builds any core from its own Xcode
-project. A core needs:
+project — it asks the project for its settings rather than keeping a second
+copy. A core needs:
 
 1. Its Cocoa and OpenGL imports dropped, and any `GL_*` constants replaced with
    the SDK's `OEPixelFormat_*` equivalents.
