@@ -50,6 +50,10 @@ enum ControllerCapture {
     static func setInterfaceActive(_ active: Bool) {
         guard let root, root.controllerUserInteractionEnabled != active else { return }
         root.controllerUserInteractionEnabled = active
+        // Handing the controller over does not move focus on its own. Without
+        // asking, focus stays where it was and the menu cannot be walked.
+        root.setNeedsFocusUpdate()
+        root.updateFocusIfNeeded()
         NSLog("[Cassowary] controller %@", active ? "back with tvOS" : "handed to the game")
     }
 }

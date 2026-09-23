@@ -46,6 +46,10 @@ struct TVPlayerView: View {
     @State private var notice: String?
     /// The game's menu is open. Back opens it and closes it again.
     @State private var isMenuOpen = false
+    /// Whether one of the menu's buttons holds focus. The buttons live in an
+    /// overlay that only exists while the menu is up, so without this nothing
+    /// takes focus when it appears and the remote does nothing over the menu.
+    @FocusState private var menuHasFocus: Bool
     /// A line telling the player how to reach the menu, shown once at the
     /// start and then out of the way. Nothing to focus, so it cannot get in
     /// the way of the game either.
@@ -81,6 +85,14 @@ struct TVPlayerView: View {
         .overlay { if isMenuOpen { gameMenu } }
         .overlay(alignment: .bottom) { hintBanner }
         .overlay(alignment: .bottom) { noticeBanner }
+        // While the menu is closed the game area holds focus, which is what
+        // lets Back be seen at all: an exit command only reaches a view in the
+        // focus chain. With the menu open the buttons take focus instead.
+        //
+        // No focus effect, because the picture should not glow at the edges
+        // just because it can be focused.
+        .focusable(!isMenuOpen)
+        .focusEffectDisabled()
         .task { startGame() }
         .onDisappear {
             hideHint?.cancel()
@@ -115,6 +127,8 @@ struct TVPlayerView: View {
 
                 HStack(spacing: 24) {
                     Button("Resume") { closeMenu() }
+                        .focused($menuHasFocus)
+                        .onAppear { menuHasFocus = true }
 
                     if let session {
                         Button("Save State") {
@@ -290,6 +304,7 @@ struct TVPlayerView: View {
 
     /// Closes the menu and hands the controller back to the game.
     private func closeMenu() {
+        menuHasFocus = false
         withAnimation(.easeInOut(duration: 0.2)) { isMenuOpen = false }
         session?.setPaused(false)
         ControllerCapture.setInterfaceActive(false)
