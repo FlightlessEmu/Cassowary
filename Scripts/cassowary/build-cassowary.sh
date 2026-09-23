@@ -67,7 +67,7 @@ device_udids() {
   xcrun devicectl list devices \
     --hide-default-columns --columns udid --hide-headers \
     --filter 'hardwareProperties.reality != "simulated"' 2>/dev/null \
-    | awk 'NF' | sort -u || true
+    | awk 'NF {print $1}' | sort -u || true
 }
 
 # Each mode differs in three ways: which SDK, which ABI, and which destination
