@@ -1,6 +1,10 @@
 # Credits
 
-OpenEmu-Silicon stands on the shoulders of a lot of excellent work. This file honors everyone who has contributed to the project — from the original OpenEmu team to the illustrators who made the controller artwork.
+Cassowary stands on the shoulders of a lot of excellent work. It is an
+independent project, not affiliated with, sponsored, or endorsed by the
+OpenEmu Team. This file honors everyone whose work it builds on — the original
+OpenEmu team, the Apple Silicon ports that came before it, the authors of the
+emulator cores, and the illustrators who made the controller artwork.
 
 ---
 
@@ -50,11 +54,21 @@ The emulation cores in this repo are derived from the following upstream project
 | PPSSPP | OpenEmu/PPSSPP-Core wrapper — https://github.com/OpenEmu/PPSSPP-Core, against PPSSPP 1.14.4 source. Prebuilt FFmpeg libs from hrydgard/ppsspp-ffmpeg — https://github.com/hrydgard/ppsspp-ffmpeg |
 | Dolphin (GameCube/Wii) | dolphin-emu/dolphin — https://github.com/dolphin-emu/dolphin, pinned to the 2603 release. OpenEmu Metal backend integration layer written for this project. |
 
+The shader compiler bundled into `OpenEmuShaders` also includes glslang
+(BSD-3-Clause and others), SPIRV-Tools, and SPIRV-Cross (Apache-2.0), by the
+Khronos Group and contributors.
+
+Some cores allow **non-commercial use only** — 4DO (FreeDO), Genesis Plus GX,
+Picodrive, Potator (Potator2x / M65C02), and Snes9x. Never charge for a build
+that includes them. The rest are free and open source (GPL, MPL, BSD, and the
+Clarified Artistic License); the per-core list lives in Settings → About in the
+app.
+
 ---
 
-## OpenEmu-Silicon
+## Ancestor: OpenEmu-Silicon
 
-Continued development, macOS compatibility updates, and community infrastructure for this repository.
+Continued development, macOS compatibility updates, and community infrastructure in the fork Cassowary grew out of.
 
 - **nickybmon** — https://github.com/nickybmon
 

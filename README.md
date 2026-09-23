@@ -109,12 +109,14 @@ is to keep something good alive and make it genuinely usable for players.
 
 ## Contributing
 
-Issues, PRs, and testing feedback are all welcome. See
-[`.github/CONTRIBUTING.md`](.github/CONTRIBUTING.md) for how to set up and
-what to expect.
+Issues and testing feedback are welcome — open one on the tracker. Pull
+requests are paused for now, so changes land on `main` directly. See
+[`AGENTS.md`](AGENTS.md) for how the project is set up.
 
 ---
 
 ## License
 
 This project is a derivative of [OpenEmu](https://github.com/OpenEmu/OpenEmu). Most of the engine and SDK carries the OpenEmu Team's original **BSD 3-Clause** copyright header, which is what actually governs those files — see [`LICENSE`](LICENSE) for the full text and how it applies. Individual emulation cores carry their own licenses (GPL v2, MPL 2.0, LGPL 2.1, and others) — see each core's directory for details. The app was built on the OpenEmu team's work.
+
+Lineage, contributors, and the upstream source of every core are credited in [`.github/CREDITS.md`](.github/CREDITS.md). Some shipped cores (4DO, Genesis Plus GX, Picodrive, Potator, Snes9x) are **non-commercial only** — never charge for a build that includes them.

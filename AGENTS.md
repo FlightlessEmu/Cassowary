@@ -231,18 +231,39 @@ that, you are testing the previously staged plugin.
 
 ## License Rules
 
-The main app is **BSD 2-Clause**. Emulator cores are mostly **GPL v2**. Key rules:
+The main app and SDK are **BSD 3-Clause** — the OpenEmu Team's header, which
+is what `LICENSE` and the per-file headers actually say. Emulator cores keep
+their own licenses (GPL v2/v3, MPL 2.0, BSD, Artistic, and some
+non-commercial). Key rules:
 
 1. **Preserve all copyright headers** — never strip or modify the license block at the top of any file
-2. **Add a header to new files** you create in `Cassowary/Sources/`, `OpenEmu-SDK/`, or `OpenEmuKit/`:
+2. **Add a header to new files** you create in `Cassowary/Sources/`, `OpenEmu-SDK/`, or `OpenEmuKit/`, matching the BSD 3-Clause block already used there:
    ```
    // Copyright (c) 2026, OpenEmu Team
    //
    // Redistribution and use in source and binary forms, with or without
    // modification, are permitted provided that the following conditions are met:
-   // ...
+   //     * Redistributions of source code must retain the above copyright
+   //       notice, this list of conditions and the following disclaimer.
+   //     * Redistributions in binary form must reproduce the above copyright
+   //       notice, this list of conditions and the following disclaimer in the
+   //       documentation and/or other materials provided with the distribution.
+   //     * Neither the name of the OpenEmu Team nor the
+   //       names of its contributors may be used to endorse or promote products
+   //       derived from this software without specific prior written permission.
+   //
+   // THIS SOFTWARE IS PROVIDED BY OpenEmu Team ''AS IS'' AND ANY
+   // EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+   // WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+   // DISCLAIMED. IN NO EVENT SHALL OpenEmu Team BE LIABLE FOR ANY
+   // DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+   // (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+   // LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+   // ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+   // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+   // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
    ```
-3. **picodrive is non-commercial** — never charge for a build that includes it
+3. **Some cores are non-commercial only** — 4DO, Genesis Plus GX, Picodrive, Potator, and Snes9x. Never charge for a build that includes them
 4. **No CLA** — your contributions are covered by the license of the files you touch
 
 ---

@@ -484,6 +484,22 @@ struct AboutView: View {
                         .foregroundStyle(.secondary)
                 }
                 .padding(.vertical, 2)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("OpenEmuARM64")
+                        .font(.headline)
+                    Text("By bazley82. The first working Apple Silicon build of OpenEmu's ARM64-capable cores — the port the cores here descend from.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.vertical, 2)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("OpenEmu-Silicon")
+                        .font(.headline)
+                    Text("The upstream fork this project grew out of, where the Metal renderer and the iOS core ports began. Thanks to its maintainers and contributors. Not affiliated with or endorsed by the OpenEmu Team.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.vertical, 2)
             }
 
             Section {
@@ -491,6 +507,14 @@ struct AboutView: View {
                     Text("OpenEmu shader presets")
                         .font(.headline)
                     Text("The video filters — CRT Geom, CRT Royale Kurozumi, MAME HLSL, NTSC, VHS, and the rest — are the shader presets from the OpenEmu project, by their original authors (cgwg, Themaister, hunterk, TroggleMonkey, and others). The pixel-art scalers (Scale2x, Scale3x, 2xSaI, Super 2xSaI, Super Eagle, HQ2x, HQ3x, HQ4x) come from the libretro slang-shaders collection, by Andrea Mazzoleni, Derek Liauw Kie Fa, Maxim Stepin, and others. Each preset keeps its author's license: MIT, BSD-3-Clause, GPL, or LGPL.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.vertical, 2)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Shader compiler")
+                        .font(.headline)
+                    Text("The shader compiler in OpenEmuShaders bundles glslang (BSD-3-Clause and others), SPIRV-Tools, and SPIRV-Cross (both Apache-2.0), by the Khronos Group and contributors.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -524,7 +548,7 @@ struct AboutView: View {
             } header: {
                 Text("Cores")
             } footer: {
-                Text("Each core is its authors' work and keeps its own license. Full texts ship with the core projects.")
+                Text("Each core is its authors' work and keeps its own license; the license is listed beside each one. Some cores allow non-commercial use only — never charge for a build that includes them.")
             }
         }
         .navigationTitle("About")
@@ -552,13 +576,33 @@ struct AboutView: View {
     }
 
     private static let licenses: [String: String] = [
-        "org.openemu.Gambatte": "GPL-2.0-or-later (Gambatte-DMS)",
-        "org.openemu.mGBA": "MPL-2.0 (mGBA)",
-        "org.openemu.melonDS": "GPL-3.0-or-later (melonDS)",
-        "org.openemu.VirtualC64": "GPL-3.0-or-later or MPL-2.0 (VirtualC64)",
-        "org.openemu.VecXGL": "GPL-2.0-or-later (vecx / VecXGL)",
         // Non-commercial only: never charge for a build that includes these.
+        "org.openemu.4DO": "Non-commercial, modified LGPL (4DO / FreeDO)",
         "org.openemu.GenesisPlus": "Non-commercial (Genesis Plus GX)",
         "org.openemu.Picodrive": "Non-commercial (Picodrive)",
+        "org.openemu.Potator": "Non-commercial (Potator2x / M65C02)",
+        "org.openemu.SNES9x": "Non-commercial (Snes9x)",
+        // Free and open source.
+        "org.openemu.Atari800": "GPL-2.0-or-later (Atari800)",
+        "org.openemu.Bliss": "GPL-2.0 (Bliss)",
+        "org.openemu.blueMSX": "GPL-2.0-or-later (blueMSX)",
+        "org.openemu.BSNES": "GPL-3.0 (bsnes)",
+        "org.openemu.CrabEmu": "GPL-2.0 (CrabEmu)",
+        "org.openemu.FCEU": "GPL-2.0-or-later (FCEU)",
+        "org.openemu.Gambatte": "GPL-2.0-or-later (Gambatte-DMS)",
+        "org.openemu.JollyCV": "BSD-3-Clause (JollyCV)",
+        "org.openemu.MAME": "BSD-3-Clause (MAME)",
+        "org.openemu.Mednafen": "GPL-2.0-or-later (Mednafen)",
+        "org.openemu.melonDS": "GPL-3.0-or-later (melonDS)",
+        "org.openemu.mGBA": "MPL-2.0 (mGBA)",
+        "org.openemu.Mupen64Plus": "GPL-2.0 (Mupen64Plus / GLideN64)",
+        "org.openemu.Nestopia": "GPL-2.0-or-later (Nestopia)",
+        "org.openemu.O2EM": "Clarified Artistic License (O2EM)",
+        "org.openemu.PokeMini": "GPL-3.0-or-later (PokeMini)",
+        "org.openemu.ProSystem": "GPL-2.0 (ProSystem)",
+        "org.openemu.Stella": "GPL-2.0-or-later (Stella)",
+        "org.openemu.VecXGL": "GPL-2.0-or-later (vecx / VecXGL)",
+        "org.openemu.VirtualC64": "GPL-3.0-or-later or MPL-2.0 (VirtualC64)",
+        "org.openemu.VirtualJaguar": "GPL-3.0-or-later (Virtual Jaguar)",
     ]
 }
