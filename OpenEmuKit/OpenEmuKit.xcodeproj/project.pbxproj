@@ -28,21 +28,9 @@
 		05E6BA1E24CCD71D00ACFB35 /* OEPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05E6BA1824CCD71800ACFB35 /* OEPlugin.swift */; };
 		05E6BA2224CCD71D00ACFB35 /* OECorePlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05E6BA1C24CCD71D00ACFB35 /* OECorePlugin.swift */; };
 		05E6BA5524CCD9A000ACFB35 /* OpenEmuShaders.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 05E6BA5424CCD9A000ACFB35 /* OpenEmuShaders.framework */; settings = {ATTRIBUTES = (Weak, ); }; };
-		05EEF1052707CA9B008A03DC /* OpenEmuKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 05E6957F24CA5D4200ACFB35 /* OpenEmuKit.framework */; };
-		05EEF1082707D2ED008A03DC /* Nimble in Frameworks */ = {isa = PBXBuildFile; productRef = 05EEF1072707D2ED008A03DC /* Nimble */; };
 		DD75EE5D298976C60056B3BA /* MTL3DGameRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD75EE5C298976C60056B3BA /* MTL3DGameRenderer.swift */; };
 		OE0RA0KITBUILDFILE000000001 /* OERetroAchievementsConstants.swift in Sources */ = {isa = PBXBuildFile; fileRef = OE0RA0KITFILEREF000000001 /* OERetroAchievementsConstants.swift */; };
 /* End PBXBuildFile section */
-
-/* Begin PBXContainerItemProxy section */
-		05EEF0FC2707C96B008A03DC /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 05E6957624CA5D4200ACFB35 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = 05E6957E24CA5D4200ACFB35;
-			remoteInfo = OpenEmuKit;
-		};
-/* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
 		0547FDB824E78F03005C1FFC /* Embed XPC Services */ = {
@@ -87,7 +75,6 @@
 		05E6BA1824CCD71800ACFB35 /* OEPlugin.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = OEPlugin.swift; sourceTree = "<group>"; };
 		05E6BA1C24CCD71D00ACFB35 /* OECorePlugin.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = OECorePlugin.swift; sourceTree = "<group>"; };
 		05E6BA5424CCD9A000ACFB35 /* OpenEmuShaders.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; path = OpenEmuShaders.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-		05EEF0F72707C96B008A03DC /* OpenEmuKitTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = OpenEmuKitTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		05EEF1032707CA7A008A03DC /* XCTest.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = XCTest.framework; path = Platforms/MacOSX.platform/Developer/Library/Frameworks/XCTest.framework; sourceTree = DEVELOPER_DIR; };
 		DD75EE5C298976C60056B3BA /* MTL3DGameRenderer.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MTL3DGameRenderer.swift; sourceTree = "<group>"; };
 		OE0RA0KITFILEREF000000001 /* OERetroAchievementsConstants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OERetroAchievementsConstants.swift; sourceTree = "<group>"; };
@@ -102,15 +89,6 @@
 				05E6BA0F24CCD53100ACFB35 /* OpenEmuBase.framework in Frameworks */,
 				05E6BA1324CCD56200ACFB35 /* OpenEmuSystem.framework in Frameworks */,
 				0572A41128783DDB00AC32F8 /* Atomics in Frameworks */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		05EEF0F42707C96B008A03DC /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				05EEF1052707CA9B008A03DC /* OpenEmuKit.framework in Frameworks */,
-				05EEF1082707D2ED008A03DC /* Nimble in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -135,27 +113,6 @@
 			name = Module;
 			sourceTree = "<group>";
 		};
-		0518D6E624F32DB40037101D /* Combine */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			name = Combine;
-			sourceTree = "<group>";
-		};
-		0547FD9E24E78E92005C1FFC /* XPC */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			name = XPC;
-			sourceTree = "<group>";
-		};
-		054A2C08278CDA2C00A2F241 /* KeyValueScanner */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			name = KeyValueScanner;
-			sourceTree = "<group>";
-		};
 		05E6957524CA5D4200ACFB35 = {
 			isa = PBXGroup;
 			children = (
@@ -164,7 +121,6 @@
 				050A9A0924F9B26C00321847 /* Config.xcconfig */,
 				05E6959324CA5E1100ACFB35 /* Source */,
 				05E6958124CA5D4200ACFB35 /* OpenEmuKit */,
-				05EEF0F82707C96B008A03DC /* OpenEmuKitTests */,
 				05E6958024CA5D4200ACFB35 /* Products */,
 				05E6BA0D24CCD53100ACFB35 /* Frameworks */,
 			);
@@ -176,7 +132,6 @@
 			isa = PBXGroup;
 			children = (
 				05E6957F24CA5D4200ACFB35 /* OpenEmuKit.framework */,
-				05EEF0F72707C96B008A03DC /* OpenEmuKitTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -206,7 +161,6 @@
 				05E6B9D824CCD41A00ACFB35 /* Helper App (Remote Layer) */,
 				05E6BA0824CCD4F500ACFB35 /* Game Core Helper Protocols */,
 				05E6BA1524CCD6B600ACFB35 /* OpenEmuCore */,
-				0547FD9E24E78E92005C1FFC /* XPC */,
 			);
 			name = Classes;
 			sourceTree = "<group>";
@@ -265,11 +219,9 @@
 		05E6BA1524CCD6B600ACFB35 /* OpenEmuCore */ = {
 			isa = PBXGroup;
 			children = (
-				0518D6E624F32DB40037101D /* Combine */,
 				05E6BA5924CCDFB200ACFB35 /* Shaders */,
 				05E6BA1624CCD6E500ACFB35 /* Plugins */,
 				05E6BA2324CCD73E00ACFB35 /* Audio */,
-				05E6BA2C24CCD76700ACFB35 /* Graphics */,
 				05E6BA3324CCD78300ACFB35 /* Utilities */,
 				0572A423287B89CD00AC32F8 /* OEGameStartupInfo.swift */,
 			);
@@ -294,13 +246,6 @@
 			name = Audio;
 			sourceTree = "<group>";
 		};
-		05E6BA2C24CCD76700ACFB35 /* Graphics */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			name = Graphics;
-			sourceTree = "<group>";
-		};
 		05E6BA3324CCD78300ACFB35 /* Utilities */ = {
 			isa = PBXGroup;
 			children = (
@@ -312,18 +257,10 @@
 		05E6BA5924CCDFB200ACFB35 /* Shaders */ = {
 			isa = PBXGroup;
 			children = (
-				054A2C08278CDA2C00A2F241 /* KeyValueScanner */,
 				0547FD9724E7717E005C1FFC /* OEShaderStore.swift */,
 				0578484A25C1392300A842E7 /* ShaderCompilerOptions.swift */,
 			);
 			name = Shaders;
-			sourceTree = "<group>";
-		};
-		05EEF0F82707C96B008A03DC /* OpenEmuKitTests */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			path = OpenEmuKitTests;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -363,27 +300,6 @@
 			productReference = 05E6957F24CA5D4200ACFB35 /* OpenEmuKit.framework */;
 			productType = "com.apple.product-type.framework";
 		};
-		05EEF0F62707C96B008A03DC /* OpenEmuKitTests */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = 05EEF0FE2707C96B008A03DC /* Build configuration list for PBXNativeTarget "OpenEmuKitTests" */;
-			buildPhases = (
-				05EEF0F32707C96B008A03DC /* Sources */,
-				05EEF0F42707C96B008A03DC /* Frameworks */,
-				05EEF0F52707C96B008A03DC /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-				05EEF0FD2707C96B008A03DC /* PBXTargetDependency */,
-			);
-			name = OpenEmuKitTests;
-			packageProductDependencies = (
-				05EEF1072707D2ED008A03DC /* Nimble */,
-			);
-			productName = OpenEmuKitTests;
-			productReference = 05EEF0F72707C96B008A03DC /* OpenEmuKitTests.xctest */;
-			productType = "com.apple.product-type.bundle.unit-test";
-		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -396,9 +312,6 @@
 					05E6957E24CA5D4200ACFB35 = {
 						CreatedOnToolsVersion = 12.0;
 						LastSwiftMigration = 1200;
-					};
-					05EEF0F62707C96B008A03DC = {
-						CreatedOnToolsVersion = 13.0;
 					};
 				};
 			};
@@ -423,7 +336,6 @@
 			);
 			mainGroup = 05E6957524CA5D4200ACFB35;
 			packageReferences = (
-				05EEF1062707D2ED008A03DC /* XCRemoteSwiftPackageReference "Nimble" */,
 				0572A40F28783DDB00AC32F8 /* XCRemoteSwiftPackageReference "swift-atomics" */,
 			);
 			productRefGroup = 05E6958024CA5D4200ACFB35 /* Products */;
@@ -431,20 +343,12 @@
 			projectRoot = "";
 			targets = (
 				05E6957E24CA5D4200ACFB35 /* OpenEmuKit */,
-				05EEF0F62707C96B008A03DC /* OpenEmuKitTests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		05E6957D24CA5D4200ACFB35 /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		05EEF0F52707C96B008A03DC /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -500,22 +404,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		05EEF0F32707C96B008A03DC /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 /* End PBXSourcesBuildPhase section */
-
-/* Begin PBXTargetDependency section */
-		05EEF0FD2707C96B008A03DC /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = 05E6957E24CA5D4200ACFB35 /* OpenEmuKit */;
-			targetProxy = 05EEF0FC2707C96B008A03DC /* PBXContainerItemProxy */;
-		};
-/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		05E6958524CA5D4200ACFB35 /* Debug */ = {
@@ -721,55 +610,6 @@
 			};
 			name = Release;
 		};
-		05EEF0FF2707C96B008A03DC /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				CLANG_CXX_LANGUAGE_STANDARD = "gnu++17";
-				CODE_SIGN_STYLE = Automatic;
-				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
-				GCC_PREPROCESSOR_DEFINITIONS = (
-					"DEBUG=1",
-					"$(inherited)",
-				);
-				GENERATE_INFOPLIST_FILE = YES;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/../Frameworks",
-					"@loader_path/../Frameworks",
-				);
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = org.openemu.OpenEmuKitTests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
-				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
-				SWIFT_VERSION = 5.0;
-			};
-			name = Debug;
-		};
-		05EEF1002707C96B008A03DC /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				CLANG_CXX_LANGUAGE_STANDARD = "gnu++17";
-				CODE_SIGN_STYLE = Automatic;
-				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
-				GENERATE_INFOPLIST_FILE = YES;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/../Frameworks",
-					"@loader_path/../Frameworks",
-				);
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = org.openemu.OpenEmuKitTests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_OPTIMIZATION_LEVEL = "-O";
-				SWIFT_VERSION = 5.0;
-			};
-			name = Release;
-		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -791,15 +631,6 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		05EEF0FE2707C96B008A03DC /* Build configuration list for PBXNativeTarget "OpenEmuKitTests" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				05EEF0FF2707C96B008A03DC /* Debug */,
-				05EEF1002707C96B008A03DC /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
@@ -811,14 +642,6 @@
 				minimumVersion = 1.0.0;
 			};
 		};
-		05EEF1062707D2ED008A03DC /* XCRemoteSwiftPackageReference "Nimble" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/Quick/Nimble";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 10.0.0;
-			};
-		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -826,11 +649,6 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 0572A40F28783DDB00AC32F8 /* XCRemoteSwiftPackageReference "swift-atomics" */;
 			productName = Atomics;
-		};
-		05EEF1072707D2ED008A03DC /* Nimble */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 05EEF1062707D2ED008A03DC /* XCRemoteSwiftPackageReference "Nimble" */;
-			productName = Nimble;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

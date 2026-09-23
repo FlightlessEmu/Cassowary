@@ -4,7 +4,7 @@ _Last updated: 2026-06-08_
 
 This document explains what OpenEmu-Silicon currently supports, what appears to be missing from upstream OpenEmu history, and what work should be prioritized next.
 
-It is **not** a release-process document. For the current core release mechanics, use `.claude/commands/release-core.md` and the scripts it references.
+It is **not** a release-process document. (The old `release-core.md` command was removed with the macOS release tooling.)
 
 Supporting evidence:
 
@@ -112,7 +112,7 @@ OpenEmu org repos worth knowing about:
 | Repo | Why it matters |
 |---|---|
 | `OpenEmu/UME-Core` | Main historical lead for native Arcade/MAME support. |
-| `OpenEmu/VICE-Core` | Best native C64 lead. Investigation in `docs/core-audit/vice-core-investigation.md` found the VICE 3.4 headless library builds on Apple Silicon, but the plugin project still needs porting. |
+| `OpenEmu/VICE-Core` | Best native C64 lead. An earlier investigation found the VICE 3.4 headless library builds on Apple Silicon, but the plugin project still needs porting. |
 | `OpenEmu/VirtualC64-Core` | Older WIP/not-working C64 reference; do not prioritize unless VICE-Core proves unusable. |
 | `OpenEmu/PCSX2-Core` / `OpenEmu/Play-Core` | PS2 research leads, not near-term release candidates. |
 | `OpenEmu/Reicast-Core` | Historical Dreamcast lead; Flycast is the better current path. |
@@ -176,9 +176,8 @@ Investigation result:
 Do next:
 
 1. Open a focused implementation issue for porting native VICE-Core to Apple Silicon.
-2. Use `docs/core-audit/vice-core-investigation.md` as the handoff.
-3. Treat `VirtualC64-Core` as fallback/reference only because it is older and marked WIP/not working.
-4. Do not prioritize Frodo unless a concrete maintained OpenEmu repo/path is found.
+2. Treat `VirtualC64-Core` as fallback/reference only because it is older and marked WIP/not working.
+3. Do not prioritize Frodo unless a concrete maintained OpenEmu repo/path is found.
 
 ### 4. PS2 and VMU: keep out of normal release planning
 

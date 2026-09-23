@@ -161,17 +161,17 @@ enum TransferProtocol {
 
     // MARK: - JSON
 
-    static let encoder: JSONEncoder = {
+    static var encoder: JSONEncoder {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         return encoder
-    }()
+    }
 
-    static let decoder: JSONDecoder = {
+    static var decoder: JSONDecoder {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         return decoder
-    }()
+    }
 }
 
 /// How a save file is named on disk, and how a game is recognized.

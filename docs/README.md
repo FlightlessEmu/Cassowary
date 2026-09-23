@@ -38,5 +38,4 @@ with a [template](adr/template.md).
 
 | Doc | What's in it |
 |---|---|
-| `superpowers/` | Dated plans and specs (working notes). |
 | `images/` | Images used by the docs. |
