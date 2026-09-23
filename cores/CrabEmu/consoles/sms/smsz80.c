@@ -45,6 +45,7 @@ int sms_z80_init(void) {
 
 int sms_z80_shutdown(void) {
     free(cpuz80);
+    cpuz80 = NULL;
 
     return 0;
 }

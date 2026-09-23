@@ -46,10 +46,17 @@ struct TVPlayerView: View {
     @State private var notice: String?
     /// The game's menu is open. Back opens it and closes it again.
     @State private var isMenuOpen = false
-    /// Whether one of the menu's buttons holds focus. The buttons live in an
-    /// overlay that only exists while the menu is up, so without this nothing
-    /// takes focus when it appears and the remote does nothing over the menu.
-    @FocusState private var menuHasFocus: Bool
+
+    /// Which of the menu's buttons is chosen.
+    ///
+    /// The menu opens with Resume selected, so there is a highlight to see and
+    /// something for the remote to act on from the first press.
+    @FocusState private var menuFocus: MenuFocus?
+
+    private enum MenuFocus: Hashable {
+        case resume, saveState, loadState, reset, close
+    }
+
     /// A line telling the player how to reach the menu, shown once at the
     /// start and then out of the way. Nothing to focus, so it cannot get in
     /// the way of the game either.
@@ -82,17 +89,20 @@ struct TVPlayerView: View {
                 errorState(errorMessage)
             }
         }
+        // The game area holds focus while the menu is closed, which is what
+        // lets Back be seen at all: an exit command only reaches a view in the
+        // focus chain. No focus effect, so the picture does not glow at the
+        // edges just because it can be focused.
+        //
+        // Both are applied *before* the menu is overlaid on purpose. They set
+        // environment values, so putting them on the outside would reach into
+        // the menu as well and take away its focus highlight — leaving a menu
+        // that can be opened but gives no sign of what is about to be chosen.
+        .focusable(!isMenuOpen)
+        .focusEffectDisabled()
         .overlay { if isMenuOpen { gameMenu } }
         .overlay(alignment: .bottom) { hintBanner }
         .overlay(alignment: .bottom) { noticeBanner }
-        // While the menu is closed the game area holds focus, which is what
-        // lets Back be seen at all: an exit command only reaches a view in the
-        // focus chain. With the menu open the buttons take focus instead.
-        //
-        // No focus effect, because the picture should not glow at the edges
-        // just because it can be focused.
-        .focusable(!isMenuOpen)
-        .focusEffectDisabled()
         .task { startGame() }
         .onDisappear {
             hideHint?.cancel()
@@ -127,8 +137,7 @@ struct TVPlayerView: View {
 
                 HStack(spacing: 24) {
                     Button("Resume") { closeMenu() }
-                        .focused($menuHasFocus)
-                        .onAppear { menuHasFocus = true }
+                        .focused($menuFocus, equals: .resume)
 
                     if let session {
                         Button("Save State") {
@@ -136,6 +145,7 @@ struct TVPlayerView: View {
                                 report(result, success: "Saved")
                             }
                         }
+                        .focused($menuFocus, equals: .saveState)
 
                         if session.hasSaveState {
                             Button("Load State") {
@@ -143,19 +153,23 @@ struct TVPlayerView: View {
                                     report(result, success: "Loaded")
                                 }
                             }
+                            .focused($menuFocus, equals: .loadState)
                         }
 
                         Button("Reset") {
                             session.resetEmulation()
                             show(notice: "Reset")
                         }
+                        .focused($menuFocus, equals: .reset)
                     }
 
                     Button("Close") { close() }
+                        .focused($menuFocus, equals: .close)
                 }
             }
             .padding(60)
         }
+        .defaultFocus($menuFocus, .resume)
     }
 
     /// Tells the player how to reach the menu, then gets out of the way.
@@ -298,13 +312,24 @@ struct TVPlayerView: View {
         hideHint?.cancel()
         showsHint = false
         session?.setPaused(true)
-        ControllerCapture.setInterfaceActive(true)
+
+        // The menu goes up first, then the controller is handed back. The
+        // hand-back is what asks tvOS for a focus update, and asking before
+        // the buttons exist leaves focus where it was — on the game area that
+        // has just stopped being focusable — so nothing can be walked.
         withAnimation(.easeInOut(duration: 0.2)) { isMenuOpen = true }
+        ControllerCapture.setInterfaceActive(true)
+
+        // The buttons are not in the hierarchy during this turn, so asking for
+        // focus has to come after it.
+        Task { @MainActor in
+            menuFocus = .resume
+        }
     }
 
     /// Closes the menu and hands the controller back to the game.
     private func closeMenu() {
-        menuHasFocus = false
+        menuFocus = nil
         withAnimation(.easeInOut(duration: 0.2)) { isMenuOpen = false }
         session?.setPaused(false)
         ControllerCapture.setInterfaceActive(false)

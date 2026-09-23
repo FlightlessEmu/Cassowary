@@ -237,6 +237,9 @@ int sms_soft_reset(void) {
 }
 
 int sms_shutdown(void) {
+    if(sms_cons._base.initialized == 0)
+        return 0;
+
     sms_cheat_shutdown();
     sms_mem_shutdown();
     sms_vdp_shutdown();

@@ -48,13 +48,21 @@ enum ControllerCapture {
     /// True when the controller should drive the interface: no game running,
     /// or a game running with its controls on screen.
     static func setInterfaceActive(_ active: Bool) {
-        guard let root, root.controllerUserInteractionEnabled != active else { return }
-        root.controllerUserInteractionEnabled = active
-        // Handing the controller over does not move focus on its own. Without
-        // asking, focus stays where it was and the menu cannot be walked.
+        guard let root else { return }
+
+        if root.controllerUserInteractionEnabled != active {
+            root.controllerUserInteractionEnabled = active
+            NSLog("[Cassowary] controller %@", active ? "back with tvOS" : "handed to the game")
+        }
+
+        // Handing the controller over does not move focus on its own, and
+        // asking again is harmless. It has to be asked for whenever a menu
+        // goes up, not only when the flag changes: focus can otherwise sit on
+        // a view that has just stopped being focusable, leaving a menu that
+        // cannot be walked.
+        guard active else { return }
         root.setNeedsFocusUpdate()
         root.updateFocusIfNeeded()
-        NSLog("[Cassowary] controller %@", active ? "back with tvOS" : "handed to the game")
     }
 }
 

@@ -1150,11 +1150,17 @@ int sms_vdp_shutdown(void) {
     smsvdp.framebuffer = (pixel_t *)((uint32)smsvdp.framebuffer & 0xDFFFFFFF);
 #endif
 
-    /* Free all RAM used */
+    /* Free all RAM used. Each pointer is cleared as it is freed, and the
+       whole shutdown is skipped unless the console was initialized: closing
+       a game can otherwise free the same memory twice. */
     free(smsvdp.cram);
+    smsvdp.cram = NULL;
     free(smsvdp.pal);
+    smsvdp.pal = NULL;
     free(smsvdp.vram);
+    smsvdp.vram = NULL;
     free(smsvdp.framebuffer);
+    smsvdp.framebuffer = NULL;
 
     return 0;
 }
