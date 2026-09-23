@@ -809,18 +809,20 @@ const std::string& GPU_HW_Metal::GetFragmentSource(uint32_t kind)
   if (kind >= FS_BATCH)
   {
     const uint32_t variant = kind - FS_BATCH;
-    const auto render_mode = static_cast<BatchRenderMode>((variant >> 6) & 3u);
-    const auto texture_mode = static_cast<GPUTextureMode>((variant >> 4) & 3u);
+    const auto render_mode = static_cast<BatchRenderMode>((variant >> 8) & 3u);
+    const auto texture_mode = static_cast<GPUTextureMode>((variant >> 4) & 15u);
     const bool dithering = (variant & 2u) != 0;
     const bool interlacing = (variant & 1u) != 0;
 
-    const uint32_t key = (variant >> 4) | (variant & 3u);
-    auto it = m_batch_fragment_sources.find(key);
+    // The whole variant is the key. A folded-down key used to collide: the
+    // texture mode and the dither/interlace flags both landed in the low bits,
+    // so a 16-bit batch and a 4-bit dithered one shared a shader.
+    auto it = m_batch_fragment_sources.find(variant);
     if (it == m_batch_fragment_sources.end())
     {
       std::string source = ShaderGen::FinalizeMetalShader(
         m_shadergen->GenerateBatchFragmentShader(render_mode, texture_mode, dithering, interlacing));
-      it = m_batch_fragment_sources.emplace(key, std::move(source)).first;
+      it = m_batch_fragment_sources.emplace(variant, std::move(source)).first;
     }
     return it->second;
   }
@@ -937,7 +939,10 @@ void GPU_HW_Metal::DrawBatchVertices(BatchRenderMode render_mode, uint32_t base_
   if (encoder == nil)
     return;
 
-  const uint32_t variant = (static_cast<uint32_t>(render_mode) << 6) |
+  // Four bits for the texture mode: it runs 0-8 (the raw modes and Disabled),
+  // and squeezing it into two bits overflowed into the render mode's bits and
+  // picked the wrong shader for every untextured or raw-texture batch.
+  const uint32_t variant = (static_cast<uint32_t>(render_mode) << 8) |
                            (static_cast<uint32_t>(m_batch.texture_mode) << 4) |
                            (m_batch.dithering ? 2u : 0u) | (m_batch.interlacing ? 1u : 0u);
 
@@ -1298,7 +1303,12 @@ void GPU_HW_Metal::UpdateVRAM(uint32_t x, uint32_t y, uint32_t width, uint32_t h
   // A write that runs off the edge of VRAM wraps, which is the one case that
   // still needs the shader.
   const bool wraps = (bounds.GetWidth() != width || bounds.GetHeight() != height);
-  if (m_resolution_scale == 1 && !wraps)
+
+  // A masked write has to ask what VRAM already holds, and the GPU may still be
+  // drawing into it inside the same frame, so the CPU cannot answer that. Those
+  // writes go through the shader, which does the test with the depth buffer the
+  // way the other backends do. The straight copy stays on the CPU.
+  if (m_resolution_scale == 1 && !wraps && !check_mask)
   {
     m_vram_upload_buffer.resize(num_pixels);
     const uint16_t mask_or = set_mask ? 0x8000 : 0x0000;
@@ -1516,6 +1526,38 @@ void GPU_HW_Metal::ClearDepthBuffer()
   m_encoder = nil;
   m_encoder_target = RenderTarget::None;
   m_last_depth_z = 1.0f;
+}
+
+bool GPU_HW_Metal::DebugWriteVRAM(const char* path) const
+{
+  if (!m_vram_texture.IsValid() || !m_vram_texture.IsCpuAccessible())
+    return false;
+
+  const uint32_t width = m_vram_texture.GetWidth();
+  const uint32_t height = m_vram_texture.GetHeight();
+  std::vector<uint8_t> rgba(static_cast<size_t>(width) * height * 4);
+  m_vram_texture.Download(rgba.data());
+
+  FILE* file = std::fopen(path, "wb");
+  if (!file)
+    return false;
+
+  std::fprintf(file, "P6\n%u %u\n255\n", width, height);
+  std::vector<uint8_t> row(static_cast<size_t>(width) * 3);
+  for (uint32_t y = 0; y < height; y++)
+  {
+    for (uint32_t x = 0; x < width; x++)
+    {
+      const uint8_t* pixel = &rgba[(static_cast<size_t>(y) * width + x) * 4];
+      row[(x * 3) + 0] = pixel[0];
+      row[(x * 3) + 1] = pixel[1];
+      row[(x * 3) + 2] = pixel[2];
+    }
+    std::fwrite(row.data(), 1, row.size(), file);
+  }
+
+  std::fclose(file);
+  return true;
 }
 
 std::unique_ptr<GPU> GPU::CreateHardwareMetalRenderer()

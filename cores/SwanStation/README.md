@@ -76,14 +76,31 @@ different points. Dumping a run of consecutive frames from each
 renderer hands over RGB565 while the hardware one works in RGBA8, so a few
 levels of rounding difference are expected everywhere.
 
-Where it stands: on the Crash Bandicoot title screen (512x224, frame 3000) the
-two renderers agree exactly, pixel for pixel. On the main menu the same disc
-differs by about a mean of 20 per channel, and the difference picture puts it
-on the logo and the character - the brightly lit, textured parts - while the
-background art and the menu text match. Forcing blending off does not change
-it, so the next things to look at are the texture upload path for the writes
-that are still done with the shader (wrapped writes, and anything above 1x
-resolution) and the vertex colour the batch shader multiplies by.
+Where it stands:
+
+- The Crash Bandicoot title screen (512x224, frame 3000) is **pixel-identical**
+  between the two renderers (mean difference 0.00 over all 114,688 pixels).
+- The main menu is at the format-conversion floor: best-aligned pair differs by
+  a mean of 1.97 per channel, which is the RGB565-vs-RGBA8 rounding plus
+  dithering. The remaining movement is game animation (Crash blinks, and a top
+  edge pixel blinks on a 2-frames-on 2-frames-off cycle), so runs only compare
+  after aligning by content.
+
+The bug that got it there: the batch fragment-shader variant packed the texture
+mode into two bits, but `GPUTextureMode` runs 0-8, so the top bit overflowed
+into the render mode and the shader cache key folded two fields into the same
+low bits. Every untextured or raw-texture batch got the wrong shader body.
+The variant is now `(render_mode << 8) | (texture_mode << 4) | ...` and the
+cache is keyed on the whole variant. That one change took the menu from a mean
+difference of 43.8 to 9.0; the rest was animation phase.
+
+Ruled out along the way, so nobody re-tests them: the geometry and vertex
+colours (with every texture sample forced to white the black areas vanish),
+the texture window (neutralising it is byte-identical), blending (forcing it
+off moves the mean 9.01 to 9.15), the masked-write CPU path (masked writes now
+go through the shader, since the CPU cannot see in-flight GPU work), and the
+display path (the VRAM dump shows the logo texture present while the
+framebuffer holds it wrongly drawn, so it was always in the draws).
 
 What is deliberately not there yet:
 

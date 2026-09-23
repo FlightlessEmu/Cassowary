@@ -38,6 +38,8 @@
 #import <Metal/Metal.h>
 
 #include "SwanStationLibretroBridge.h"
+#include "core/gpu.h"
+#include "core/gpu_hw_metal.h"
 #include "core/metal_device.h"
 
 #include <cstdint>
@@ -76,6 +78,7 @@ int main(int argc, char** argv)
     std::string save_directory;
     std::string game_path;
     std::string output_path;
+    std::string vram_path;
     int frames = 300;
     int series = 0;
     bool software = false;
@@ -93,6 +96,8 @@ int main(int argc, char** argv)
         game_path = value();
       else if (argument == "--out")
         output_path = value();
+      else if (argument == "--vram")
+        vram_path = value();
       else if (argument == "--frames")
         frames = std::atoi(value().c_str());
       else if (argument == "--series")
@@ -208,6 +213,15 @@ int main(int argc, char** argv)
 
     for (int i = 0; i < frames; i++)
       SwanStationBridge::RunFrame();
+
+    if (!vram_path.empty())
+    {
+      auto* metal_renderer = dynamic_cast<GPU_HW_Metal*>(g_gpu.get());
+      if (metal_renderer != nullptr && metal_renderer->DebugWriteVRAM(vram_path.c_str()))
+        std::printf("wrote %s (VRAM)\n", vram_path.c_str());
+      else
+        std::printf("no VRAM to dump\n");
+    }
 
     if (series > 0)
     {

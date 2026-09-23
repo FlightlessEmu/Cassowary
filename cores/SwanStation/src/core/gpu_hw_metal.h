@@ -93,6 +93,10 @@ public:
   void Reset(bool clear_vram) override;
   bool DoState(StateWrapper& sw, HostDisplayTexture** host_texture, bool update_display) override;
 
+  /// Writes VRAM out as a PPM. For the frame dumper: seeing what the renderer
+  /// holds says whether a wrong picture is the upload or the sampling.
+  bool DebugWriteVRAM(const char* path) const;
+
   void ResetGraphicsAPIState() override;
   void RestoreGraphicsAPIState() override;
   void UpdateSettings() override;
@@ -123,7 +127,9 @@ public:
     FS_VRAM_UPDATE_DEPTH = 8,
     FS_DOWNSAMPLE = 9,
 
-    FS_BATCH = 1000,   // 1000 + (render_mode << 6) | (texture_mode << 4) | (dithering << 1) | interlacing
+    // (render_mode << 8) | (texture_mode << 4) | (dithering << 1) | interlacing.
+    // Texture mode needs the four bits: it runs 0-8.
+    FS_BATCH = 1000,
     FS_DISPLAY = 2000, // 2000 + (depth_24bit << 1) | interlaced
   };
 

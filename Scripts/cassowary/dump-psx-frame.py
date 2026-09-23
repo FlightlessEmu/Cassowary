@@ -152,6 +152,7 @@ def main():
     parser.add_argument('--bios', default=None)
     parser.add_argument('--save', default=os.path.join(BUILD_DIR, 'save'))
     parser.add_argument('--software', action='store_true')
+    parser.add_argument('--vram', default=None, help='also write the renderer VRAM out as a PPM here')
     parser.add_argument('--verbose', action='store_true')
     parser.add_argument('--no-build', action='store_true')
     args = parser.parse_args()
@@ -176,6 +177,8 @@ def main():
                '--frames', str(args.frames)]
     if args.series:
         command += ['--series', str(args.series)]
+    if args.vram:
+        command += ['--vram', os.path.abspath(args.vram)]
     if args.software:
         command.append('--software')
 
