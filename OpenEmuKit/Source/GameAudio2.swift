@@ -200,20 +200,8 @@ final public class GameAudio2 {
         }
     }
     
-#if canImport(AppKit) && !targetEnvironment(macCatalyst)
-    private var defaultAudioOutputDeviceID: OEPlatformAudioDeviceID {
-        var addr = AudioObjectPropertyAddress(mSelector: kAudioHardwarePropertyDefaultOutputDevice,
-                                              mScope: kAudioObjectPropertyScopeGlobal,
-                                              mElement: kAudioObjectPropertyElementMain)
-        var deviceID = AudioObjectID()
-        var size = UInt32(MemoryLayout<AudioObjectID>.size)
-        AudioObjectGetPropertyData(AudioObjectID(kAudioObjectSystemObject), &addr, 0, nil, &size, &deviceID)
-        return deviceID
-    }
-#else
-    /// iOS always plays to the system output, so there is nothing to look up.
+    /// There is one output, so there is nothing to look up.
     private var defaultAudioOutputDeviceID: OEPlatformAudioDeviceID { 0 }
-#endif
     
     func setOutputDeviceID(_ newOutputDeviceID: OEPlatformAudioDeviceID) {
         let id: OEPlatformAudioDeviceID
@@ -228,16 +216,6 @@ final public class GameAudio2 {
         
         engine.stop()
 
-#if canImport(AppKit) && !targetEnvironment(macCatalyst)
-        // Selecting an output device is a macOS feature. iOS routes to the
-        // system output and offers no choice.
-        do {
-            try engine.outputNode.auAudioUnit.setDeviceID(id)
-        } catch {
-            log.error("Unable to set output device ID \(id): \(error.localizedDescription, privacy: .public)")
-        }
-#endif
-
         connectNodes()
         
         if isRunning && !engine.isRunning {
@@ -246,11 +224,5 @@ final public class GameAudio2 {
         }
     }
     
-    var outputDeviceID: OEPlatformAudioDeviceID {
-#if canImport(AppKit) && !targetEnvironment(macCatalyst)
-        isDefaultOutputDevice ? 0 : engine.outputNode.auAudioUnit.deviceID
-#else
-        0
-#endif
-    }
+    var outputDeviceID: OEPlatformAudioDeviceID { 0 }
 }

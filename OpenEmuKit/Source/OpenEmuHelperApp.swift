@@ -54,10 +54,6 @@ extension OSLog {
     
     // Video
     var _gameRenderer: GameRenderer!
-#if canImport(OpenGL) && !targetEnvironment(macCatalyst)
-    var _openGLGameRenderer: OpenGLGameRenderer?
-    var _surface: CoreVideoTexture!
-#endif
     var flipVertically: Bool = false
     
     // OE stuff
@@ -72,14 +68,11 @@ extension OSLog {
     
     var _currentShader: URL?
     
-#if canImport(OpenGL) && !targetEnvironment(macCatalyst)
-    var _gameVideoCAContext: CAContext!
-#endif
     
     var _videoLayer: GameHelperMetalLayer!
 
-// Available wherever the helper runs in-process: iOS and Mac Catalyst. On
-// native macOS the layer is published to the host through a CAContext instead.
+// Available wherever the helper runs in-process: iOS, the Apple TV
+// and Mac Catalyst all run the helper inside the app.
 #if canImport(UIKit)
     /// The Metal layer the core renders into.
     public var videoLayer: CAMetalLayer? { _videoLayer }
@@ -200,9 +193,6 @@ extension OSLog {
         _videoLayer.device = _device
         _videoLayer.isOpaque = true
         _videoLayer.framebufferOnly = true
-#if canImport(AppKit) && !targetEnvironment(macCatalyst)
-        _videoLayer.displaySyncEnabled = true
-#endif
         
         let rendering = gameCore.gameCoreRendering
         switch rendering {
@@ -210,12 +200,7 @@ extension OSLog {
             _gameRenderer = setup2dVideo()
             
         case .openGL2, .openGL3:
-#if canImport(OpenGL) && !targetEnvironment(macCatalyst)
-            _openGLGameRenderer = setupOpenGLVideo()
-            _gameRenderer       = _openGLGameRenderer
-#else
             fatalError("This core needs an OpenGL renderer, which iOS does not provide.")
-#endif
         case .metal2:
             _gameRenderer = setup3dVideo()
             
@@ -240,29 +225,8 @@ extension OSLog {
         }
     }
     
-#if canImport(OpenGL) && !targetEnvironment(macCatalyst)
-    private func setupOpenGLVideo() -> OpenGLGameRenderer {
-        precondition(gameCore.gameCoreRendering == .openGL2 || gameCore.gameCoreRendering == .openGL3)
-        _surface = CoreVideoTexture(device: _device, metalPixelFormat: .bgra8Unorm)
-
-        if gameCore.gameCoreRendering == .openGL2 {
-            return OpenGL2GameRenderer(withInteropTexture: _surface, gameCore: gameCore)
-        } else {
-            return OpenGL3GameRenderer(withInteropTexture: _surface, gameCore: gameCore)
-        }
-    }
-#endif
     
     private func setupCVBuffer() {
-        let surfaceSize = gameCore.bufferSize
-        let size = CGSize(width: CGFloat(surfaceSize.width), height: CGFloat(surfaceSize.height))
-        
-#if canImport(OpenGL) && !targetEnvironment(macCatalyst)
-        if gameCore.gameCoreRendering != .bitmap && gameCore.gameCoreRendering != .metal2 {
-            _surface.size = size
-            flipVertically = _surface.metalTextureIsFlippedVertically
-        }
-#endif
         
         _gameRenderer.update()
         let rect = gameCore.screenRect
@@ -284,15 +248,6 @@ extension OSLog {
             _videoLayer.bounds = .init(x: 0, y: 0, width: Int(gameCore.bufferSize.width), height: Int(gameCore.bufferSize.height))
             _filterChain.drawableSize = _videoLayer.drawableSize
 
-#if canImport(OpenGL) && !targetEnvironment(macCatalyst)
-            // On macOS the video is rendered by this process and shown by the
-            // host app, so the layer is published through a CAContext. On iOS
-            // the helper runs inside the app and the layer is used directly.
-            let connectionID = CGSMainConnectionID()
-            _gameVideoCAContext = CAContext(cgsConnection: connectionID, options: [kCAContextCIFilterBehavior: "ignore"])
-            _gameVideoCAContext.layer = _videoLayer
-            updateRemoteContextID(_gameVideoCAContext.contextId)
-#endif
         }
     }
     
@@ -481,11 +436,6 @@ extension OSLog {
         gameCoreOwner.setScreenSize(newScreenSize, aspectSize: newAspectSize)
     }
     
-#if canImport(OpenGL) && !targetEnvironment(macCatalyst)
-    private func updateRemoteContextID(_ newContextID: CAContextID) {
-        gameCoreOwner.setRemoteContextID(newContextID)
-    }
-#endif
 }
 
 // MARK: - OEGameCoreHelper methods
@@ -858,29 +808,16 @@ extension OSLog {
 
 @objc extension OpenEmuHelperApp: OERenderDelegate {
     public func presentDoubleBufferedFBO() {
-#if canImport(OpenGL) && !targetEnvironment(macCatalyst)
-        _openGLGameRenderer?.presentDoubleBufferedFBO()
-#endif
     }
     
     public func willRenderFrameOnAlternateThread() {
-#if canImport(OpenGL) && !targetEnvironment(macCatalyst)
-        _openGLGameRenderer?.willRenderFrameOnAlternateThread()
-#endif
     }
     
     public func didRenderFrameOnAlternateThread() {
-#if canImport(OpenGL) && !targetEnvironment(macCatalyst)
-        _openGLGameRenderer?.didRenderFrameOnAlternateThread()
-#endif
     }
     
     public var presentationFramebuffer: Any? {
-#if canImport(OpenGL) && !targetEnvironment(macCatalyst)
-        _openGLGameRenderer?.presentationFramebuffer
-#else
         nil
-#endif
     }
     
     public func willExecute() {
@@ -1065,15 +1002,7 @@ extension OSLog {
                 //
                 // `present(afterMinimumDuration:)` only exists on macOS. On iOS the
                 // display drives the pacing itself, so a plain present is used.
-#if canImport(AppKit) && !targetEnvironment(macCatalyst)
-                if #available(macOS 10.15.4, *) {
-                    finalCB.present(drawable, afterMinimumDuration: 1.0 / gameCore.frameInterval)
-                } else {
-                    finalCB.present(drawable)
-                }
-#else
                 finalCB.present(drawable)
-#endif
             } else {
                 finalCB.present(drawable)
             }
@@ -1137,9 +1066,6 @@ extension OSLog {
         // Required so that _videoLayer.nextDrawable() vends frames faster than the display refresh rate
         // Fixes: https://github.com/OpenEmu/OpenEmu/issues/4780
         // The property is macOS-only; iOS drives drawable pacing differently.
-#if canImport(AppKit) && !targetEnvironment(macCatalyst)
-        _videoLayer.displaySyncEnabled = !enable
-#endif
         gameCoreOwner.fastForwardGameplay(enable)
     }
 
