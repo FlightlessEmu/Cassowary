@@ -85,6 +85,9 @@ final class GameSession: NSObject {
     /// The system's name, for display.
     var systemName: String { systemPlugin.systemName }
 
+    /// The system's identifier, for per-system choices like video filters.
+    var systemIdentifier: String { systemPlugin.systemIdentifier }
+
     var isRunning = false
 
     /// Plays the emulated Rumble Pak as device haptics.

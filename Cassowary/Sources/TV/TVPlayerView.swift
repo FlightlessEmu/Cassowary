@@ -46,6 +46,15 @@ struct TVPlayerView: View {
     @State private var notice: String?
     /// The game's menu is open. Back opens it and closes it again.
     @State private var isMenuOpen = false
+    /// The menu is showing the filter list instead of its buttons. Back
+    /// returns to the buttons, so the list is one level, not a maze.
+    @State private var showingFilters = false
+
+    /// The installed filters and the remembered picks, shared with the
+    /// phone: the same presets, the same per-system memory.
+    @StateObject private var shaderCatalog = ShaderCatalog()
+    /// The filter on the running game, if any.
+    @State private var shaderName: String?
 
     /// Which of the menu's buttons is chosen.
     ///
@@ -53,8 +62,17 @@ struct TVPlayerView: View {
     /// something for the remote to act on from the first press.
     @FocusState private var menuFocus: MenuFocus?
 
+    /// Which filter row is chosen. None is a row of its own, so it needs a
+    /// case instead of sharing the optional's absence with "nothing".
+    @FocusState private var filterFocus: FilterFocus?
+
     private enum MenuFocus: Hashable {
-        case resume, saveState, loadState, reset, close
+        case resume, saveState, loadState, reset, filter, close
+    }
+
+    private enum FilterFocus: Hashable {
+        case none
+        case shader(String)
     }
 
     /// A line telling the player how to reach the menu, shown once at the
@@ -109,10 +127,13 @@ struct TVPlayerView: View {
             stopGame()
         }
         .onExitCommand {
-            // Back opens the game's menu and closes it again. Closing the game
-            // is a button on the menu, so a stray press can never throw a
+            // Back walks one level at a time: out of the filter list to the
+            // menu, out of the menu to the game. Closing the game stays a
+            // button on the menu, so a stray press can never throw a
             // session away — which is what made the old control row dangerous.
-            if isMenuOpen {
+            if showingFilters {
+                closeFilters()
+            } else if isMenuOpen {
                 closeMenu()
             } else {
                 openMenu()
@@ -135,41 +156,101 @@ struct TVPlayerView: View {
                     .font(.title2.weight(.semibold))
                     .foregroundStyle(.white)
 
-                HStack(spacing: 24) {
-                    Button("Resume") { closeMenu() }
-                        .focused($menuFocus, equals: .resume)
-
-                    if let session {
-                        Button("Save State") {
-                            session.saveState { result in
-                                report(result, success: "Saved")
-                            }
-                        }
-                        .focused($menuFocus, equals: .saveState)
-
-                        if session.hasSaveState {
-                            Button("Load State") {
-                                session.loadState { result in
-                                    report(result, success: "Loaded")
-                                }
-                            }
-                            .focused($menuFocus, equals: .loadState)
-                        }
-
-                        Button("Reset") {
-                            session.resetEmulation()
-                            show(notice: "Reset")
-                        }
-                        .focused($menuFocus, equals: .reset)
-                    }
-
-                    Button("Close") { close() }
-                        .focused($menuFocus, equals: .close)
+                if showingFilters {
+                    filterList
+                } else {
+                    menuButtons
                 }
             }
             .padding(60)
         }
         .defaultFocus($menuFocus, .resume)
+    }
+
+    /// The menu's buttons: resume, states, reset, filter, close.
+    private var menuButtons: some View {
+        HStack(spacing: 24) {
+            Button("Resume") { closeMenu() }
+                .focused($menuFocus, equals: .resume)
+
+            if let session {
+                Button("Save State") {
+                    session.saveState { result in
+                        report(result, success: "Saved")
+                    }
+                }
+                .focused($menuFocus, equals: .saveState)
+
+                if session.hasSaveState {
+                    Button("Load State") {
+                        session.loadState { result in
+                            report(result, success: "Loaded")
+                        }
+                    }
+                    .focused($menuFocus, equals: .loadState)
+                }
+
+                Button("Reset") {
+                    session.resetEmulation()
+                    show(notice: "Reset")
+                }
+                .focused($menuFocus, equals: .reset)
+
+                Button("Filter: \(shaderName ?? "None")") {
+                    openFilters()
+                }
+                .focused($menuFocus, equals: .filter)
+            }
+
+            Button("Close") { close() }
+                .focused($menuFocus, equals: .close)
+        }
+    }
+
+    /// The filter list, in place of the buttons. The current filter carries
+    /// a checkmark and starts selected, so the remote acts on something
+    /// from the first press — the same rule as the menu itself.
+    private var filterList: some View {
+        VStack(spacing: 24) {
+            Text("Video Filter")
+                .font(.title2.weight(.semibold))
+                .foregroundStyle(.white)
+
+            ScrollView(.vertical) {
+                // A plain stack, not a lazy one, on purpose: the current
+                // filter starts selected, and a lazy row that does not exist
+                // yet cannot take focus — the request would silently drop
+                // and the remote would act on nothing.
+                VStack(spacing: 12) {
+                    filterRow(name: nil)
+                    ForEach(shaderCatalog.names, id: \.self) { name in
+                        filterRow(name: name)
+                    }
+                }
+                .padding(.horizontal, 40)
+            }
+            .frame(maxHeight: 560)
+        }
+    }
+
+    private func filterRow(name: String?) -> some View {
+        let focus: FilterFocus = name.map(FilterFocus.shader) ?? .none
+        return Button {
+            applyFilter(named: name)
+        } label: {
+            HStack {
+                Text(name ?? "None")
+                    .font(.headline)
+                Spacer()
+                if shaderName == name {
+                    Image(systemName: "checkmark")
+                }
+            }
+            .frame(width: 560)
+            .padding(.vertical, 14)
+            .padding(.horizontal, 24)
+        }
+        .focused($filterFocus, equals: focus)
     }
 
     /// Tells the player how to reach the menu, then gets out of the way.
@@ -234,6 +315,7 @@ struct TVPlayerView: View {
 
             self.session = session
             session.start { }
+            applySavedFilter(on: session)
 
             // A word about the menu, then out of the way. Nothing focusable,
             // so it cannot hold the game's controller.
@@ -250,6 +332,18 @@ struct TVPlayerView: View {
                 Task {
                     try? await Task.sleep(for: .seconds(4))
                     openMenu()
+                }
+            }
+
+            // Used by the run script to check the filter list without a
+            // remote: opens the menu, then the filters. Only set from the
+            // command line, so normal play never sees it.
+            if UserDefaults.standard.bool(forKey: "cassowary.testOpenFilters") {
+                Task {
+                    try? await Task.sleep(for: .seconds(4))
+                    openMenu()
+                    try? await Task.sleep(for: .seconds(2))
+                    openFilters()
                 }
             }
 
@@ -330,9 +424,66 @@ struct TVPlayerView: View {
     /// Closes the menu and hands the controller back to the game.
     private func closeMenu() {
         menuFocus = nil
+        showingFilters = false
+        filterFocus = nil
         withAnimation(.easeInOut(duration: 0.2)) { isMenuOpen = false }
         session?.setPaused(false)
         ControllerCapture.setInterfaceActive(false)
+    }
+
+    /// Shows the filter list in place of the menu's buttons. The current
+    /// filter starts selected. The rows are not in the hierarchy during
+    /// this turn, so asking for focus comes after it.
+    private func openFilters() {
+        menuFocus = nil
+        withAnimation(.easeInOut(duration: 0.2)) { showingFilters = true }
+        Task { @MainActor in
+            filterFocus = shaderName.map(FilterFocus.shader) ?? .none
+        }
+    }
+
+    /// Returns from the filter list to the menu's buttons, landing back on
+    /// the Filter button the list came from.
+    private func closeFilters() {
+        filterFocus = nil
+        withAnimation(.easeInOut(duration: 0.2)) { showingFilters = false }
+        Task { @MainActor in
+            menuFocus = .filter
+        }
+    }
+
+    // MARK: - Video filter
+
+    /// Apply the filter remembered for this system, if any.
+    ///
+    /// The game starts unfiltered and the shader is compiled once it is
+    /// running, so a slow first compile never delays the launch. Same rule
+    /// as the phone.
+    private func applySavedFilter(on session: GameSession) {
+        shaderName = shaderCatalog.resolvedShaderName(forSystem: session.systemIdentifier)
+        if let shader = shaderCatalog.shader(named: shaderName) {
+            session.setShader(shader)
+        }
+    }
+
+    /// Switch the filter on the running game and remember the pick for this
+    /// system, so the next launch uses it. The list closes and the menu
+    /// returns, so the result is visible straight away.
+    private func applyFilter(named name: String?) {
+        guard let session else { return }
+        shaderName = name
+        shaderCatalog.setChoice(name.map { .shader($0) } ?? .none, forSystem: session.systemIdentifier)
+
+        show(notice: name.map { "Applying \($0)…" } ?? "Filter off")
+        session.setShader(shaderCatalog.shader(named: name)) { result in
+            switch result {
+            case .success:
+                show(notice: name.map { "\($0) on" } ?? "Filter off")
+            case .failure(let error):
+                show(notice: error.localizedDescription)
+            }
+        }
+        closeFilters()
     }
 
     private func close() {

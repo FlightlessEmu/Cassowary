@@ -191,6 +191,9 @@ targets:
       # runs, plus the input and layout code the session needs.
       - path: Sources/TV
       - path: Sources/Session
+      # The video filter list, shared with the phone: same presets, same
+      # per-system memory. It only needs Foundation and OpenEmuKit.
+      - path: Sources/Models/ShaderCatalog.swift
       - path: Sources/Views/GameLayerView.swift
       - path: Sources/Controls/ControllerLayout.swift
       - path: Sources/Controls/InputBindings.swift
@@ -218,6 +221,12 @@ targets:
         buildPhase: resources
         excludes:
           - "*.md"
+      # The video filters, copied as one folder so the tree survives.
+      # Same entry as the phone target: OEShaderStore reads the
+      # Shaders/<name>/<name>.slangp layout from the main bundle.
+      - path: Resources/Shaders
+        type: folder
+        buildPhase: resources
 
     settings:
       base:
