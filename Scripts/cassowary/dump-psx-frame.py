@@ -153,6 +153,8 @@ def main():
     parser.add_argument('--save', default=os.path.join(BUILD_DIR, 'save'))
     parser.add_argument('--software', action='store_true')
     parser.add_argument('--vram', default=None, help='also write the renderer VRAM out as a PPM here')
+    parser.add_argument('--press', action='append', default=[],
+                        help='hold a joypad button for frames ID,START,END (repeatable)')
     parser.add_argument('--verbose', action='store_true')
     parser.add_argument('--no-build', action='store_true')
     args = parser.parse_args()
@@ -179,6 +181,8 @@ def main():
         command += ['--series', str(args.series)]
     if args.vram:
         command += ['--vram', os.path.abspath(args.vram)]
+    for press in args.press:
+        command += ['--press', press]
     if args.software:
         command.append('--software')
 

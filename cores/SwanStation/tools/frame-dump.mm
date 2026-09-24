@@ -64,9 +64,25 @@ static bool WritePPM(const char* path, const uint8_t* rgb, uint32_t width, uint3
 
 static void AudioCallback(const int16_t*, size_t, void*) {}
 
-static int16_t InputStateCallback(unsigned, unsigned, unsigned, unsigned, void*)
+// Scripted buttons for getting past the title and menu: entries of
+// ID,START,END hold libretro joypad button ID down for frames
+// [START, END). Frame counts drift between runs, so mash generously.
+struct Press
 {
-  // Nothing held. The frame dumper is for the picture, not for playing.
+  unsigned id;
+  int start;
+  int end;
+};
+static std::vector<Press> s_presses;
+static int s_frame = 0;
+
+static int16_t InputStateCallback(unsigned, unsigned, unsigned, unsigned id, void*)
+{
+  for (const Press& press : s_presses)
+  {
+    if (id == press.id && s_frame >= press.start && s_frame < press.end)
+      return 1;
+  }
   return 0;
 }
 
@@ -104,6 +120,13 @@ int main(int argc, char** argv)
         series = std::atoi(value().c_str());
       else if (argument == "--software")
         software = true;
+      else if (argument == "--press")
+      {
+        // ID,START,END, repeatable.
+        Press press = {};
+        if (std::sscanf(value().c_str(), "%u,%d,%d", &press.id, &press.start, &press.end) == 3)
+          s_presses.push_back(press);
+      }
       else
       {
         std::fprintf(stderr, "unknown argument: %s\n", argument.c_str());
@@ -212,7 +235,10 @@ int main(int argc, char** argv)
     };
 
     for (int i = 0; i < frames; i++)
+    {
       SwanStationBridge::RunFrame();
+      s_frame++;
+    }
 
     if (!vram_path.empty())
     {
@@ -230,6 +256,7 @@ int main(int argc, char** argv)
       for (int i = 0; i < series; i++)
       {
         SwanStationBridge::RunFrame();
+        s_frame++;
 
         char path[1024];
         std::snprintf(path, sizeof(path), "%s-%04d.ppm", output_path.c_str(), i);
