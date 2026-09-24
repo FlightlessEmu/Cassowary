@@ -474,24 +474,26 @@ static int16_t SwanStationInputState(unsigned port, unsigned device, unsigned in
 
 - (oneway void)didPushPSXButton:(OEPSXButton)button forPlayer:(NSUInteger)player
 {
-    if (player >= 2 || button >= OEPSXButtonCount)
+    // Players are 1-based all the way down; the pad state is 0-based.
+    if (player == 0 || player > 2 || button >= OEPSXButtonCount)
         return;
 
-    s_joypad[player] |= (1u << button);
+    s_joypad[player - 1] |= (1u << button);
 }
 
 - (oneway void)didReleasePSXButton:(OEPSXButton)button forPlayer:(NSUInteger)player
 {
-    if (player >= 2 || button >= OEPSXButtonCount)
+    if (player == 0 || player > 2 || button >= OEPSXButtonCount)
         return;
 
-    s_joypad[player] &= ~(1u << button);
+    s_joypad[player - 1] &= ~(1u << button);
 }
 
 - (oneway void)didMovePSXJoystickDirection:(OEPSXButton)button withValue:(CGFloat)value forPlayer:(NSUInteger)player
 {
-    if (player >= 2)
+    if (player == 0 || player > 2)
         return;
+    player -= 1;
 
     NSUInteger stick;
     NSUInteger axis;
