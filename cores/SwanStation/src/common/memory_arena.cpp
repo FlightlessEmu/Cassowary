@@ -14,6 +14,7 @@ Log_SetChannel(Common::MemoryArena);
 #include <unistd.h>
 #elif defined(__linux__) || defined(__APPLE__) || defined(__FreeBSD__)
 #include <cerrno>
+#include <cstdlib>
 #include <fcntl.h>
 #include <sys/mman.h>
 #include <unistd.h>
@@ -174,22 +175,36 @@ bool MemoryArena::Create(size_t size, bool writable, bool executable)
   m_executable = executable;
   return true;
 #elif defined(__APPLE__) || defined(__FreeBSD__)
-#if defined(__APPLE__)
-  m_shmem_fd = shm_open(file_mapping_name.c_str(), O_CREAT | O_EXCL | (writable ? O_RDWR : O_RDONLY), 0600);
-#else
+  // Sandboxed apps (iOS, Catalyst) cannot create named shared memory objects.
+  // A deleted temp file maps identically, so it is the fallback when the
+  // shared object cannot be created.
+#if defined(__FreeBSD__)
   m_shmem_fd = shm_open(SHM_ANON, O_CREAT | O_EXCL | (writable ? O_RDWR : O_RDONLY), 0600);
+  bool named_mapping = false;
+#else
+  m_shmem_fd = shm_open(file_mapping_name.c_str(), O_CREAT | O_EXCL | (writable ? O_RDWR : O_RDONLY), 0600);
+  bool named_mapping = (m_shmem_fd >= 0);
 #endif
-
   if (m_shmem_fd < 0)
   {
-    Log_ErrorPrintf("shm_open failed: %d", errno);
-    return false;
+    const char* tmpdir = getenv("TMPDIR");
+    std::string tmpl =
+      StringUtil::StdStringFromFormat("%sswanstation-XXXXXX", tmpdir ? tmpdir : "/tmp/");
+    m_shmem_fd = mkstemp(tmpl.data());
+    if (m_shmem_fd >= 0)
+      unlink(tmpl.c_str());
+    else
+    {
+      Log_ErrorPrintf("shm_open failed: %d", errno);
+      return false;
+    }
   }
 
-#ifdef __APPLE__
-  // we're not going to be opening this mapping in other processes, so remove the file
-  shm_unlink(file_mapping_name.c_str());
-#endif
+  if (named_mapping)
+  {
+    // we're not going to be opening this mapping in other processes, so remove the file
+    shm_unlink(file_mapping_name.c_str());
+  }
 
   // ensure it's the correct size
   if (ftruncate(m_shmem_fd, static_cast<off_t>(size)) < 0)
@@ -215,7 +230,7 @@ void MemoryArena::Destroy()
     CloseHandle(m_file_handle);
     m_file_handle = nullptr;
   }
-#elif defined(__linux__) || defined(__FreeBSD__)
+#elif defined(__linux__) || defined(__APPLE__) || defined(__FreeBSD__)
   if (m_shmem_fd > 0)
   {
     close(m_shmem_fd);
