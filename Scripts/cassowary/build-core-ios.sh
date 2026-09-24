@@ -218,6 +218,12 @@ case "$CORE" in
     # The Metal renderer talks to the GPU directly: the app hands the core its
     # device, and the core builds its own textures and pipelines from it.
     LINK_FRAMEWORKS+=(-framework Metal)
+    if [[ "$PLATFORM" == catalyst ]]; then
+      # On the Mac, CoreServices declares a Carbon TickCount() that collides
+      # with the core's TickCount type. Pull the framework in first with the
+      # name moved aside; same shim the frame dumper uses.
+      EXTRA_CFLAGS+=(-include "$PWD/cores/SwanStation/tools/carbon_tickcount_shim.h")
+    fi
     ;;
   VirtualC64)
     # The emulator is VirtualC64's VCCore, a CMake project, so it is built
