@@ -38,7 +38,13 @@ struct SaveConflict: Codable, Identifiable, Hashable {
 
     /// A readable name for the system's side of the choice.
     var title: String {
-        kind == SaveKind.state ? "Save state" : "Battery save"
+        if SaveKind.isStateKind(kind) {
+            return "Save state · \(SaveKind.displayName(for: kind))"
+        }
+        if SaveKind.batteryParts(kind) != nil {
+            return "Battery save"
+        }
+        return kind
     }
 }
 

@@ -217,6 +217,16 @@ final class GameLibrary: ObservableObject {
     }
 
     func delete(_ game: Game) {
+        // Take the saves with the ROM: every save-state slot, their
+        // screenshots, and the play history. The version records go too, so
+        // a game added again starts clean instead of resurrecting old saves.
+        let gameID = GameIndexStore.shared.record(forPath: game.url.path)?.sha256 ?? ""
+        for kind in SaveKind.allStateKinds {
+            SaveStore.deleteState(gameID: gameID, romURL: game.url, kind: kind)
+        }
+        if !gameID.isEmpty {
+            SaveStore.deletePlayInfo(gameID: gameID)
+        }
         try? FileManager.default.removeItem(at: game.url)
         var assigned = Self.assignedSystemIdentifiers()
         assigned.removeValue(forKey: game.url.lastPathComponent)

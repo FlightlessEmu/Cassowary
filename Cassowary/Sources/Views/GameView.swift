@@ -41,6 +41,9 @@ struct GameView: View {
 
     let game: Game
     let core: OECorePlugin?
+    /// The save-state slot to load once the game is running, if the game was
+    /// launched from the resume sheet.
+    let resumeSlot: String?
     let onClose: () -> Void
 
     @State private var session: GameSession?
@@ -49,6 +52,14 @@ struct GameView: View {
     @State private var errorMessage: String?
     @State private var isPaused = false
     @State private var notice: String?
+    /// The save-state manager is open.
+    @State private var showStates = false
+    /// Guards the autosave-and-close path so a second tap cannot save twice
+    /// or close twice.
+    @State private var isClosing = false
+    /// `onClose` has fired. Both the autosave and its timeout call it, so
+    /// only the first one counts.
+    @State private var didClose = false
     @StateObject private var shaderCatalog = ShaderCatalog()
     @State private var shaderName: String?
     @AppStorage(RumbleHaptics.strengthKey) private var rumbleStrength = RumbleStrength.medium.rawValue
@@ -127,6 +138,13 @@ struct GameView: View {
             session?.stop()
             session = nil
         }
+        .sheet(isPresented: $showStates) {
+            if let session {
+                SaveStatesSheet(session: session,
+                                romURL: game.url,
+                                gameID: PlayHistory.gameID(for: game))
+            }
+        }
     }
 
     // MARK: - Top bar
@@ -135,7 +153,7 @@ struct GameView: View {
     /// Glass materials keep it readable over any game, in both idioms.
     private var topBar: some View {
         HStack(spacing: 10) {
-            glassButton("xmark") { onClose() }
+            glassButton("xmark") { closeGame() }
                 .accessibilityLabel("Close game")
 
             Spacer()
@@ -163,12 +181,8 @@ struct GameView: View {
                 .keyboardShortcut("s", modifiers: .command)
 
                 Menu {
-                    if session.hasSaveState {
-                        Button("Load State") {
-                            session.loadState { result in
-                                report(result, success: "Loaded")
-                            }
-                        }
+                    Button("Save States…") {
+                        showStates = true
                     }
                     Button("Reset Game") {
                         session.resetEmulation()
@@ -213,7 +227,7 @@ struct GameView: View {
 
                     Divider()
                     Button("Close Game", role: .destructive) {
-                        onClose()
+                        closeGame()
                     }
                 } label: {
                     Image(systemName: "ellipsis.circle.fill")
@@ -432,6 +446,50 @@ struct GameView: View {
         }
     }
 
+    // MARK: - Closing
+
+    /// Closes the game, writing the autosave first so the next launch — here
+    /// or on the TV — can pick up where this one stopped.
+    private func closeGame() {
+        guard !isClosing else { return }
+        isClosing = true
+        // Nothing ran, nothing to save: closing before the core started, or
+        // from the error screen, goes straight out.
+        if let session, session.isRunning {
+            session.saveState(in: SaveKind.autosave) { _ in
+                finishClose()
+            }
+            // Never trap the player on a save that will not finish.
+            Task {
+                try? await Task.sleep(for: .seconds(5))
+                finishClose()
+            }
+        } else {
+            finishClose()
+        }
+    }
+
+    private func finishClose() {
+        guard !didClose else { return }
+        didClose = true
+        onClose()
+    }
+
+    /// Loads the slot the game was launched to resume, when it still holds a
+    /// state. A missing file just starts fresh: a state can be deleted, or
+    /// replaced by a sync, while the resume sheet is up.
+    private func loadResumeSlot(on session: GameSession) {
+        guard let resumeSlot, session.hasSaveState(in: resumeSlot) else { return }
+        session.loadState(from: resumeSlot) { result in
+            switch result {
+            case .success:
+                show(notice: "Resumed \(SaveKind.displayName(for: resumeSlot))")
+            case .failure(let error):
+                show(notice: error.localizedDescription)
+            }
+        }
+    }
+
     // MARK: - Overlays
 
     private func noticeBanner(_ message: String) -> some View {
@@ -523,6 +581,7 @@ struct GameView: View {
                 let systemID = self.game.system?.identifier
                 session.setMetalFXUpscalingEnabled(self.upscalingOptions.isEnabled(.metalFX, forSystem: systemID))
                 session.setIntegerScalingEnabled(self.upscalingOptions.isEnabled(.integerScaling, forSystem: systemID))
+                self.loadResumeSlot(on: session)
             }
 
             runTestHooks(session)

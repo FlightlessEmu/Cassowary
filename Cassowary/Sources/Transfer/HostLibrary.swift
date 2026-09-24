@@ -112,7 +112,6 @@ final class HostLibrary: ObservableObject {
     func entry(for game: Game) -> TransferProtocol.GameEntry? {
         guard let record = GameIndexStore.shared.record(forPath: game.url.path) else { return nil }
 
-        let stateURL = SaveStore.saveStateURL(for: game.url)
         return TransferProtocol.GameEntry(
             id: record.sha256,
             title: record.title,
@@ -120,7 +119,7 @@ final class HostLibrary: ObservableObject {
             systemIdentifier: record.systemIdentifier,
             systemName: record.systemName,
             size: record.size,
-            hasSaveState: FileManager.default.fileExists(atPath: stateURL.path),
+            hasSaveState: SaveStore.hasAnyState(romURL: game.url),
             hasArtwork: artworkURL(for: game).map { FileManager.default.fileExists(atPath: $0.path) } ?? false,
             hasBatterySave: !SaveStore.batterySaveURLs(forROMName: game.url.lastPathComponent).isEmpty
         )
