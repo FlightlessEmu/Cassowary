@@ -428,31 +428,6 @@ private struct SystemCoresView: View {
     }
 }
 
-/// A system icon in a rounded tile, with a game-controller fallback.
-struct SystemIconView: View {
-
-    let system: SystemEntry
-    var size: CGFloat = 44
-
-    var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: size * 0.24, style: .continuous)
-                .fill(.quaternary)
-            if let icon = system.icon {
-                Image(uiImage: icon)
-                    .resizable()
-                    .scaledToFit()
-                    .padding(size * 0.14)
-            } else {
-                Image(systemName: "gamecontroller")
-                    .font(.system(size: size * 0.42))
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .frame(width: size, height: size)
-    }
-}
-
 /// What Cassowary is, who made the engine, and under what licenses.
 ///
 /// Cassowary is an independent project with no affiliation with the OpenEmu
@@ -541,24 +516,9 @@ struct AboutView: View {
         return seen.values.sorted { $0.displayName < $1.displayName }
     }
 
-    /// Known core licenses by bundle identifier. Cores ported later get an
-    /// entry here; anything unknown points at the core project.
+    /// Known core licenses by bundle identifier. Shared with the TV app: see
+    /// `AboutContent.coreLicenses`.
     private func licenseLine(for core: CoreEntry) -> String {
-        let license = Self.licenses[core.id] ?? "License: see the core project"
-        if core.version.isEmpty {
-            return license
-        }
-        return "Version \(core.version) · \(license)"
+        AboutContent.licenseLine(coreID: core.id, version: core.version)
     }
-
-    private static let licenses: [String: String] = [
-        "org.openemu.Gambatte": "GPL-2.0-or-later (Gambatte-DMS)",
-        "org.openemu.mGBA": "MPL-2.0 (mGBA)",
-        "org.openemu.melonDS": "GPL-3.0-or-later (melonDS)",
-        "org.openemu.VirtualC64": "GPL-3.0-or-later or MPL-2.0 (VirtualC64)",
-        "org.openemu.VecXGL": "GPL-2.0-or-later (vecx / VecXGL)",
-        // Non-commercial only: never charge for a build that includes these.
-        "org.openemu.GenesisPlus": "Non-commercial (Genesis Plus GX)",
-        "org.openemu.Picodrive": "Non-commercial (Picodrive)",
-    ]
 }

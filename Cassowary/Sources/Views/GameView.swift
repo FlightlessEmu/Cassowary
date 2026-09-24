@@ -267,17 +267,6 @@ struct GameView: View {
         )
     }
 
-    /// Apply the filter already chosen for this system, if any.
-    ///
-    /// The game starts unfiltered and the shader is compiled once it is
-    /// running, so a slow first compile never delays the launch.
-    private func applySavedFilter(on session: GameSession) {
-        shaderName = shaderCatalog.resolvedShaderName(forSystem: game.system?.identifier)
-        if let shader = shaderCatalog.shader(named: shaderName) {
-            session.setShader(shader)
-        }
-    }
-
     /// Switch the filter on the running game and remember the pick for this
     /// system, so the next launch uses it.
     private func applyFilter(named name: String?) {
@@ -519,10 +508,13 @@ struct GameView: View {
 
             self.session = session
             session.start {
-                self.applySavedFilter(on: session)
-                let systemID = self.game.system?.identifier
-                session.setMetalFXUpscalingEnabled(self.upscalingOptions.isEnabled(.metalFX, forSystem: systemID))
-                session.setIntegerScalingEnabled(self.upscalingOptions.isEnabled(.integerScaling, forSystem: systemID))
+                // The filter and upscaling switches remembered for this
+                // system. Shared with the TV player: see `VideoSettings`.
+                self.shaderName = self.shaderCatalog.resolvedShaderName(forSystem: self.game.system?.identifier)
+                VideoSettings.applySaved(to: session,
+                                         systemIdentifier: self.game.system?.identifier,
+                                         shaderCatalog: self.shaderCatalog,
+                                         upscaling: self.upscalingOptions)
             }
 
             runTestHooks(session)

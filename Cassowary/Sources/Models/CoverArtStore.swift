@@ -93,28 +93,22 @@ final class CoverArtStore: ObservableObject {
 
     // MARK: - Where art lives
 
-    /// The folder downloaded art is kept in.
-    ///
-    /// Application Support rather than Documents: this is the app's own cache,
-    /// and Documents is the folder the user browses in the Files app.
-    nonisolated static var directory: URL {
-        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("CoverArt", isDirectory: true)
-    }
+    /// The folder downloaded art is kept in. See `CoverArtPaths`: the TV's
+    /// host serves from the same folder from an index record, not a `Game`.
+    nonisolated static var directory: URL { CoverArtPaths.directory }
 
     /// The image file for a game, whether or not it has been downloaded.
     /// The ROM's own file name keeps the folder readable.
     nonisolated static func imageURL(for game: Game) -> URL? {
         guard let system = game.system?.identifier else { return nil }
-        return directory
-            .appendingPathComponent(system, isDirectory: true)
-            .appendingPathComponent("\(game.url.lastPathComponent).png")
+        return CoverArtPaths.imageURL(systemIdentifier: system, fileName: game.url.lastPathComponent)
     }
 
     /// The marker left behind when a lookup found nothing. Its date is when
     /// that happened.
     nonisolated static func missMarkerURL(for game: Game) -> URL? {
-        imageURL(for: game)?.appendingPathExtension("missing")
+        guard let system = game.system?.identifier else { return nil }
+        return CoverArtPaths.missMarkerURL(systemIdentifier: system, fileName: game.url.lastPathComponent)
     }
 
     // MARK: - Reading

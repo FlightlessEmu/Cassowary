@@ -131,6 +131,15 @@ final class HostLibrary: ObservableObject {
         CoverArtStore.imageURL(for: game)
     }
 
+    /// Where the cover art for an index record lives, without needing the
+    /// game object. The host serves art to the TV from the record, so art
+    /// still serves while the library is reindexing or the file moved.
+    func artworkURL(for record: GameRecord) -> URL? {
+        guard !record.systemIdentifier.isEmpty else { return nil }
+        let fileName = URL(fileURLWithPath: record.path).lastPathComponent
+        return CoverArtPaths.imageURL(systemIdentifier: record.systemIdentifier, fileName: fileName)
+    }
+
     /// The games as the save code sees them.
     func locations(for games: [Game]) -> [GameLocation] {
         games.compactMap { game in

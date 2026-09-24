@@ -124,7 +124,11 @@ final class TVStore: ObservableObject {
     /// really gone.
     private var syncFailures = 0
     private var cancellables: Set<AnyCancellable> = []
-    private var artworkFetches: Set<String> = []
+    /// Games with an artwork download in flight, so the grid can show it.
+    @Published private(set) var artworkFetches: Set<String> = []
+    /// Games the source had no art for, this launch. Without this every sync
+    /// would re-ask for every game the phone never had art for.
+    private var artworkMissed: Set<String> = []
 
     private init() {
         state = Self.loadState()
@@ -369,6 +373,7 @@ final class TVStore: ObservableObject {
                                           sourceDeviceID: nil,
                                           sourceName: "This Apple TV")
         }
+        loadArtwork()
         saveState()
     }
 
@@ -422,14 +427,39 @@ final class TVStore: ObservableObject {
 
     // MARK: - Artwork
 
+    /// Whether an artwork download for this game is running, for the tile.
+    func isFetchingArtwork(_ id: String) -> Bool { artworkFetches.contains(id) }
+
+    /// Whether this TV has a save state filed for the game, for the tile's
+    /// bookmark. The vault is what survives the cache being thrown away.
+    func hasLocalSaveState(for game: LocalGame) -> Bool {
+        FileManager.default.fileExists(atPath: stateURL(gameID: game.id).path)
+    }
+
+    /// Fetch one game's art again, even if the source came up empty before.
+    func retryArtwork(for game: LocalGame) {
+        artworkMissed.remove(game.id)
+        if artwork[game.id] == nil {
+            fetchArtwork(for: game)
+        }
+    }
+
     private func loadArtwork() {
-        for game in games where game.hasArtwork && artwork[game.id] == nil && !artworkFetches.contains(game.id) {
+        for game in games where artwork[game.id] == nil
+            && !artworkFetches.contains(game.id)
+            && !artworkMissed.contains(game.id) {
             let file = artworkURL(gameID: game.id)
             if let image = UIImage(contentsOfFile: file.path) {
                 artwork[game.id] = image
                 continue
             }
-            fetchArtwork(for: game)
+            // Without a connection there is nothing to ask. When connected,
+            // every game missing art is asked about — not only ones the
+            // manifest flagged — because that flag goes stale when the phone
+            // downloads art after the TV last looked.
+            if client != nil {
+                fetchArtwork(for: game)
+            }
         }
     }
 
@@ -439,7 +469,10 @@ final class TVStore: ObservableObject {
 
         Task { [weak self] in
             defer { self?.artworkFetches.remove(game.id) }
-            guard let data = try? await client.artwork(gameID: game.id), !data.isEmpty else { return }
+            guard let data = try? await client.artwork(gameID: game.id), !data.isEmpty else {
+                self?.artworkMissed.insert(game.id)
+                return
+            }
 
             let folder = SharingPaths.mediaCacheDirectory.deletingLastPathComponent()
                 .appendingPathComponent("Artwork", isDirectory: true)
