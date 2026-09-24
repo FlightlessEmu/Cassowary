@@ -16,7 +16,7 @@ looks the way it does. Read this before moving files around.
 | **Vendored** | `Vendor/`, `OpenEmu/XADMaster.framework` | Third-party C libraries and the prebuilt archive framework `OpenEmuKit` links. |
 | **Automation** | `Scripts/` | Build, verify, and install scripts. `Scripts/cassowary/` is the iOS side. |
 | **Documentation** | `docs/` | Design docs, ADRs, audits, and guides. See [`README.md`](README.md) for the index. |
-| **Config / meta** | `.github/`, `.githooks/`, `.cursor/`, `.claude/` | CI, issue/PR templates, the pre-push hook, and local tool settings. |
+| **Config / meta** | `.github/`, `.githooks/` | CI, issue/PR templates, and the pre-push hook. |
 
 Root files: `README.md` (start here), `AGENTS.md` (rules for AI sessions),
 `CONTEXT.md` (shared vocabulary), `LICENSE`.
