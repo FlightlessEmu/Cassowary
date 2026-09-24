@@ -24,6 +24,7 @@
 
 import Foundation
 import UIKit
+import CryptoKit
 import OpenEmuBase
 import OpenEmuSystem
 import OpenEmuKit
@@ -80,6 +81,14 @@ struct ImportSummary: Sendable {
     var unsupported: [String] = []
     /// File names that could not be read or copied.
     var failed: [String] = []
+    /// File names recognized as BIOS files and filed into the BIOS folder
+    /// instead of the library. A BIOS is not a game: launching one as a disc
+    /// can only fail, so it never reaches the grid.
+    var bios: [String] = []
+    /// File names that look like BIOS files (right name) but failed the
+    /// size/hash check. Kept out of the library: a bad BIOS as a game tile
+    /// can only fail to launch.
+    var biosInvalid: [String] = []
 }
 
 /// Finds games on disk and remembers which ones the user has added.
@@ -253,13 +262,17 @@ final class GameLibrary: ObservableObject {
         let automatic = Self.automaticExtensions()
         let assignedNames = Set(Self.assignedSystemIdentifiers().keys)
         let documents = Self.documentsDirectory
+        let biosFolder = Self.biosDirectory
+        let biosFiles = Self.biosSignatures()
 
         let summary = await Task.detached(priority: .userInitiated) {
             Self.copy(
                 urls,
                 into: documents,
                 automaticExtensions: automatic,
-                assignedNames: assignedNames
+                assignedNames: assignedNames,
+                biosFolder: biosFolder,
+                biosFiles: biosFiles
             )
         }.value
 
@@ -288,6 +301,33 @@ final class GameLibrary: ObservableObject {
         refresh()
     }
 
+    /// The BIOS folder every core shares: Application Support/OpenEmu/BIOS,
+    /// the same folder the plugin controllers point their cores at.
+    static var biosDirectory: URL {
+        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? FileManager.default.temporaryDirectory
+        return base.appendingPathComponent("OpenEmu", isDirectory: true).appendingPathComponent("BIOS", isDirectory: true)
+    }
+
+    /// Every BIOS file any installed core asks for, by lowercase file name:
+    /// the wanted MD5 and size. This is what OpenEmu checks a dropped file
+    /// against before deciding it is a game. Read straight off the core
+    /// plugins' Info.plists so it works even when a controller will not load.
+    nonisolated static func biosSignatures() -> [String: (md5: String, size: UInt64)] {
+        var signatures: [String: (md5: String, size: UInt64)] = [:]
+        for plugin in OECorePlugin.allPlugins {
+            for file in plugin.requiredFiles {
+                guard let name = (file["Name"] as? String)?.lowercased(),
+                      let md5 = (file["MD5"] as? String)?.lowercased() else {
+                    continue
+                }
+                let size = (file["Size"] as? NSNumber)?.uint64Value ?? 0
+                signatures[name] = (md5, size)
+            }
+        }
+        return signatures
+    }
+
     /// The file work behind `add(contentsOf:)`, off the main actor.
     ///
     /// Dropped files sit outside the app's sandbox on the Mac, so access is
@@ -298,7 +338,9 @@ final class GameLibrary: ObservableObject {
         _ urls: [URL],
         into documents: URL,
         automaticExtensions: Set<String>,
-        assignedNames: Set<String>
+        assignedNames: Set<String>,
+        biosFolder: URL,
+        biosFiles: [String: (md5: String, size: UInt64)]
     ) -> ImportSummary {
         let fm = FileManager.default
         var summary = ImportSummary()
@@ -319,6 +361,35 @@ final class GameLibrary: ObservableObject {
             guard !isDirectory.boolValue else {
                 // Folders are not games; only files are copied.
                 summary.unsupported.append(name)
+                continue
+            }
+
+            // A BIOS file is filed into the BIOS folder, not the library.
+            // A name match alone makes it a BIOS attempt: a misnamed game
+            // must keep working as a game, but a file with a BIOS's name
+            // must never land in the grid — a bad BIOS as a game tile can
+            // only fail to launch. Only a hash-verified file lands where
+            // the cores look.
+            if let wanted = biosFiles[name.lowercased()] {
+                let size = Self.fileSize(at: url)
+                let hash = size == wanted.size ? Self.md5(of: url) : nil
+                if size == wanted.size, hash == wanted.md5 {
+                    do {
+                        try fm.createDirectory(at: biosFolder, withIntermediateDirectories: true)
+                        let destination = biosFolder.appendingPathComponent(name.lowercased())
+                        if fm.fileExists(atPath: destination.path) {
+                            try fm.removeItem(at: destination)
+                        }
+                        try fm.copyItem(at: url, to: destination)
+                        summary.bios.append(name)
+                    } catch {
+                        NSLog("[Cassowary] could not file BIOS \(name): \(error.localizedDescription)")
+                        summary.failed.append(name)
+                    }
+                } else {
+                    NSLog("[Cassowary] BIOS candidate \(name) failed check (size \(String(describing: size)) hash \(hash ?? "unreadable"))")
+                    summary.biosInvalid.append(name)
+                }
                 continue
             }
 
@@ -352,5 +423,19 @@ final class GameLibrary: ObservableObject {
         }
 
         return summary
+    }
+
+    /// The size of a file, or nil when it cannot be read. Only used to match
+    /// a dropped file against the BIOS list before hashing it.
+    private nonisolated static func fileSize(at url: URL) -> UInt64? {
+        (try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? NSNumber)?.uint64Value
+    }
+
+    /// The lowercase MD5 hex of a file's contents, or nil when it cannot be
+    /// read. BIOS files are small; this only runs after a name-and-size
+    /// match, never on a whole disc image.
+    private nonisolated static func md5(of url: URL) -> String? {
+        guard let data = try? Data(contentsOf: url) else { return nil }
+        return Insecure.MD5.hash(data: data).map { String(format: "%02x", $0) }.joined()
     }
 }

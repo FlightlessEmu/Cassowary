@@ -551,7 +551,15 @@ struct GameView: View {
 
             runTestHooks(session)
         } catch {
-            errorMessage = error.localizedDescription
+            // The engine wraps the core's reason as the underlying error
+            // (missing BIOS, bad image, ...). Show it: the wrapper alone
+            // ("could not load ROM") never says what to fix.
+            let underlying = (error as NSError).userInfo[NSUnderlyingErrorKey] as? NSError
+            if let detail = underlying?.localizedDescription, !detail.isEmpty {
+                errorMessage = "\(error.localizedDescription)\n\(detail)"
+            } else {
+                errorMessage = error.localizedDescription
+            }
         }
     }
 

@@ -849,11 +849,19 @@ struct LibraryView: View {
     private func notice(for summary: ImportSummary, addedCount: Int? = nil) -> ImportNotice? {
         guard !summary.unsupported.isEmpty
             || !summary.alreadyInLibrary.isEmpty
-            || !summary.failed.isEmpty else {
+            || !summary.failed.isEmpty
+            || !summary.bios.isEmpty
+            || !summary.biosInvalid.isEmpty else {
             return nil
         }
 
         var lines: [String] = []
+        if !summary.bios.isEmpty {
+            lines.append("BIOS files, moved to the BIOS folder where the cores look for them: \(Self.shortList(summary.bios)).")
+        }
+        if !summary.biosInvalid.isEmpty {
+            lines.append("These have BIOS names but the wrong contents, so they were left out: \(Self.shortList(summary.biosInvalid)). Check the file is the right version.")
+        }
         if !summary.unsupported.isEmpty {
             lines.append("Not game files: \(Self.shortList(summary.unsupported)).")
         }
