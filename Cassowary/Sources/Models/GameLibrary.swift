@@ -328,6 +328,42 @@ final class GameLibrary: ObservableObject {
         return signatures
     }
 
+    /// The BIOS files a system needs, with whether each one is already in
+    /// the BIOS folder and valid. Used for the per-system BIOS banner.
+    static func biosStatus(forSystemIdentifier identifier: String) -> [(name: String, description: String, present: Bool)] {
+        var wanted: [[String: Any]] = []
+        for plugin in OECorePlugin.allPlugins {
+            guard plugin.systemIdentifiers.contains(identifier) else { continue }
+            for file in plugin.requiredFiles {
+                wanted.append(file)
+            }
+            // Also ask the controller per-system: some cores scope files by system.
+            if let controller = plugin.controller,
+               let files = controller.requiredFiles(forSystemIdentifier: identifier) as? [[String: Any]] {
+                for file in files where !(wanted.contains { ($0["Name"] as? String)?.lowercased() == (file["Name"] as? String)?.lowercased() }) {
+                    wanted.append(file)
+                }
+            }
+        }
+        let fm = FileManager.default
+        let folder = Self.biosDirectory
+        return wanted.map { file in
+            let name = (file["Name"] as? String) ?? "BIOS"
+            let description = (file["Description"] as? String) ?? name
+            let lower = name.lowercased()
+            let dest = folder.appendingPathComponent(lower)
+            var present = false
+            if fm.fileExists(atPath: dest.path),
+               let sigMD5 = (file["MD5"] as? String)?.lowercased() {
+                let size = (file["Size"] as? NSNumber)?.uint64Value ?? 0
+                present = Self.fileSize(at: dest) == size && Self.md5(of: dest) == sigMD5
+            } else if fm.fileExists(atPath: dest.path) {
+                present = true
+            }
+            return (name, description, present)
+        }
+    }
+
     /// The file work behind `add(contentsOf:)`, off the main actor.
     ///
     /// Dropped files sit outside the app's sandbox on the Mac, so access is

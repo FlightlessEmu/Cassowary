@@ -503,11 +503,14 @@ struct LibraryView: View {
     }
 
     private func detail(for target: LibrarySelection) -> some View {
-        Group {
-            if visibleGames(for: target).isEmpty {
-                emptyState(for: target)
-            } else {
-                grid(for: target)
+        VStack(spacing: 0) {
+            biosBanner(for: target)
+            Group {
+                if visibleGames(for: target).isEmpty {
+                    emptyState(for: target)
+                } else {
+                    grid(for: target)
+                }
             }
         }
         .navigationTitle(detailTitle(for: target))
@@ -553,6 +556,43 @@ struct LibraryView: View {
         }
     }
 
+    /// The BIOS banner for a system that needs BIOS files: what is present,
+    /// what is missing, and a button that takes a BIOS drop or file pick.
+    /// BIOS files dropped anywhere are recognized by name and contents, so
+    /// this button is a shortcut for the same path, not a second one.
+    @ViewBuilder
+    private func biosBanner(for target: LibrarySelection) -> some View {
+        if case .system(let id) = target {
+            let status = GameLibrary.biosStatus(forSystemIdentifier: id)
+            if !status.isEmpty {
+                let missing = status.filter { !$0.present }
+                HStack(spacing: 10) {
+                    Image(systemName: missing.isEmpty ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
+                        .foregroundStyle(missing.isEmpty ? Color.green : Color.orange)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(missing.isEmpty ? "BIOS ready" : "BIOS needed to play \(detailTitle(for: target))")
+                            .font(.subheadline).bold()
+                        Text(missing.isEmpty
+                             ? status.map(\.name).joined(separator: ", ")
+                             : "Missing: \(missing.map(\.name).joined(separator: ", ")). Drop the file here or use Add BIOS.")
+                            .font(.caption)
+                            .foregroundStyle(Color.secondary)
+                    }
+                    Spacer()
+                    if !missing.isEmpty {
+                        Button("Add BIOS…") { showFileImporter = true }
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.small)
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .background(.thinMaterial)
+                Divider()
+            }
+        }
+    }
+
     /// Shown over the library while a file is held above it.
     private var dropHighlight: some View {
         RoundedRectangle(cornerRadius: 16, style: .continuous)
@@ -562,7 +602,7 @@ struct LibraryView: View {
                     .strokeBorder(Color.accentColor, style: StrokeStyle(lineWidth: 2, dash: [8, 6]))
             }
             .overlay {
-                Label("Drop to add games", systemImage: "plus.circle.fill")
+                Label("Drop to add games or BIOS", systemImage: "plus.circle.fill")
                     .font(.headline)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 10)
