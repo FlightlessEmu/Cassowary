@@ -31,3 +31,4 @@ FOUNDATION_EXPORT double OpenEmuKitVersionNumber;
 FOUNDATION_EXPORT const unsigned char OpenEmuKitVersionString[];
 
 // In this header, you should import all the public headers of your framework using statements like #import <OpenEmuKit/PublicHeader.h>
+#import <OpenEmuKit/OERetroAchievementsLoginClient.h>

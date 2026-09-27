@@ -24,6 +24,7 @@
 // THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #import <Foundation/Foundation.h>
+#import <TargetConditionals.h>
 #import <string.h>
 #import <limits.h>
 #import <mach-o/dyld.h>
@@ -277,12 +278,20 @@ void oeRetroAchievementsServerCall(const rc_api_request_t *request,
     }
 
     // RA expects an identifying User-Agent so they can correlate traffic to the host app.
-    // Format: OpenEmu-Silicon/<host-version> (macOS <os-version>) rcheevos/<...> <Core>/<ver>
+    // Format: OpenEmu-Silicon/<host-version> (<os-name> <os-version>) rcheevos/<...> <Core>/<ver>
+    // The product name stays OpenEmu-Silicon on every platform so the server
+    // keeps recognizing this client; only the OS label changes. On iOS the
+    // host version is Cassowary's own version from its bundle.
     NSString *hostVersion = OEHostAppVersion();
     NSOperatingSystemVersion osv = [[NSProcessInfo processInfo] operatingSystemVersion];
     NSString *osVersion = [NSString stringWithFormat:@"%ld.%ld.%ld", (long)osv.majorVersion, (long)osv.minorVersion, (long)osv.patchVersion];
-    NSString *userAgent = [NSString stringWithFormat:@"OpenEmu-Silicon/%@ (macOS %@) %@%@",
-                            hostVersion, osVersion, [NSString stringWithUTF8String:rcClause], coreSuffix];
+#if TARGET_OS_IPHONE
+    NSString *osName = @"iOS";
+#else
+    NSString *osName = @"macOS";
+#endif
+    NSString *userAgent = [NSString stringWithFormat:@"OpenEmu-Silicon/%@ (%@ %@) %@%@",
+                            hostVersion, osName, osVersion, [NSString stringWithUTF8String:rcClause], coreSuffix];
     [urlRequest setValue:userAgent forHTTPHeaderField:@"User-Agent"];
 
     if (request->post_data) {

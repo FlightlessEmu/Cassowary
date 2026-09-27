@@ -49,6 +49,8 @@ struct GameView: View {
     @State private var errorMessage: String?
     @State private var isPaused = false
     @State private var notice: String?
+    @State private var raSignedIn = false
+    @State private var showingAchievements = false
     @StateObject private var shaderCatalog = ShaderCatalog()
     @State private var shaderName: String?
     @AppStorage(RumbleHaptics.strengthKey) private var rumbleStrength = RumbleStrength.medium.rawValue
@@ -116,6 +118,17 @@ struct GameView: View {
                 if let notice {
                     noticeBanner(notice)
                 }
+                if let session {
+                    RAUnlockToast(state: session.raState)
+                        .padding(.horizontal)
+                    RAIndicatorsView(state: session.raState)
+                        .padding(.horizontal)
+                }
+            }
+        }
+        .sheet(isPresented: $showingAchievements) {
+            if let session {
+                AchievementsSheet(state: session.raState)
             }
         }
         .task {
@@ -147,9 +160,15 @@ struct GameView: View {
             Spacer()
 
             if let session {
+                if raPanelAvailable {
+                    glassButton("trophy.fill") {
+                        showingAchievements = true
+                    }
+                    .accessibilityLabel("Achievements")
+                }
+
                 glassButton(isPaused ? "play.fill" : "pause.fill") {
-                    isPaused.toggle()
-                    session.setPaused(isPaused)
+                    togglePause(session: session)
                 }
                 .accessibilityLabel(isPaused ? "Resume" : "Pause")
                 .keyboardShortcut("p", modifiers: .command)
@@ -254,6 +273,36 @@ struct GameView: View {
             return "\(system) · \(session.coreDisplayName)"
         }
         return session.coreDisplayName
+    }
+
+    // MARK: - RetroAchievements
+
+    /// Whether the trophy button shows: signed in and the running core
+    /// supports achievements for this system.
+    private var raPanelAvailable: Bool {
+        guard raSignedIn, let systemID = game.system?.identifier else { return false }
+        guard let core else { return true }
+        return core.supportsRetroAchievements(forSystemIdentifier: systemID)
+    }
+
+    /// Pause through RetroAchievements when hardcore is on: the server can
+    /// refuse a pause that comes too often. Resuming always works.
+    private func togglePause(session: GameSession) {
+        guard !isPaused else {
+            isPaused = false
+            session.setPaused(false)
+            return
+        }
+        session.canPauseHardcore { allowed in
+            Task { @MainActor in
+                if allowed {
+                    isPaused = true
+                    session.setPaused(true)
+                } else {
+                    show(notice: "RetroAchievements is not allowing pause right now.")
+                }
+            }
+        }
     }
 
     // MARK: - Video filter
@@ -518,6 +567,7 @@ struct GameView: View {
             }
 
             self.session = session
+            self.raSignedIn = RetroAchievementsCredentialStore.load().isSignedIn
             session.start {
                 self.applySavedFilter(on: session)
                 let systemID = self.game.system?.identifier
