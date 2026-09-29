@@ -59,6 +59,10 @@ struct TVPlayerView: View {
     /// buttons, so each list is one level, not a maze.
     @State private var showingFilters = false
     @State private var showingVideo = false
+    @State private var showingStates = false
+    /// The filled save-state slots, newest first, read when the list opens
+    /// and again after each save.
+    @State private var slots: [SaveSlotInfo] = []
 
     /// The installed filters and the remembered picks, shared with the
     /// phone: the same presets, the same per-system memory.
@@ -84,13 +88,22 @@ struct TVPlayerView: View {
     /// Which video row is chosen.
     @FocusState private var videoFocus: VideoFocus?
 
+    /// Which button in the save-state list is chosen.
+    @FocusState private var stateFocus: StateFocus?
+
     private enum MenuFocus: Hashable {
-        case resume, saveState, loadState, reset, filter, video, close
+        case resume, saveState, states, reset, filter, video, close
     }
 
     private enum FilterFocus: Hashable {
         case none
         case shader(String)
+    }
+
+    /// A slot's Load or Save Here button, by slot kind.
+    private enum StateFocus: Hashable {
+        case load(String)
+        case save(String)
     }
 
     private enum VideoFocus: Hashable {
@@ -162,6 +175,8 @@ struct TVPlayerView: View {
             // session away — which is what made the old control row dangerous.
             if showingFilters {
                 closeFilters()
+            } else if showingStates {
+                closeStates()
             } else if showingVideo {
                 closeVideo()
             } else if isMenuOpen {
@@ -189,6 +204,8 @@ struct TVPlayerView: View {
 
                 if showingFilters {
                     filterList
+                } else if showingStates {
+                    stateList
                 } else if showingVideo {
                     videoList
                 } else {
@@ -200,7 +217,8 @@ struct TVPlayerView: View {
         .defaultFocus($menuFocus, .resume)
     }
 
-    /// The menu's buttons: resume, states, reset, filter, close.
+    /// The menu's buttons: resume, save, save states, reset, filter, video,
+    /// close.
     private var menuButtons: some View {
         HStack(spacing: 24) {
             Button("Resume") { closeMenu() }
@@ -217,14 +235,10 @@ struct TVPlayerView: View {
                     }
                     .focused($menuFocus, equals: .saveState)
 
-                    if let newest = session.filledSlots.first {
-                        Button("Load \(newest.displayName)") {
-                            session.loadState(from: newest.kind) { result in
-                                report(result, success: "Loaded")
-                            }
-                        }
-                        .focused($menuFocus, equals: .loadState)
+                    Button("Save States…") {
+                        openStates()
                     }
+                    .focused($menuFocus, equals: .states)
                 }
 
                 Button("Reset") {
@@ -293,6 +307,84 @@ struct TVPlayerView: View {
             .padding(.horizontal, 24)
         }
         .focused($filterFocus, equals: focus)
+    }
+
+    /// Every save-state slot, in place of the buttons: the same slots as the
+    /// phone's Save States sheet. A filled slot can be loaded; any slot but
+    /// the autosave can be saved over. Deleting stays on the phone: the TV
+    /// files its saves through the vault when the game ends, and a slot
+    /// removed mid-game would come back from there.
+    private var stateList: some View {
+        VStack(spacing: 24) {
+            Text("Save States")
+                .font(.title2.weight(.semibold))
+                .foregroundStyle(.white)
+
+            ScrollView(.vertical) {
+                // A plain stack for the same reason as the filter list: the
+                // first button starts selected and has to exist to take focus.
+                VStack(spacing: 16) {
+                    ForEach(SaveKind.allStateKinds, id: \.self) { kind in
+                        stateRow(kind: kind, slot: slots.first(where: { $0.kind == kind }))
+                    }
+                }
+                .padding(.horizontal, 40)
+            }
+            .frame(maxHeight: 560)
+        }
+    }
+
+    private func stateRow(kind: String, slot: SaveSlotInfo?) -> some View {
+        HStack(spacing: 20) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(SaveKind.displayName(for: kind))
+                    .font(.headline)
+                    .foregroundStyle(.white)
+                Text(slotDetail(kind: kind, slot: slot))
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.7))
+            }
+            .frame(width: 520, alignment: .leading)
+
+            if slot != nil {
+                Button("Load") { loadSlot(kind) }
+                    .focused($stateFocus, equals: .load(kind))
+            }
+            if kind != SaveKind.autosave {
+                Button("Save Here") { saveSlot(kind) }
+                    .focused($stateFocus, equals: .save(kind))
+            }
+        }
+        .frame(width: 1000, alignment: .leading)
+    }
+
+    private func slotDetail(kind: String, slot: SaveSlotInfo?) -> String {
+        guard let slot else {
+            return kind == SaveKind.autosave ? "Written when the game closes" : "Empty"
+        }
+        let when = slot.modifiedAt.formatted(date: .abbreviated, time: .shortened)
+        guard let device = slot.deviceID, device != DeviceIdentity.current.id else { return when }
+        return "\(when) · another device"
+    }
+
+    /// Loads a slot and goes straight back to the game, which is what a load
+    /// is for. A failure stays on the list so another slot can be tried.
+    private func loadSlot(_ kind: String) {
+        guard let session else { return }
+        session.loadState(from: kind) { result in
+            report(result, success: "Loaded \(SaveKind.displayName(for: kind))")
+            if case .success = result {
+                closeMenu()
+            }
+        }
+    }
+
+    private func saveSlot(_ kind: String) {
+        guard let session else { return }
+        session.saveState(in: kind) { result in
+            report(result, success: "Saved to \(SaveKind.displayName(for: kind))")
+            slots = session.filledSlots
+        }
     }
 
     /// Upscaling and rumble, in place of the buttons. The same app-wide
@@ -484,6 +576,20 @@ struct TVPlayerView: View {
                 }
             }
 
+            // Used to check the save-state list without a remote: saves into
+            // Slot 1 so there is a filled slot to show, then opens the menu
+            // and the list. Only set from the command line.
+            if UserDefaults.standard.bool(forKey: "cassowary.testOpenStates") {
+                Task {
+                    try? await Task.sleep(for: .seconds(4))
+                    saveSlot(SaveKind.stateSlot(1))
+                    try? await Task.sleep(for: .seconds(1))
+                    openMenu()
+                    try? await Task.sleep(for: .seconds(2))
+                    openStates()
+                }
+            }
+
             // Used by the run script to prove input reaches the emulator with
             // no controller attached: hold the named buttons for a few seconds
             // once the game is running. It starts late and stops, so a test
@@ -570,8 +676,10 @@ struct TVPlayerView: View {
         menuFocus = nil
         showingFilters = false
         showingVideo = false
+        showingStates = false
         filterFocus = nil
         videoFocus = nil
+        stateFocus = nil
         withAnimation(.easeInOut(duration: 0.2)) { isMenuOpen = false }
         session?.setPaused(false)
         ControllerCapture.setInterfaceActive(false)
@@ -595,6 +703,29 @@ struct TVPlayerView: View {
         withAnimation(.easeInOut(duration: 0.2)) { showingFilters = false }
         Task { @MainActor in
             menuFocus = .filter
+        }
+    }
+
+    /// Shows the save-state list in place of the menu's buttons, starting on
+    /// the newest slot's Load, or the main slot's Save Here when none is
+    /// filled yet. The rows are not in the hierarchy during this turn, so
+    /// asking for focus comes after it.
+    private func openStates() {
+        menuFocus = nil
+        slots = session?.filledSlots ?? []
+        withAnimation(.easeInOut(duration: 0.2)) { showingStates = true }
+        Task { @MainActor in
+            stateFocus = slots.first.map { .load($0.kind) } ?? .save(SaveKind.state)
+        }
+    }
+
+    /// Returns from the save-state list to the menu's buttons, landing back
+    /// on the Save States button the list came from.
+    private func closeStates() {
+        stateFocus = nil
+        withAnimation(.easeInOut(duration: 0.2)) { showingStates = false }
+        Task { @MainActor in
+            menuFocus = .states
         }
     }
 
