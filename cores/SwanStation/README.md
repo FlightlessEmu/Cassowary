@@ -76,31 +76,37 @@ different points. Dumping a run of consecutive frames from each
 renderer hands over RGB565 while the hardware one works in RGBA8, so a few
 levels of rounding difference are expected everywhere.
 
-Where it stands:
+Where it stands, checked on Crash Bandicoot:
 
-- The Crash Bandicoot title screen (512x224, frame 3000) is **pixel-identical**
-  between the two renderers (mean difference 0.00 over all 114,688 pixels).
-- The main menu is at the format-conversion floor: best-aligned pair differs by
-  a mean of 1.97 per channel, which is the RGB565-vs-RGBA8 rounding plus
-  dithering. The remaining movement is game animation (Crash blinks, and a top
-  edge pixel blinks on a 2-frames-on 2-frames-off cycle), so runs only compare
-  after aligning by content.
+- The title screen (512x224, frame 3000) is **pixel-identical** between the two
+  renderers.
+- The first level, after walking, jumping and spinning (scripted with
+  `--press`), differs by a mean of about 2.2 per channel. That is the
+  RGB565-vs-RGBA8 rounding floor plus Crash's idle animation, which runs a
+  frame or two apart between the two runs.
+- A save state taken in the level and loaded back (`--state-at`) gives the
+  same frame as a run that never saved (mean difference 0.02).
 
-The bug that got it there: the batch fragment-shader variant packed the texture
-mode into two bits, but `GPUTextureMode` runs 0-8, so the top bit overflowed
-into the render mode and the shader cache key folded two fields into the same
-low bits. Every untextured or raw-texture batch got the wrong shader body.
-The variant is now `(render_mode << 8) | (texture_mode << 4) | ...` and the
-cache is keyed on the whole variant. That one change took the menu from a mean
-difference of 43.8 to 9.0; the rest was animation phase.
+The title screen matching was not enough on its own: gameplay was almost all
+black until four ordering and clipping bugs were fixed. They are worth knowing
+because they only show once a game is past its menus:
 
-Ruled out along the way, so nobody re-tests them: the geometry and vertex
-colours (with every texture sample forced to white the black areas vanish),
-the texture window (neutralising it is byte-identical), blending (forcing it
-off moves the mean 9.01 to 9.15), the masked-write CPU path (masked writes now
-go through the shader, since the CPU cannot see in-flight GPU work), and the
-display path (the VRAM dump shows the logo texture present while the
-framebuffer holds it wrongly drawn, so it was always in the draws).
+- After a VRAM fill, copy or upload the renderer must go back to clipping at
+  the console's drawing area, as the OpenGL renderer does. Leaving all of VRAM
+  open lets a game's oversized polygons paint over its textures.
+- Batches keep their own uniform block. The VRAM passes upload theirs in
+  between, and the batch block is only uploaded again when it changes.
+- Anything the CPU writes into a texture lands at once, while the frame's
+  draws only run when the command buffer is committed. Texture uploads are
+  therefore a blit queued with the draws.
+- The vertex, uniform and texture rings are only rewound once the GPU has
+  finished with them, never mid-frame.
+
+An earlier bug, fixed before those: the batch fragment-shader variant packed
+the texture mode into two bits, but `GPUTextureMode` runs 0-8, so the top bit
+overflowed into the render mode. The variant is now
+`(render_mode << 8) | (texture_mode << 4) | ...` and the pipeline cache is keyed
+on the whole variant.
 
 What is deliberately not there yet:
 
@@ -111,6 +117,8 @@ What is deliberately not there yet:
 - **The software cursor.**
 - **Save states** move VRAM through a full readback and re-upload rather than
   copying GPU-side, which is slower but correct.
+- **Higher internal resolution.** The renderer supports it, but the bridge
+  does not ask for it yet, so games render at the console's own 1x.
 
 The renderer is on by default. Set the `SwanStationMetalRenderer` user default
 to `NO` to fall back to software rendering; if the Metal renderer cannot start,
@@ -125,6 +133,13 @@ Two port details worth knowing:
 - BIOS files (`scph5500.bin`, `scph5501.bin`, `scph5502.bin`) go in the app's
   BIOS folder, which is handed to the core as its system directory. With no
   BIOS present the core falls back to its built-in OpenBIOS.
+- The controller plugged in is a DualShock, asked for by the core's own
+  device id (`RETRO_DEVICE_SUBCLASS(RETRO_DEVICE_ANALOG, 0)`). Plain
+  `RETRO_DEVICE_ANALOG` is not an id the core knows, and it plugs in nothing.
+- Memory card 1 is a card per game title (`<title>_1.mcd` in the saves
+  folder), which the core writes itself. The core's default is libretro save
+  RAM, which only survives if the frontend writes it out, and this one does
+  not.
 
 SwanStation is a hard fork and open-source Libretro core implementation of DuckStation, which is an emulator of the Sony PlayStation(TM) console, focusing on playability, speed, and long-term maintainability. The goal is to be as accurate as possible while maintaining performance suitable for low-end devices. "Hack" options are discouraged, the default configuration should support all playable games with only some of the enhancements having compatibility issues.
 

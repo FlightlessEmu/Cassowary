@@ -7,9 +7,10 @@ Worktree: `../Cassowary-ps1-metal` (branched from `main`)
 
 | Piece | State |
 |---|---|
-| SwanStation (DuckStation fork) core | Sources vendored, glue and project written, building |
+| SwanStation (DuckStation fork) core | In the app, next to Mednafen in the PlayStation core picker |
 | SwanStation Metal shaders | All 70 variants generated as MSL and compiled with `xcrun metal` |
-| SwanStation Metal renderer | Written and building; not yet run against a game |
+| SwanStation Metal renderer | Matches the software renderer through Crash Bandicoot's title, menu and first level; save states load correctly |
+| Input, memory cards | Working: DualShock on port 1, a card per game title |
 | Mednafen PSX core | Plan only, not started |
 
 Two PlayStation cores are in play. Mednafen's PSX core is a software renderer
@@ -27,12 +28,14 @@ being brought up first. Its port notes live in `cores/SwanStation/README.md`.
    `OEGameCoreRenderingMetal2`, renders into its own texture, and publishes it;
    the app draws it. The app's device reaches the core through
    `-createMetalTextureWithDevice:`.
-4. **Metal, phase 2: a GPU backend.** Written: `GPU_HW_Metal` plus the
-   `common/metal/` wrappers and the MSL back end in `ShaderGen`. It needs to be
-   run against a disc and checked picture by picture — geometry, texture
-   windows, transparency, the VRAM passes, the display crop. Multisampling,
-   adaptive downsampling, texture replacements and the software cursor are
-   deliberately not written yet.
+4. **Metal, phase 2: a GPU backend.** Done for 1x: `GPU_HW_Metal` plus the
+   `common/metal/` wrappers and the MSL back end in `ShaderGen`, checked frame
+   by frame against the software renderer with
+   `Scripts/cassowary/dump-psx-frame.py` (see `cores/SwanStation/README.md`).
+   Still to check: more games than Crash Bandicoot, 24-bit display areas, and
+   higher internal resolutions, which the bridge does not ask for yet.
+   Multisampling, adaptive downsampling, texture replacements and the software
+   cursor are deliberately not written yet.
 5. **Fill in the gaps**: multi-disc swapping (needs the libretro disk control
    interface), rumble, RetroAchievements, and the core's option list surfaced
    as `OEGameCore` display modes.
