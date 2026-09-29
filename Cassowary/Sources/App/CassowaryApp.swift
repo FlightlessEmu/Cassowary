@@ -34,6 +34,18 @@ struct CassowaryApp: App {
         // Support. This has to run before any plugin is looked up.
         OECorePlugin.registerClass()
         OESystemPlugin.registerClass()
+
+        // Ask the system for the crash and hang reports it has collected. They
+        // arrive on a later launch, so this is set up before anything can run.
+        DiagnosticsStore.shared.start()
+
+#if DEBUG
+        // Seed a report so the Diagnostics screen can be looked at without
+        // waiting for a real crash. Used by Scripts/cassowary/run-cassowary.sh.
+        if UserDefaults.standard.bool(forKey: "cassowary.writeSampleDiagnostics") {
+            DiagnosticsStore.shared.writeSampleReport()
+        }
+#endif
     }
 
     var body: some Scene {

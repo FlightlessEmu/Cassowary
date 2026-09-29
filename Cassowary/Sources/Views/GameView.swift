@@ -148,6 +148,7 @@ struct GameView: View {
             // still winding down.
             guard let session else { return }
             session.stop {
+                DiagnosticsStore.shared.noteSessionEnded()
                 self.session = nil
             }
         }
@@ -542,6 +543,16 @@ struct GameView: View {
             }
 
             self.session = session
+
+            // Leave a note that a game is running. It is cleared when the game
+            // stops cleanly, so one that survives to the next launch marks the
+            // app having been killed mid-game.
+            DiagnosticsStore.shared.noteSessionStarted(
+                title: game.title,
+                core: session.coreDisplayName,
+                system: game.system?.identifier
+            )
+
             session.start {
                 self.applySavedFilter(on: session)
                 let systemID = self.game.system?.identifier
@@ -748,6 +759,7 @@ struct GameView: View {
         if let seconds = Self.testCloseDelay {
             Task {
                 try? await Task.sleep(for: .seconds(seconds))
+                NSLog("[Cassowary] test close after %gs", seconds)
                 onClose()
             }
         }

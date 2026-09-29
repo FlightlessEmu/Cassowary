@@ -49,6 +49,7 @@ with a [template](adr/template.md).
 | Doc | What's in it |
 |---|---|
 | [privacy-policy.md](privacy-policy.md) | The app's privacy policy. |
+| [crash-reports.md](crash-reports.md) | How crashes and hangs are collected, read and symbolicated. |
 | [wiki-export/Cheat-Codes.md](wiki-export/Cheat-Codes.md) | Exported wiki page on cheat codes. |
 | `superpowers/` | Dated plans and specs (working notes). |
 | `images/` | Images used by the docs. |
