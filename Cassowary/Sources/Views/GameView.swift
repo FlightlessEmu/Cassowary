@@ -23,6 +23,7 @@
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import SwiftUI
+import UIKit
 import Metal
 import OpenEmuBase
 import OpenEmuSystem
@@ -49,6 +50,16 @@ struct GameView: View {
     @State private var errorMessage: String?
     @State private var isPaused = false
     @State private var notice: String?
+
+    /// The app's foreground/background state, so a game can be paused on the way
+    /// out and picked back up on the way in.
+    @Environment(\.scenePhase) private var scenePhase
+
+    /// Whether the last pause was one this view made on its own — on the way to
+    /// the background. Only then does coming back resume the game; a pause the
+    /// player asked for stays put.
+    @State private var pausedForBackground = false
+
     @StateObject private var shaderCatalog = ShaderCatalog()
     @State private var shaderName: String?
     @AppStorage(RumbleHaptics.strengthKey) private var rumbleStrength = RumbleStrength.medium.rawValue
@@ -121,11 +132,24 @@ struct GameView: View {
         .task {
             startGame()
         }
+        .onChange(of: scenePhase) { _, phase in
+            handleScenePhase(phase)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.didReceiveMemoryWarningNotification)) { _ in
+            handleMemoryWarning()
+        }
         .onDisappear {
             keyboardInput?.stop()
             keyboardInput = nil
-            session?.stop()
-            session = nil
+
+            // Keep the session until the core has actually stopped: the helper
+            // finishes the frame it is in on its own thread first, and a quick
+            // reopen must not start a second core on top of the one that is
+            // still winding down.
+            guard let session else { return }
+            session.stop {
+                self.session = nil
+            }
         }
     }
 
@@ -531,6 +555,44 @@ struct GameView: View {
         }
     }
 
+    // MARK: - Keeping the game alive
+
+    /// Pause when the app leaves the foreground, and pick the game back up on
+    /// the way in.
+    ///
+    /// iOS freezes the app in the background, but the core's frame thread keeps
+    /// running until the freeze lands, and the display can take its drawables
+    /// away. Pausing first stops the game on a frame of our choosing. Only a
+    /// pause this method made is undone on the way back: a pause the player
+    /// asked for stays put.
+    private func handleScenePhase(_ phase: ScenePhase) {
+        guard let session, session.isRunning else { return }
+
+        switch phase {
+        case .background:
+            guard !isPaused else { return }
+            pausedForBackground = true
+            isPaused = true
+            session.setPaused(true)
+        case .active:
+            guard pausedForBackground else { return }
+            pausedForBackground = false
+            isPaused = false
+            session.setPaused(false)
+        default:
+            break
+        }
+    }
+
+    /// iOS is short on memory. Pause so the core stops growing, and say so,
+    /// rather than let the process be killed mid-game.
+    private func handleMemoryWarning() {
+        guard let session, session.isRunning, !isPaused else { return }
+        isPaused = true
+        session.setPaused(true)
+        show(notice: "Paused to free memory")
+    }
+
     /// A touch point, rounded into the core's buffer pixels.
     private static func bufferPoint(_ point: CGPoint) -> OEIntPoint {
         OEIntPoint(x: Int32(point.x.rounded(.down)), y: Int32(point.y.rounded(.down)))
@@ -679,6 +741,31 @@ struct GameView: View {
                 NSLog("[Cassowary] test integer scaling off")
             }
         }
+
+        // Close the game after a while, so the return-to-library path — the one
+        // that stops the core and tears the session down — can be checked
+        // without a tap. Used by the run script.
+        if let seconds = Self.testCloseDelay {
+            Task {
+                try? await Task.sleep(for: .seconds(seconds))
+                onClose()
+            }
+        }
 #endif
     }
+
+#if DEBUG
+    /// `cassowary.testCloseAfter` as a number, from either a launch argument
+    /// (a string) or a stored value.
+    private static var testCloseDelay: Double? {
+        let defaults = UserDefaults.standard
+        if let number = defaults.object(forKey: "cassowary.testCloseAfter") as? Int {
+            return Double(number)
+        }
+        if let text = defaults.string(forKey: "cassowary.testCloseAfter"), let value = Double(text) {
+            return value
+        }
+        return nil
+    }
+#endif
 }

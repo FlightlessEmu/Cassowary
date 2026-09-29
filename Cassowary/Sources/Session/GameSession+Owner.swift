@@ -36,17 +36,24 @@ extension GameSession: OEGameCoreOwner {
 
     // MARK: - Reported by the helper
 
-    func setScreenSize(_ newScreenSize: OEIntSize, aspectSize newAspectSize: OEIntSize) {
-        screenSize = newScreenSize
-        aspectSize = newAspectSize
+    /// The core reports this from its own frame thread. The main actor reads the
+    /// sizes as it lays the picture out, so hand them over there.
+    nonisolated func setScreenSize(_ newScreenSize: OEIntSize, aspectSize newAspectSize: OEIntSize) {
+        Task { @MainActor in
+            self.screenSize = newScreenSize
+            self.aspectSize = newAspectSize
+        }
     }
 
     func setDiscCount(_ discCount: UInt) {
         self.discCount = discCount
     }
 
-    func setDisplayModes(_ displayModes: [[String: Any]]) {
-        self.displayModes = displayModes
+    /// Reached from the core's thread when the core switches display mode.
+    nonisolated func setDisplayModes(_ displayModes: [[String: Any]]) {
+        Task { @MainActor in
+            self.displayModes = displayModes
+        }
     }
 
     func setRemoteContextID(_ contextID: OEContextID) {
@@ -70,8 +77,12 @@ extension GameSession: OEGameCoreOwner {
     func volumeDown() { }
     func volumeUp() { }
 
-    func stopEmulation() {
-        stop()
+    /// The core asks to quit from its own thread; teardown belongs on the main
+    /// actor, so hop there.
+    nonisolated func stopEmulation() {
+        Task { @MainActor in
+            self.stop()
+        }
     }
 
     func resetEmulation() {

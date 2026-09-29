@@ -391,9 +391,16 @@ struct TVPlayerView: View {
         return nil
     }
 
+    /// Stop the game.
+    ///
+    /// Like the phone's game view, the session is kept until the core has
+    /// finished stopping, so nothing can start a second core on top of the one
+    /// that is still winding down.
     private func stopGame() {
-        session?.stop()
-        session = nil
+        guard let session else { return }
+        session.stop {
+            self.session = nil
+        }
     }
 
     /// Opens the game's menu.
