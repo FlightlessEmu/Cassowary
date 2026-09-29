@@ -39,9 +39,11 @@ extension GameSession: OEGameCoreOwner {
     /// The core reports this from its own frame thread. The main actor reads the
     /// sizes as it lays the picture out, so hand them over there.
     nonisolated func setScreenSize(_ newScreenSize: OEIntSize, aspectSize newAspectSize: OEIntSize) {
-        Task { @MainActor in
-            self.screenSize = newScreenSize
-            self.aspectSize = newAspectSize
+        DispatchQueue.main.async {
+            MainActor.assumeIsolated {
+                self.screenSize = newScreenSize
+                self.aspectSize = newAspectSize
+            }
         }
     }
 
@@ -51,8 +53,10 @@ extension GameSession: OEGameCoreOwner {
 
     /// Reached from the core's thread when the core switches display mode.
     nonisolated func setDisplayModes(_ displayModes: [[String: Any]]) {
-        Task { @MainActor in
-            self.displayModes = displayModes
+        DispatchQueue.main.async {
+            MainActor.assumeIsolated {
+                self.displayModes = displayModes
+            }
         }
     }
 
@@ -80,8 +84,10 @@ extension GameSession: OEGameCoreOwner {
     /// The core asks to quit from its own thread; teardown belongs on the main
     /// actor, so hop there.
     nonisolated func stopEmulation() {
-        Task { @MainActor in
-            self.stop()
+        DispatchQueue.main.async {
+            MainActor.assumeIsolated {
+                self.stop()
+            }
         }
     }
 
