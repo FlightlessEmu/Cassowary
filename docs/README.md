@@ -33,6 +33,7 @@ with a [template](adr/template.md).
 | Doc | What's in it |
 |---|---|
 | [apple-tv-library-host-plan.md](apple-tv-library-host-plan.md) | Plan for the Apple TV build and the phone-hosted library. |
+| [retro-achievements/retroachievements-implementation-guide.md](retro-achievements/retroachievements-implementation-guide.md) | How to wire a core into RetroAchievements, and the pitfalls already hit. |
 
 ## Other
 
