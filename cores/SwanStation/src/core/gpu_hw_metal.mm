@@ -293,6 +293,7 @@ bool LibretroMetalHostDisplay::Render()
 // The renderer
 // ---------------------------------------------------------------------------
 
+
 GPU_HW_Metal::GPU_HW_Metal() : GPU_HW() {}
 
 GPU_HW_Metal::~GPU_HW_Metal()
@@ -496,7 +497,12 @@ void GPU_HW_Metal::ResetGraphicsAPIState()
 
 void GPU_HW_Metal::RestoreGraphicsAPIState()
 {
-  ResetGraphicsAPIState();
+  // Back to the state batches draw in, as the OpenGL back end does: clipped to
+  // the console's drawing area. Leaving the whole of VRAM open let a game's
+  // oversized polygons (Crash Bandicoot's fade quads, for one) paint over its
+  // own textures.
+  SetScissorFromDrawingArea();
+  m_batch_ubo_dirty = true;
 }
 
 void GPU_HW_Metal::UpdateSettings()
@@ -527,12 +533,12 @@ void GPU_HW_Metal::UpdateSettings()
 
 void GPU_HW_Metal::BeginFrame()
 {
+  // The rings are not rewound here. A frame can end in the middle of the
+  // console's work (a readback, a full ring), and a batch or a uniform block
+  // written before that may not have been drawn yet. MapStream rewinds a ring
+  // when it runs out, once the GPU is done with it.
   if (m_command_buffer == nil)
     m_command_buffer = [m_queue commandBuffer];
-
-  m_vertex_stream_buffer->Reset();
-  m_uniform_stream_buffer->Reset();
-  m_texture_stream_buffer->Reset();
 }
 
 void GPU_HW_Metal::EndFrame()
@@ -898,9 +904,29 @@ void GPU_HW_Metal::SetVRAMViewportAndScissor()
 
 // --- drawing helpers -------------------------------------------------------
 
+Metal::StreamBuffer::MappingResult GPU_HW_Metal::MapStream(Metal::StreamBuffer& buffer, uint32_t alignment,
+                                                           uint32_t size)
+{
+  if (!buffer.HasSpaceFor(alignment, size))
+  {
+    // Commands already encoded read from anywhere in the ring, and they only
+    // run when the command buffer is committed. Finish them before any of it
+    // is written over.
+    EndFrame();
+    buffer.Reset();
+
+    // The batch uniforms live in this ring too, and are only uploaded again
+    // when they change, so the copy that was there is gone.
+    if (&buffer == m_uniform_stream_buffer.get())
+      m_batch_ubo_dirty = true;
+  }
+
+  return buffer.Map(alignment, size);
+}
+
 void GPU_HW_Metal::UploadUniforms(const void* data, uint32_t size)
 {
-  const Metal::StreamBuffer::MappingResult res = m_uniform_stream_buffer->Map(256, size);
+  const Metal::StreamBuffer::MappingResult res = MapStream(*m_uniform_stream_buffer, 256, size);
   std::memcpy(res.pointer, data, size);
   m_uniform_stream_buffer->Unmap(size);
 
@@ -909,7 +935,11 @@ void GPU_HW_Metal::UploadUniforms(const void* data, uint32_t size)
 
 void GPU_HW_Metal::UploadUniformBuffer(const void* data, uint32_t data_size)
 {
+  // The batch uniforms. Kept apart from the offset the VRAM passes use, since
+  // those upload their own blocks between batches and the batch block is only
+  // uploaded again when it changes.
   UploadUniforms(data, data_size);
+  m_batch_uniform_offset = m_uniform_buffer_offset;
 }
 
 // --- batch drawing ---------------------------------------------------------
@@ -917,7 +947,7 @@ void GPU_HW_Metal::UploadUniformBuffer(const void* data, uint32_t data_size)
 void GPU_HW_Metal::MapBatchVertexPointer(uint32_t required_vertices)
 {
   const Metal::StreamBuffer::MappingResult res =
-    m_vertex_stream_buffer->Map(sizeof(BatchVertex), required_vertices * sizeof(BatchVertex));
+    MapStream(*m_vertex_stream_buffer, sizeof(BatchVertex), required_vertices * sizeof(BatchVertex));
 
   m_batch_start_vertex_ptr = static_cast<BatchVertex*>(res.pointer);
   m_batch_current_vertex_ptr = m_batch_start_vertex_ptr;
@@ -965,8 +995,8 @@ void GPU_HW_Metal::DrawBatchVertices(BatchRenderMode render_mode, uint32_t base_
 
   [encoder setRenderPipelineState:pipeline];
   [encoder setVertexBuffer:m_vertex_stream_buffer->GetBuffer() offset:0 atIndex:0];
-  [encoder setVertexBuffer:m_uniform_stream_buffer->GetBuffer() offset:m_uniform_buffer_offset atIndex:1];
-  [encoder setFragmentBuffer:m_uniform_stream_buffer->GetBuffer() offset:m_uniform_buffer_offset atIndex:1];
+  [encoder setVertexBuffer:m_uniform_stream_buffer->GetBuffer() offset:m_batch_uniform_offset atIndex:1];
+  [encoder setFragmentBuffer:m_uniform_stream_buffer->GetBuffer() offset:m_batch_uniform_offset atIndex:1];
   [encoder setFragmentTexture:m_vram_texture.GetTexture() atIndex:0];
   [encoder setFragmentSamplerState:m_nearest_sampler atIndex:0];
   [encoder setDepthStencilState:GetDepthStencilState(key.depth)];
@@ -1298,49 +1328,54 @@ void GPU_HW_Metal::UpdateVRAM(uint32_t x, uint32_t y, uint32_t width, uint32_t h
 
   const uint32_t num_pixels = width * height;
 
-  // At 1x the upload is a straight CPU write into the VRAM texture: the pixels
-  // the console handed over are the pixels VRAM holds, one 16-bit value each.
-  // A write that runs off the edge of VRAM wraps, which is the one case that
-  // still needs the shader.
+  // At 1x the upload is a straight copy: the pixels the console handed over
+  // are the pixels VRAM holds, one 16-bit value each, widened to RGBA8 here and
+  // copied in by a blit. The blit is queued with the draws, so it lands after
+  // the fills and draws before it and before the ones after it. (Writing the
+  // texture from the CPU would land at once, and a fill queued earlier in the
+  // frame would then wipe it when the frame runs.)
+  // A write that runs off the edge of VRAM wraps, which still needs the shader.
   const bool wraps = (bounds.GetWidth() != width || bounds.GetHeight() != height);
 
   // A masked write has to ask what VRAM already holds, and the GPU may still be
   // drawing into it inside the same frame, so the CPU cannot answer that. Those
   // writes go through the shader, which does the test with the depth buffer the
-  // way the other backends do. The straight copy stays on the CPU.
+  // way the other backends do.
   if (m_resolution_scale == 1 && !wraps && !check_mask)
   {
-    m_vram_upload_buffer.resize(num_pixels);
+    const uint32_t upload_size = num_pixels * sizeof(uint32_t);
+    const auto staging = MapStream(*m_texture_stream_buffer, sizeof(uint32_t), upload_size);
+    uint32_t* staged_pixels = static_cast<uint32_t*>(staging.pointer);
     const uint16_t mask_or = set_mask ? 0x8000 : 0x0000;
     const uint16_t* source_pixels = static_cast<const uint16_t*>(data);
     for (uint32_t i = 0; i < num_pixels; i++)
-      m_vram_upload_buffer[i] = VRAMRGBA5551ToRGBA8888(source_pixels[i] | mask_or);
+      staged_pixels[i] = VRAMRGBA5551ToRGBA8888(source_pixels[i] | mask_or);
+    m_texture_stream_buffer->Unmap(upload_size);
 
-    if (check_mask)
+    // A blit cannot run inside a render pass.
+    BeginFrame();
+    EndRenderPass();
+
+    id<MTLBlitCommandEncoder> blit = [m_command_buffer blitCommandEncoder];
+    if (blit != nil)
     {
-      // "Check mask before draw": a pixel whose mask bit is already set is
-      // left alone. VRAM carries that bit in its alpha channel and it is
-      // readable from here, so this is a per-pixel test rather than the depth
-      // test the shader would do.
-      std::vector<uint32_t> existing(num_pixels);
-      [m_vram_texture.GetTexture() getBytes:existing.data()
-                                 bytesPerRow:width * sizeof(uint32_t)
-                                  fromRegion:MTLRegionMake2D(bounds.left, bounds.top, width, height)
-                                 mipmapLevel:0];
-
-      for (uint32_t i = 0; i < num_pixels; i++)
-      {
-        if ((existing[i] >> 24) != 0)
-          m_vram_upload_buffer[i] = existing[i];
-      }
+      [blit copyFromBuffer:m_texture_stream_buffer->GetBuffer()
+                 sourceOffset:staging.buffer_offset
+            sourceBytesPerRow:width * sizeof(uint32_t)
+          sourceBytesPerImage:upload_size
+                   sourceSize:MTLSizeMake(width, height, 1)
+                    toTexture:m_vram_texture.GetTexture()
+             destinationSlice:0
+             destinationLevel:0
+            destinationOrigin:MTLOriginMake(bounds.left, bounds.top, 0)];
+      [blit endEncoding];
     }
 
-    m_vram_texture.Upload(bounds.left, bounds.top, width, height, m_vram_upload_buffer.data());
     RestoreGraphicsAPIState();
     return;
   }
 
-  const auto map_result = m_texture_stream_buffer->Map(sizeof(uint16_t), num_pixels * sizeof(uint16_t));
+  const auto map_result = MapStream(*m_texture_stream_buffer, sizeof(uint16_t), num_pixels * sizeof(uint16_t));
   std::memcpy(map_result.pointer, data, num_pixels * sizeof(uint16_t));
   m_texture_stream_buffer->Unmap(num_pixels * sizeof(uint16_t));
   m_texture_buffer_offset = map_result.buffer_offset;

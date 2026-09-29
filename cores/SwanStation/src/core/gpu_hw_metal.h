@@ -199,6 +199,9 @@ private:
   /// its own viewport, and every other VRAM draw has to undo that.
   void SetVRAMViewportAndScissor();
   void UploadUniforms(const void* data, uint32_t size);
+  /// Reserves space in one of the rings. When the ring is full, the work
+  /// queued so far is finished first, since it may still read the start of it.
+  Metal::StreamBuffer::MappingResult MapStream(Metal::StreamBuffer& buffer, uint32_t alignment, uint32_t size);
 
   Metal::Texture m_vram_texture;
   Metal::Texture m_vram_depth_texture;
@@ -217,7 +220,6 @@ private:
   id<MTLSamplerState> m_nearest_sampler = nil;
   id<MTLSamplerState> m_linear_sampler = nil;
   std::unordered_map<uint32_t, id<MTLDepthStencilState>> m_depth_stencil_states;
-  std::vector<uint32_t> m_vram_upload_buffer;
 
   id<MTLCommandQueue> m_queue = nil;
   id<MTLCommandBuffer> m_command_buffer = nil;
@@ -237,6 +239,7 @@ private:
   std::string m_downsample_source;
 
   uint32_t m_uniform_buffer_offset = 0;
+  uint32_t m_batch_uniform_offset = 0;
   uint32_t m_texture_buffer_offset = 0;
   uint32_t m_display_texture_width = 0;
   uint32_t m_display_texture_height = 0;

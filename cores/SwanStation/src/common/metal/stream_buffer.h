@@ -14,9 +14,11 @@ namespace Metal {
 /// vertex data and the uniform buffers.
 ///
 /// The other back ends fence their ring so a write never lands on top of data
-/// the GPU has not read yet. That is not needed here: this core submits one
-/// command buffer per frame and waits for it to finish before the frame is
-/// handed to the engine, so by the time the ring wraps the GPU has caught up.
+/// the GPU has not read yet. This one does not wrap on its own: when a
+/// reservation will not fit, the owner has to finish the GPU work that still
+/// reads the ring, then Reset() it. The commands of a frame only reach the GPU
+/// when the frame ends, so data written earlier in the same frame is still
+/// waiting to be read.
 class StreamBuffer
 {
 public:
@@ -35,7 +37,10 @@ public:
     uint32_t space_aligned; // remaining space / alignment
   };
 
-  /// Reserves `min_size` bytes, aligned up to `alignment`.
+  /// Whether `min_size` bytes, aligned up to `alignment`, fit before the end.
+  bool HasSpaceFor(uint32_t alignment, uint32_t min_size) const;
+  /// Reserves `min_size` bytes, aligned up to `alignment`. The space has to be
+  /// there; check HasSpaceFor() first.
   MappingResult Map(uint32_t alignment, uint32_t min_size);
   /// Releases the reservation, keeping the `used_size` bytes that were written.
   void Unmap(uint32_t used_size);
@@ -44,7 +49,8 @@ public:
   ALWAYS_INLINE uint32_t GetSize() const { return m_size; }
   ALWAYS_INLINE uint32_t GetPosition() const { return m_position; }
 
-  /// Called once per frame, after the GPU has finished with the ring.
+  /// Starts again from the beginning. Only once the GPU has finished with the
+  /// ring.
   ALWAYS_INLINE void Reset() { m_position = 0; }
 
 private:
