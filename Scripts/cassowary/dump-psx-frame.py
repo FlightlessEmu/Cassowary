@@ -28,9 +28,16 @@ Options:
     --press ID,START,END
                   hold a RetroPad button (0 is B, the PlayStation's cross;
                   3 is Start) from frame START up to END. Repeatable.
+    --option KEY=VALUE
+                  set a swanstation_ core option before the game boots, e.g.
+                  swanstation_GPU_ResolutionScale=4. Repeatable.
+    --option-at FRAME KEY=VALUE
+                  change one while the game runs. Repeatable.
+    --disc-at FRAME DISC
+                  swap discs (counted from 0) at a frame. Repeatable.
     --state-at N  save a state at frame N, run on to --frames, then load it
-                  back and dump the frame after N. Compare it with a plain
-                  run of --frames N+1 to check save states.
+                  back, run three frames and dump. Compare it with a plain
+                  run of --frames N+3 to check save states.
 """
 
 import argparse
@@ -163,7 +170,13 @@ def main():
     parser.add_argument('--press', action='append', default=[],
                         help='hold a joypad button for frames ID,START,END (repeatable)')
     parser.add_argument('--state-at', type=int, default=None,
-                        help='save a state at this frame, run on, then load it back and dump the frame after it')
+                        help='save a state at this frame, run on, then load it back and dump three frames later')
+    parser.add_argument('--option', action='append', default=[],
+                        help='set a swanstation_ core option before boot, KEY=VALUE (repeatable)')
+    parser.add_argument('--option-at', action='append', default=[], nargs=2, metavar=('FRAME', 'KEY=VALUE'),
+                        help='change a core option at a frame while the game runs (repeatable)')
+    parser.add_argument('--disc-at', action='append', default=[], nargs=2, metavar=('FRAME', 'DISC'),
+                        help='swap to a disc (counted from 0) at a frame (repeatable)')
     parser.add_argument('--verbose', action='store_true')
     parser.add_argument('--no-build', action='store_true')
     args = parser.parse_args()
@@ -196,6 +209,12 @@ def main():
         command.append('--software')
     if args.state_at is not None:
         command += ['--state-at', str(args.state_at)]
+    for option in args.option:
+        command += ['--option', option]
+    for frame, option in args.option_at:
+        command += ['--option-at', frame, option]
+    for frame, disc in args.disc_at:
+        command += ['--disc-at', frame, disc]
 
     return subprocess.run(command).returncode
 

@@ -42,6 +42,7 @@
 #include "core/gpu_hw_metal.h"
 #include "core/metal_device.h"
 
+#include <chrono>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -86,6 +87,12 @@ static int16_t InputStateCallback(unsigned, unsigned, unsigned, unsigned id, voi
   return 0;
 }
 
+// Reports vibration, so a game's rumble can be checked without a controller.
+static void RumbleCallback(unsigned port, uint16_t strong, uint16_t weak, void*)
+{
+  std::printf("frame %d: port %u rumble strong %u weak %u\n", s_frame, port + 1, strong, weak);
+}
+
 int main(int argc, char** argv)
 {
   @autoreleasepool
@@ -99,6 +106,25 @@ int main(int argc, char** argv)
     int series = 0;
     bool software = false;
     int state_at = -1;
+    // Options set before the game loads, and options changed at a frame.
+    std::vector<std::pair<std::string, std::string>> options;
+    struct LateOption
+    {
+      int frame;
+      std::string key;
+      std::string value;
+    };
+    std::vector<LateOption> late_options;
+    // Discs to swap to (0-based) at a frame.
+    std::vector<std::pair<int, unsigned>> disc_swaps;
+    auto split_option = [](const std::string& text, std::string* key, std::string* value) {
+      const size_t equals = text.find('=');
+      if (equals == std::string::npos)
+        return false;
+      *key = text.substr(0, equals);
+      *value = text.substr(equals + 1);
+      return true;
+    };
 
     for (int i = 1; i < argc; i++)
     {
@@ -123,6 +149,27 @@ int main(int argc, char** argv)
         software = true;
       else if (argument == "--state-at")
         state_at = std::atoi(value().c_str());
+      else if (argument == "--option")
+      {
+        // KEY=VALUE, repeatable: a swanstation_ core option set before boot.
+        std::string key, option_value;
+        if (split_option(value(), &key, &option_value))
+          options.emplace_back(key, option_value);
+      }
+      else if (argument == "--disc-at")
+      {
+        // FRAME DISC: swap to that disc (counted from 0) at that frame.
+        const int frame = std::atoi(value().c_str());
+        disc_swaps.emplace_back(frame, static_cast<unsigned>(std::atoi(value().c_str())));
+      }
+      else if (argument == "--option-at")
+      {
+        // FRAME KEY=VALUE: the same, changed while the game runs.
+        LateOption late = {};
+        late.frame = std::atoi(value().c_str());
+        if (split_option(value(), &late.key, &late.value))
+          late_options.push_back(late);
+      }
       else if (argument == "--press")
       {
         // ID,START,END, repeatable.
@@ -156,7 +203,10 @@ int main(int argc, char** argv)
     SwanStationBridge::SetMetalRendererEnabled(!software);
     SwanStationBridge::SetAudioCallback(AudioCallback, nullptr);
     SwanStationBridge::SetInputStateCallback(InputStateCallback, nullptr);
+    SwanStationBridge::SetRumbleCallback(RumbleCallback, nullptr);
     SwanStationBridge::SetDirectories(bios_directory.c_str(), save_directory.c_str());
+    for (const auto& [key, option_value] : options)
+      SwanStationBridge::SetOption(key.c_str(), option_value.c_str());
 
     if (!SwanStationBridge::Initialize())
     {
@@ -238,11 +288,31 @@ int main(int argc, char** argv)
     };
 
     // --state-at N saves a state at frame N, keeps running to the end, then
-    // loads it back and runs one frame, so the dump shows frame N + 1 as the
-    // save state restored it.
+    // loads it back and runs three frames, so the dump shows frame N + 3 as
+    // the save state restored it. Three, not one: a state holds VRAM at 1x,
+    // and a double-buffered game shows the restored buffer for a frame or two
+    // before its next one, drawn at the internal resolution, reaches the
+    // screen.
+    std::printf("discs: %u\n", SwanStationBridge::DiscCount());
+
     std::vector<uint8_t> state;
+    const auto run_start = std::chrono::steady_clock::now();
     for (int i = 0; i < frames; i++)
     {
+      for (const LateOption& late : late_options)
+      {
+        if (late.frame == i)
+          SwanStationBridge::SetOption(late.key.c_str(), late.value.c_str());
+      }
+      for (const auto& [frame, disc] : disc_swaps)
+      {
+        if (frame == i)
+        {
+          const bool swapped = SwanStationBridge::SetDisc(disc);
+          std::printf("frame %d: swap to disc %u %s\n", i, disc + 1, swapped ? "started" : "refused");
+        }
+      }
+
       if (i == state_at)
       {
         state.resize(SwanStationBridge::SerializeSize());
@@ -257,6 +327,14 @@ int main(int argc, char** argv)
       s_frame++;
     }
 
+    if (frames > 0)
+    {
+      const double seconds =
+        std::chrono::duration<double>(std::chrono::steady_clock::now() - run_start).count();
+      std::printf("ran %d frames in %.1f s: %.2f ms a frame; disc %u of %u in the drive\n", frames, seconds,
+                  seconds * 1000.0 / frames, SwanStationBridge::CurrentDisc() + 1, SwanStationBridge::DiscCount());
+    }
+
     if (!state.empty())
     {
       if (!SwanStationBridge::Deserialize(state.data(), state.size()))
@@ -265,8 +343,9 @@ int main(int argc, char** argv)
         return 1;
       }
 
-      SwanStationBridge::RunFrame();
-      s_frame = state_at + 1;
+      for (int i = 0; i < 3; i++)
+        SwanStationBridge::RunFrame();
+      s_frame = state_at + 3;
     }
 
     if (!vram_path.empty())

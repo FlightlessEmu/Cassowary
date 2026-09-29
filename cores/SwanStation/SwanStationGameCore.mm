@@ -38,6 +38,8 @@
 #include "SwanStationLibretroBridge.h"
 #include <libretro.h>
 
+#include <atomic>
+
 #include <cstring>
 
 // Input state. The app pushes button and stick changes in as they happen; the
@@ -88,6 +90,43 @@ static uint32_t JoypadBitForID(unsigned id)
     }
 }
 
+// The settings the app's PlayStation page writes. Read when a game boots and
+// again whenever one changes, so a change applies while the game runs.
+static NSString *const SwanStationMetalRendererKey = @"SwanStationMetalRenderer";
+static NSString *const SwanStationResolutionScaleKey = @"SwanStation.resolutionScale";
+static NSString *const SwanStationTrueColorKey = @"SwanStation.trueColor";
+static NSString *const SwanStationTextureFilterKey = @"SwanStation.textureFilter";
+static NSString *const SwanStationPGXPKey = @"SwanStation.pgxp";
+static NSString *const SwanStationWidescreenKey = @"SwanStation.widescreen";
+
+// The defaults when the app has not said otherwise. The renderer runs at 3x
+// with true colour and geometry correction: sharper, smoother and steadier
+// than the console, at a cost a phone's GPU does not notice. Widescreen
+// stays off, since most games leave the extra width undrawn.
+static const NSInteger SwanStationDefaultResolutionScale = 3;
+static const BOOL SwanStationDefaultTrueColor = YES;
+static const BOOL SwanStationDefaultPGXP = YES;
+
+static BOOL SwanStationBoolSetting(NSString *key, BOOL fallback)
+{
+    id value = [[NSUserDefaults standardUserDefaults] objectForKey:key];
+    return [value respondsToSelector:@selector(boolValue)] ? [value boolValue] : fallback;
+}
+
+static uint32_t JoypadMaskForPort(unsigned port)
+{
+    uint32_t mask = s_joypad[port];
+
+    // The DualShock's ANALOG button is not a button the core reads: it
+    // toggles analog mode on L1+R1+L3+R3 held together (its default combo).
+    if (mask & (1u << OEPSXButtonAnalogMode))
+    {
+        mask |= (1u << OEPSXButtonL1) | (1u << OEPSXButtonR1) | (1u << OEPSXButtonL3) | (1u << OEPSXButtonR3);
+    }
+
+    return mask;
+}
+
 static int16_t SwanStationInputState(unsigned port, unsigned device, unsigned index, unsigned id, void *userdata)
 {
     if (port >= 2)
@@ -98,7 +137,7 @@ static int16_t SwanStationInputState(unsigned port, unsigned device, unsigned in
     switch (device & 0xff)
     {
         case RETRO_DEVICE_JOYPAD:
-            return (s_joypad[port] & JoypadBitForID(id)) ? 1 : 0;
+            return (JoypadMaskForPort(port) & JoypadBitForID(id)) ? 1 : 0;
 
         case RETRO_DEVICE_ANALOG:
         {
@@ -126,8 +165,16 @@ static int16_t SwanStationInputState(unsigned port, unsigned device, unsigned in
     }
 }
 
+static void SwanStationRumbleCallback(unsigned port, uint16_t strong, uint16_t weak, void *userdata);
+
 @implementation SwanStationGameCore
 {
+    // Whether each port's motors are running, as last told to the app.
+    BOOL _rumbling[2];
+    // Set from any thread when the app's settings change; applied on the
+    // emulation thread before the next frame.
+    std::atomic<bool> _optionsChanged;
+    id _defaultsObserver;
     // The frame the engine reads. The core hands us a pointer to its own
     // buffer, which may be replaced or resized at any time, so the pixels are
     // copied out here once per frame.
@@ -160,8 +207,44 @@ static int16_t SwanStationInputState(unsigned port, unsigned device, unsigned in
 
 - (void)dealloc
 {
+    if (_defaultsObserver)
+        [[NSNotificationCenter defaultCenter] removeObserver:_defaultsObserver];
     s_audioBuffer = nil;
     free(_frameBuffer);
+}
+
+#pragma mark - Settings
+
+/// Hands the app's PlayStation settings to the core as its own options.
+- (void)applyOptions
+{
+    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+
+    NSInteger scale = [defaults integerForKey:SwanStationResolutionScaleKey];
+    if (scale < 1 || scale > 8)
+        scale = SwanStationDefaultResolutionScale;
+    SwanStationBridge::SetOption("swanstation_GPU_ResolutionScale", [NSString stringWithFormat:@"%ld", (long)scale].UTF8String);
+
+    const BOOL trueColor = SwanStationBoolSetting(SwanStationTrueColorKey, SwanStationDefaultTrueColor);
+    SwanStationBridge::SetOption("swanstation_GPU_TrueColor", trueColor ? "true" : "false");
+
+    // Only the filters the Metal renderer has been checked with.
+    NSString *filter = [defaults stringForKey:SwanStationTextureFilterKey];
+    if (![@[@"Nearest", @"Bilinear", @"JINC2", @"xBR"] containsObject:filter])
+        filter = @"Nearest";
+    SwanStationBridge::SetOption("swanstation_GPU_TextureFilter", filter.UTF8String);
+
+    // Geometry correction: polygons stop wobbling and textures stop warping.
+    const BOOL pgxp = SwanStationBoolSetting(SwanStationPGXPKey, SwanStationDefaultPGXP);
+    SwanStationBridge::SetOption("swanstation_GPU_PGXPEnable", pgxp ? "true" : "false");
+    SwanStationBridge::SetOption("swanstation_GPU_PGXPCulling", pgxp ? "true" : "false");
+    SwanStationBridge::SetOption("swanstation_GPU_PGXPTextureCorrection", pgxp ? "true" : "false");
+
+    // The widescreen hack widens what the game draws; the picture is then
+    // shown at 16:9 to match.
+    const BOOL widescreen = SwanStationBoolSetting(SwanStationWidescreenKey, NO);
+    SwanStationBridge::SetOption("swanstation_GPU_WidescreenHack", widescreen ? "true" : "false");
+    SwanStationBridge::SetOption("swanstation_Display_AspectRatio", widescreen ? "16:9" : "4:3");
 }
 
 #pragma mark - Renderer
@@ -171,8 +254,7 @@ static int16_t SwanStationInputState(unsigned port, unsigned device, unsigned in
 // default to NO to fall back to software rendering.
 - (BOOL)usesMetalRenderer
 {
-    NSNumber *value = [[NSUserDefaults standardUserDefaults] objectForKey:@"SwanStationMetalRenderer"];
-    return (value == nil) ? YES : [value boolValue];
+    return SwanStationBoolSetting(SwanStationMetalRendererKey, YES);
 }
 
 - (OEGameCoreRendering)gameCoreRendering
@@ -215,6 +297,7 @@ static int16_t SwanStationInputState(unsigned port, unsigned device, unsigned in
 
     SwanStationBridge::SetDirectories(systemDirectory.fileSystemRepresentation,
                                       saveDirectory.fileSystemRepresentation);
+    [self applyOptions];
 
     if (!SwanStationBridge::Initialize())
     {
@@ -243,6 +326,19 @@ static int16_t SwanStationInputState(unsigned port, unsigned device, unsigned in
 
     SwanStationBridge::SetAudioCallback(&SwanStationAudioCallback, NULL);
     SwanStationBridge::SetInputStateCallback(&SwanStationInputState, NULL);
+    SwanStationBridge::SetRumbleCallback(&SwanStationRumbleCallback, (__bridge void *)self);
+
+    // Settings changed in the app while the game runs apply on the next frame.
+    __weak SwanStationGameCore *weakSelf = self;
+    _defaultsObserver = [[NSNotificationCenter defaultCenter]
+        addObserverForName:NSUserDefaultsDidChangeNotification
+                    object:nil
+                     queue:nil
+                usingBlock:^(NSNotification *note) {
+                    SwanStationGameCore *core = weakSelf;
+                    if (core)
+                        core->_optionsChanged.store(true);
+                }];
 
     _frameSize = OEIntSizeMake(SwanStationBridge::DisplayWidth(), SwanStationBridge::DisplayHeight());
 
@@ -251,6 +347,9 @@ static int16_t SwanStationInputState(unsigned port, unsigned device, unsigned in
 
 - (void)executeFrame
 {
+    if (_optionsChanged.exchange(false))
+        [self applyOptions];
+
     SwanStationBridge::RunFrame();
 
     // Copy the core's frame into a buffer of our own. The bridge keeps the
@@ -309,6 +408,17 @@ static int16_t SwanStationInputState(unsigned port, unsigned device, unsigned in
 {
     SwanStationBridge::SetAudioCallback(NULL, NULL);
     SwanStationBridge::SetInputStateCallback(NULL, NULL);
+    SwanStationBridge::SetRumbleCallback(NULL, NULL);
+    if (_defaultsObserver)
+    {
+        [[NSNotificationCenter defaultCenter] removeObserver:_defaultsObserver];
+        _defaultsObserver = nil;
+    }
+
+    // Leave no controller buzzing after the game is gone.
+    for (unsigned port = 0; port < 2; port++)
+        [self setRumbling:NO forPort:port];
+
     SwanStationBridge::UnloadGame();
 
     [super stopEmulation];
@@ -470,6 +580,34 @@ static int16_t SwanStationInputState(unsigned port, unsigned device, unsigned in
     block(success, error);
 }
 
+#pragma mark - Rumble
+
+- (void)setRumbling:(BOOL)rumbling forPort:(unsigned)port
+{
+    if (port >= 2 || _rumbling[port] == rumbling)
+        return;
+
+    _rumbling[port] = rumbling;
+    if ([self.delegate respondsToSelector:@selector(gameCore:didChangeRumble:forPlayer:)])
+        [self.delegate gameCore:self didChangeRumble:rumbling forPlayer:port + 1];
+}
+
+#pragma mark - Discs
+
+- (NSUInteger)discCount
+{
+    return SwanStationBridge::DiscCount();
+}
+
+- (void)setDisc:(NSUInteger)discNumber
+{
+    // Discs are numbered from 1 here and from 0 in the core.
+    if (discNumber == 0)
+        return;
+
+    SwanStationBridge::SetDisc((unsigned)(discNumber - 1));
+}
+
 #pragma mark - Input
 
 - (oneway void)didPushPSXButton:(OEPSXButton)button forPlayer:(NSUInteger)player
@@ -522,3 +660,11 @@ static int16_t SwanStationInputState(unsigned port, unsigned device, unsigned in
 - (oneway void)rightMouseUp {}
 
 @end
+
+static void SwanStationRumbleCallback(unsigned port, uint16_t strong, uint16_t weak, void *userdata)
+{
+    // The app plays rumble as on or off, at the strength the player picked,
+    // so either motor running counts as rumbling.
+    SwanStationGameCore *core = (__bridge SwanStationGameCore *)userdata;
+    [core setRumbling:(strong > 0 || weak > 0) forPort:port];
+}

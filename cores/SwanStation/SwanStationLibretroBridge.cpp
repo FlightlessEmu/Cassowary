@@ -35,6 +35,7 @@
 #include <cstdarg>
 #include <cstdio>
 #include <cstring>
+#include <map>
 #include <string>
 
 // The core's entry points. Declared by libretro.h, defined by the core.
@@ -73,6 +74,27 @@ AudioCallback s_audio_callback = nullptr;
 void* s_audio_userdata = nullptr;
 InputStateCallback s_input_callback = nullptr;
 void* s_input_userdata = nullptr;
+RumbleCallback s_rumble_callback = nullptr;
+void* s_rumble_userdata = nullptr;
+
+// What the app has said about the core's options, and whether any of it
+// changed since the core last asked.
+std::map<std::string, std::string> s_options;
+bool s_options_changed = false;
+
+// The core's disc control, which it hands over during retro_init.
+retro_disk_control_ext_callback s_disk_control = {};
+bool s_have_disk_control = false;
+
+// The motor strengths last reported per port, so the app hears about changes
+// rather than every frame's restatement.
+uint16_t s_rumble[2][2] = {};
+
+// Frames left before a swapped disc goes in. The lid stays open for about a
+// second, as a person's hand would keep it: some games only notice a new
+// disc when they have seen the lid open.
+int s_disc_close_frames = 0;
+constexpr int DISC_LID_OPEN_FRAMES = 60;
 
 const void* s_frame_pixels = nullptr;
 unsigned s_frame_width = 0;
@@ -105,6 +127,21 @@ void LogCallback(enum retro_log_level level, const char* fmt, ...)
   std::fputs(level == RETRO_LOG_ERROR ? "[SwanStation error] " : "[SwanStation warn] ", stderr);
   std::vfprintf(stderr, fmt, args);
   va_end(args);
+}
+
+bool SetRumbleState(unsigned port, retro_rumble_effect effect, uint16_t strength)
+{
+  if (port >= 2 || (effect != RETRO_RUMBLE_STRONG && effect != RETRO_RUMBLE_WEAK))
+    return false;
+
+  uint16_t& motor = s_rumble[port][effect == RETRO_RUMBLE_STRONG ? 0 : 1];
+  if (motor == strength)
+    return true;
+
+  motor = strength;
+  if (s_rumble_callback)
+    s_rumble_callback(port, s_rumble[port][0], s_rumble[port][1], s_rumble_userdata);
+  return true;
 }
 
 bool EnvironCallback(unsigned cmd, void* data)
@@ -160,6 +197,14 @@ bool EnvironCallback(unsigned cmd, void* data)
         return true;
       }
 
+      // What the app set, from its PlayStation settings.
+      const auto option = s_options.find(variable->key);
+      if (option != s_options.end())
+      {
+        variable->value = option->second.c_str();
+        return true;
+      }
+
       // The default memory card is one the frontend saves for the core
       // (libretro's save RAM), and nothing here does, so every in-game save
       // was lost when the game closed. A card per game title is one the core
@@ -173,6 +218,33 @@ bool EnvironCallback(unsigned cmd, void* data)
 
       return false;
     }
+
+    case RETRO_ENVIRONMENT_GET_VARIABLE_UPDATE:
+      // True once after the app changes an option, so the core re-reads them.
+      if (!data)
+        return false;
+      *static_cast<bool*>(data) = s_options_changed;
+      s_options_changed = false;
+      return true;
+
+    case RETRO_ENVIRONMENT_GET_RUMBLE_INTERFACE:
+      if (!data)
+        return false;
+      static_cast<retro_rumble_interface*>(data)->set_rumble_state = &SetRumbleState;
+      return true;
+
+    case RETRO_ENVIRONMENT_GET_DISK_CONTROL_INTERFACE_VERSION:
+      if (!data)
+        return false;
+      *static_cast<unsigned*>(data) = 1;
+      return true;
+
+    case RETRO_ENVIRONMENT_SET_DISK_CONTROL_EXT_INTERFACE:
+      if (!data)
+        return false;
+      s_disk_control = *static_cast<const retro_disk_control_ext_callback*>(data);
+      s_have_disk_control = true;
+      return true;
 
     case RETRO_ENVIRONMENT_GET_INPUT_BITMASKS:
       // Answer no, so the core asks for each button by id. Bitmasks would need
@@ -374,6 +446,8 @@ void UnloadGame()
 
   retro_unload_game();
   s_game_loaded = false;
+  std::memset(s_rumble, 0, sizeof(s_rumble));
+  s_disc_close_frames = 0;
   s_frame_pixels = nullptr;
   s_frame_width = s_frame_height = s_frame_pitch = 0;
 }
@@ -382,6 +456,9 @@ void RunFrame()
 {
   if (!s_game_loaded)
     return;
+
+  if (s_disc_close_frames > 0 && --s_disc_close_frames == 0)
+    s_disk_control.set_eject_state(false);
 
   retro_run();
 }
@@ -474,6 +551,71 @@ void SetInputStateCallback(InputStateCallback callback, void* userdata)
 {
   s_input_callback = callback;
   s_input_userdata = userdata;
+}
+
+void SetRumbleCallback(RumbleCallback callback, void* userdata)
+{
+  s_rumble_callback = callback;
+  s_rumble_userdata = userdata;
+}
+
+void SetOption(const char* key, const char* value)
+{
+  if (!key)
+    return;
+
+  if (value)
+  {
+    auto [it, inserted] = s_options.try_emplace(key, value);
+    if (!inserted && it->second == value)
+      return;
+    it->second = value;
+  }
+  else if (s_options.erase(key) == 0)
+  {
+    return;
+  }
+
+  s_options_changed = true;
+}
+
+unsigned DiscCount()
+{
+  if (!s_game_loaded || !s_have_disk_control || !s_disk_control.get_num_images)
+    return 1;
+
+  const unsigned count = s_disk_control.get_num_images();
+  return count > 0 ? count : 1;
+}
+
+unsigned CurrentDisc()
+{
+  if (!s_game_loaded || !s_have_disk_control || !s_disk_control.get_image_index)
+    return 0;
+
+  return s_disk_control.get_image_index();
+}
+
+bool SetDisc(unsigned index)
+{
+  if (!s_game_loaded || !s_have_disk_control || index >= DiscCount())
+    return false;
+
+  // The disc can only change with the lid open, as on the console. A swap
+  // while the lid is still open from the last one just picks another disc.
+  if (s_disc_close_frames == 0 && !s_disk_control.set_eject_state(true))
+    return false;
+
+  if (!s_disk_control.set_image_index(index))
+  {
+    // Put the disc that was there back rather than leave the lid open.
+    s_disc_close_frames = 0;
+    s_disk_control.set_eject_state(false);
+    return false;
+  }
+
+  s_disc_close_frames = DISC_LID_OPEN_FRAMES;
+  return true;
 }
 
 } // namespace SwanStationBridge

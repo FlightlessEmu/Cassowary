@@ -116,4 +116,23 @@ void SetAudioCallback(AudioCallback callback, void* userdata);
 using InputStateCallback = int16_t (*)(unsigned port, unsigned device, unsigned index, unsigned id, void* userdata);
 void SetInputStateCallback(InputStateCallback callback, void* userdata);
 
+/// Called from inside RunFrame when a port's vibration motors change. The
+/// strengths run 0-65535; the DualShock's big motor is `strong`, its small
+/// one `weak`.
+using RumbleCallback = void (*)(unsigned port, uint16_t strong, uint16_t weak, void* userdata);
+void SetRumbleCallback(RumbleCallback callback, void* userdata);
+
+/// A core option (the `swanstation_...` keys in libretro_core_options.h),
+/// answered when the core asks. Set before LoadGame for options that only
+/// take effect at boot; a later change is picked up on the next frame.
+/// A null value forgets the option, so the core's default applies again.
+void SetOption(const char* key, const char* value);
+
+/// The discs of the loaded game. An .m3u playlist lists several, anything
+/// else is one. Indices count from 0.
+unsigned DiscCount();
+unsigned CurrentDisc();
+/// Opens the lid, swaps the disc, and closes it again.
+bool SetDisc(unsigned index);
+
 } // namespace SwanStationBridge
