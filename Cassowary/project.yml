@@ -194,6 +194,11 @@ targets:
       # The video filter list, shared with the phone: same presets, same
       # per-system memory. It only needs Foundation and OpenEmuKit.
       - path: Sources/Models/ShaderCatalog.swift
+      # The session reads the RetroAchievements login and keeps its live
+      # state. The TV has no sign-in screen, so it always plays signed out.
+      - path: Sources/Models/RetroAchievementsStore.swift
+      - path: Sources/Models/RetroAchievementsSessionState.swift
+      - path: Sources/Models/ScreenScraperCredentials.swift
       - path: Sources/Views/GameLayerView.swift
       - path: Sources/Controls/ControllerLayout.swift
       - path: Sources/Controls/InputBindings.swift

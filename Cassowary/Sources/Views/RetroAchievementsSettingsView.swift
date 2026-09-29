@@ -31,6 +31,7 @@ import SwiftUI
 struct RetroAchievementsSettingsView: View {
 
     @State private var credentials = RetroAchievementsCredentialStore.load()
+    @State private var enteredUsername = ""
     @State private var password = ""
     @State private var hardcore = RetroAchievementsCredentialStore.hardcoreEnabled
     @State private var status: Status = .idle
@@ -92,8 +93,6 @@ struct RetroAchievementsSettingsView: View {
         .navigationTitle("Achievements")
         .navigationBarTitleDisplayMode(.inline)
     }
-
-    @State private var enteredUsername = ""
 
     @ViewBuilder
     private var statusLine: some View {

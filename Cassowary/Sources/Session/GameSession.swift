@@ -259,15 +259,19 @@ final class GameSession: NSObject {
     ///
     /// Outside hardcore this always allows. In hardcore, pausing too often
     /// can be a slow-motion cheat, so the server gets a say; when it says
-    /// no, the game keeps running.
-    func canPauseHardcore(completionHandler: @escaping (Bool) -> Void) {
+    /// no, the game keeps running, and the handler gets roughly how many
+    /// seconds until a pause is allowed (0 when the server didn't say).
+    func canPauseHardcore(completionHandler: @escaping (_ allowed: Bool, _ secondsToWait: Int) -> Void) {
         guard raHardcoreActive else {
-            completionHandler(true)
+            completionHandler(true, 0)
             return
         }
-        helper.canPauseRetroAchievementsHardcore { allowed, _ in
-            completionHandler(allowed)
-        }    }
+        helper.canPauseRetroAchievementsHardcore { allowed, framesRemaining in
+            // The server counts in frames; most systems run near 60 a second.
+            let seconds = Int((Double(framesRemaining) / 60).rounded(.up))
+            completionHandler(allowed, seconds)
+        }
+    }
 
     // MARK: - Bindings
 

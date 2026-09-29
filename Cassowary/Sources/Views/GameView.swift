@@ -173,16 +173,20 @@ struct GameView: View {
                 .accessibilityLabel(isPaused ? "Resume" : "Pause")
                 .keyboardShortcut("p", modifiers: .command)
 
-                glassButton("square.and.arrow.down") {
-                    session.saveState { result in
-                        report(result, success: "Saved")
+                // Hardcore turns save states off; the engine refuses them
+                // anyway, so don't offer buttons that can only fail.
+                if !session.raHardcoreActive {
+                    glassButton("square.and.arrow.down") {
+                        session.saveState { result in
+                            report(result, success: "Saved")
+                        }
                     }
+                    .accessibilityLabel("Save state")
+                    .keyboardShortcut("s", modifiers: .command)
                 }
-                .accessibilityLabel("Save state")
-                .keyboardShortcut("s", modifiers: .command)
 
                 Menu {
-                    if session.hasSaveState {
+                    if session.hasSaveState && !session.raHardcoreActive {
                         Button("Load State") {
                             session.loadState { result in
                                 report(result, success: "Loaded")
@@ -293,11 +297,13 @@ struct GameView: View {
             session.setPaused(false)
             return
         }
-        session.canPauseHardcore { allowed in
+        session.canPauseHardcore { allowed, secondsToWait in
             Task { @MainActor in
                 if allowed {
                     isPaused = true
                     session.setPaused(true)
+                } else if secondsToWait > 0 {
+                    show(notice: "Hardcore mode allows pausing again in \(secondsToWait) s.")
                 } else {
                     show(notice: "RetroAchievements is not allowing pause right now.")
                 }

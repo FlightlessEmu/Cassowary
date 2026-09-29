@@ -249,7 +249,9 @@ final class RetroAchievementsSessionState: ObservableObject {
     // MARK: - Private
 
     private func markUnlocked(id: UInt32) {
-        guard let index = achievements.firstIndex(where: { $0.id == id }) else { return }
+        guard let index = achievements.firstIndex(where: { $0.id == id }),
+              !achievements[index].unlocked
+        else { return }
         achievements[index].unlocked = true
         unlockedCount += 1
         unlockedPoints += Int(achievements[index].points)

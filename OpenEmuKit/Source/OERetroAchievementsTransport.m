@@ -278,20 +278,27 @@ void oeRetroAchievementsServerCall(const rc_api_request_t *request,
     }
 
     // RA expects an identifying User-Agent so they can correlate traffic to the host app.
-    // Format: OpenEmu-Silicon/<host-version> (<os-name> <os-version>) rcheevos/<...> <Core>/<ver>
-    // The product name stays OpenEmu-Silicon on every platform so the server
-    // keeps recognizing this client; only the OS label changes. On iOS the
-    // host version is Cassowary's own version from its bundle.
+    // Format: <product>/<host-version> (<os-name> <os-version>) rcheevos/<...> <Core>/<ver>
+    // Cassowary names itself rather than borrowing OpenEmu-Silicon's
+    // approval: RA decides per client whether hardcore unlocks count.
     NSString *hostVersion = OEHostAppVersion();
     NSOperatingSystemVersion osv = [[NSProcessInfo processInfo] operatingSystemVersion];
     NSString *osVersion = [NSString stringWithFormat:@"%ld.%ld.%ld", (long)osv.majorVersion, (long)osv.minorVersion, (long)osv.patchVersion];
-#if TARGET_OS_IPHONE
+#if TARGET_OS_MACCATALYST
+    NSString *product = @"Cassowary";
+    NSString *osName = @"macOS";
+#elif TARGET_OS_TV
+    NSString *product = @"Cassowary";
+    NSString *osName = @"tvOS";
+#elif TARGET_OS_IPHONE
+    NSString *product = @"Cassowary";
     NSString *osName = @"iOS";
 #else
+    NSString *product = @"OpenEmu-Silicon";
     NSString *osName = @"macOS";
 #endif
-    NSString *userAgent = [NSString stringWithFormat:@"OpenEmu-Silicon/%@ (%@ %@) %@%@",
-                            hostVersion, osName, osVersion, [NSString stringWithUTF8String:rcClause], coreSuffix];
+    NSString *userAgent = [NSString stringWithFormat:@"%@/%@ (%@ %@) %@%@",
+                            product, hostVersion, osName, osVersion, [NSString stringWithUTF8String:rcClause], coreSuffix];
     [urlRequest setValue:userAgent forHTTPHeaderField:@"User-Agent"];
 
     if (request->post_data) {

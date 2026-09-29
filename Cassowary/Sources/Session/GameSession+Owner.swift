@@ -112,12 +112,10 @@ extension GameSession: OEGameCoreOwner {
     }
 
     /// The loaded game's achievement metadata changed: first identification
-    /// and after each unlock. Re-post under the host-side name so views that
-    /// watch for session changes have one place to look.
+    /// and after each unlock.
     nonisolated func retroAchievementsSessionUpdated(_ info: [String: Any]) {
         Task { @MainActor [weak self] in
             self?.raState.sessionUpdated(info)
-            NotificationCenter.default.post(name: .OERetroAchievementsSessionDidChange, object: nil, userInfo: info)
         }
     }
 
