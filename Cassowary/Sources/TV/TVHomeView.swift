@@ -112,6 +112,11 @@ struct TVHomeView: View {
         .onChange(of: store.games) { _, _ in
             autoPlayIfAsked()
         }
+        .onChange(of: store.libraryIsLoading) { _, _ in
+            // A reload can leave the games as they were, so the change above
+            // does not fire; auto-play waits for the reload to end.
+            autoPlayIfAsked()
+        }
         .onChange(of: store.connection) { _, _ in
             // A game picked while the phone was away starts as soon as the
             // link is back, so a tap is never wasted.
@@ -119,6 +124,7 @@ struct TVHomeView: View {
                 waitingToPlay = nil
                 play(waiting)
             }
+            autoPlayIfAsked()
         }
     }
 
@@ -184,7 +190,15 @@ struct TVHomeView: View {
         // library, the way a first tap does. So pick once, then play it on
         // the library change that shows the copy has finished.
         guard let targetID = autoPlayTargetID else {
-            guard let first = store.games.first(where: { $0.sourceDeviceID != nil }) else { return }
+            // Only once the source has answered: until then the library is
+            // the one saved last time, which can list games the source has
+            // since dropped. The connection change asks again.
+            guard store.connection.isConnected, !store.libraryIsLoading else { return }
+            // A game still to copy down comes first: that is the path the
+            // scripts check, and a shared simulator may already hold others.
+            let sourced = store.games.filter { $0.sourceDeviceID != nil }
+            guard let first = sourced.first(where: { !$0.isDownloaded }) ?? sourced.first else { return }
+            NSLog("[Cassowary] auto-play picked %@ (%@)", first.title, first.isDownloaded ? "here" : "to copy down")
             autoPlayTargetID = first.id
             didAutoPlay = first.isDownloaded
             play(first)

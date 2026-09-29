@@ -94,13 +94,15 @@ xcrun simctl install "$PHONE_UDID" "$PHONE_APP"
 CONTAINER=$(xcrun simctl get_app_container "$PHONE_UDID" org.cassowary.Cassowary data)
 mkdir -p "$CONTAINER/Documents"
 # Not the TV's own demo: the Apple TV ships that game, so it would already
-# have it and never copy anything down. The generated input ROM with one
-# padding byte changed is a game no device has yet, and it still boots.
+# have it and never copy anything down. The generated input ROM with the time
+# stamped into its last padding bytes is a game no device has yet — a new one
+# every run, so a TV that downloaded the last one still has something to
+# fetch — and it still boots.
 python3 Scripts/cassowary/make-test-rom.py "$SHOTS/shared-base.gb" >/dev/null
 python3 -c '
-import sys
+import sys, time
 data = bytearray(open(sys.argv[1], "rb").read())
-data[-1] ^= 0x5A
+data[-8:] = int(time.time() * 1000).to_bytes(8, "big")
 open(sys.argv[2], "wb").write(data)' "$SHOTS/shared-base.gb" "$SHOTS/SharedDemo.gb"
 cp "$SHOTS/SharedDemo.gb" "$CONTAINER/Documents/SharedDemo.gb"
 
