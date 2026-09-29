@@ -21,12 +21,11 @@ with a [template](adr/template.md).
 
 ## Cores
 
+The shipped cores are listed in [`Scripts/cassowary/cores.txt`](../Scripts/cassowary/cores.txt).
+
 | Doc | What's in it |
 |---|---|
-| [core-audit/core-support-audit.md](core-audit/core-support-audit.md) | Audit of core support status. |
 | [core-audit/core-upscaling-investigation.md](core-audit/core-upscaling-investigation.md) | How upscaling could be added to the cores, bitmap ones first. |
-| [core-audit/local-inventory.md](core-audit/local-inventory.md) | Inventory of the cores in this repo. |
-| [core-audit/upstream-research.md](core-audit/upstream-research.md) | Research on upstream core sources. |
 
 ## Features
 

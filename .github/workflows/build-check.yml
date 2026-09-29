@@ -42,15 +42,9 @@ jobs:
       - name: Determine which cores to build
         id: detect
         run: |
-          # Single source: the CORES array in Scripts/cassowary/build-cassowary.sh.
-          # Entries are SourceDir:ProductName; the product name is what
-          # build-core-ios.sh expects and what cores/<name>/ holds.
-          all_cores=$(python3 -c "
-          import json, re
-          text = open('Scripts/cassowary/build-cassowary.sh').read()
-          block = re.search(r'CORES=\((.*?)\)', text, re.S).group(1)
-          print(json.dumps([p.split(':')[0] for p in block.split()]))
-          ")
+          # Single source: Scripts/cassowary/cores.txt, one SourceDir:ProductName
+          # per line. The source dir is what build-core-ios.sh takes.
+          all_cores=$(grep -vE '^[[:space:]]*(#|$)' Scripts/cassowary/cores.txt | cut -d: -f1 | jq -R . | jq -sc .)
 
           if [ "${{ github.event_name }}" != "pull_request" ]; then
             # Manual workflow_dispatch run has no PR base to diff against — build everything.

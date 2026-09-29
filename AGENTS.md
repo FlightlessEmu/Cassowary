@@ -121,6 +121,10 @@ been removed.
 The iOS build ships these cores. Cores that need OpenGL cannot run on iOS and
 are not included.
 
+The one authoritative list is
+[`Scripts/cassowary/cores.txt`](Scripts/cassowary/cores.txt): the build and CI
+both read it. This table is the human-friendly view of it; keep the two in step.
+
 | System | Core(s) |
 |--------|---------|
 | 3DO | 4DO |
@@ -141,9 +145,7 @@ are not included.
 | PC Engine / PC-FX / Sega Saturn / PlayStation / WonderSwan / Virtual Boy / Atari Lynx / Neo Geo Pocket | Mednafen |
 | Pokémon Mini | PokeMini |
 | Sega 32X / Genesis / Sega CD / Master System / Game Gear | Genesis Plus GX |
-| Sega Dreamcast | Flycast |
 | Sega 32X (alt) | picodrive |
-| Sony PSP | PPSSPP |
 | SNES | SNES9x, BSNES |
 | Supervision | Potator |
 | Vectrex | VecXGL |
@@ -277,6 +279,8 @@ project. A core needs:
    the SDK's `OEPixelFormat_*` equivalents.
 2. A build script that compiles its sources against the iOS SDK.
 3. A link step that produces the `.oecoreplugin` bundle.
+4. A line in `Scripts/cassowary/cores.txt`, which is what makes the app build
+   and CI pick it up.
 
 Cores that render through Metal are the easiest port. Cores that need OpenGL
 cannot run on iOS at all.

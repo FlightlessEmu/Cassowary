@@ -76,7 +76,7 @@ All paths are relative to `cores/`.
 | Sega 32X (alt) | `picodrive/` |
 | Vectrex | `VecXGL/` |
 
-The authoritative, current list is the table in [`AGENTS.md`](../AGENTS.md).
+The authoritative, current list is [`Scripts/cassowary/cores.txt`](../Scripts/cassowary/cores.txt), which the build and CI both read.
 
 ---
 
