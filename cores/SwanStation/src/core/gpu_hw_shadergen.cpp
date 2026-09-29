@@ -291,7 +291,7 @@ void GPU_HW_ShaderGen::WriteBatchTextureFilter(std::stringstream& ss, GPUTexture
     DefineMacro(ss, "BINALPHA", texture_filter == GPUTextureFilter::BilinearBinAlpha);
     ss << R"(
 void FilteredSampleFromVRAM(uint4 texpage, float2 coords, float4 uv_limits METAL_UBO_PARAM METAL_VRAM_TEXTURE_PARAM,
-                            out float4 texcol, out float ialpha)
+                            OUT_PARAM(float4) texcol, OUT_PARAM(float) ialpha)
 {
   // Compute the coordinates of the four texels we will be interpolating between.
   // Clamp this to the triangle texture coordinates.
@@ -373,13 +373,13 @@ float4 resampler(float4 x)
 
    // res = (x==float4(0.0, 0.0, 0.0, 0.0)) ?  float4(wa*wb)  :  sin(x*wa)*sin(x*wb)/(x*x);
    // Need to use mix(.., equal(..)) since we want zero check to be component wise
-   res = lerp(sin(x*wa)*sin(x*wb)/(x*x), float4(wa*wb, wa*wb, wa*wb, wa*wb), VECTOR_COMP_EQ(x,float4(0.0, 0.0, 0.0, 0.0)));
+   res = VECTOR_SELECT(sin(x*wa)*sin(x*wb)/(x*x), float4(wa*wb, wa*wb, wa*wb, wa*wb), VECTOR_COMP_EQ(x,float4(0.0, 0.0, 0.0, 0.0)));
 
    return res;
 }
 
 void FilteredSampleFromVRAM(uint4 texpage, float2 coords, float4 uv_limits METAL_UBO_PARAM METAL_VRAM_TEXTURE_PARAM,
-                            out float4 texcol, out float ialpha)
+                            OUT_PARAM(float4) texcol, OUT_PARAM(float) ialpha)
 {
     float4 weights[4];
 
@@ -525,7 +525,7 @@ float get_left_ratio(float2 center, float2 origin, float2 direction, float2 scal
 #define P(coord, xoffs, yoffs) SampleFromVRAM(texpage, clamp(coords + float2((xoffs), (yoffs)), uv_limits.xy, uv_limits.zw) METAL_UBO_ARG METAL_VRAM_TEXTURE_ARG)
 
 void FilteredSampleFromVRAM(uint4 texpage, float2 coords, float4 uv_limits METAL_UBO_PARAM METAL_VRAM_TEXTURE_PARAM,
-                            out float4 texcol, out float ialpha)
+                            OUT_PARAM(float4) texcol, OUT_PARAM(float) ialpha)
 {
   //---------------------------------------
   // Input Pixel Mapping:  -|x|x|x|-

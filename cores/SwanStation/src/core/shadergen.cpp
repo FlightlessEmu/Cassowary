@@ -249,6 +249,8 @@ void ShaderGen::WriteHeader(std::stringstream& ss)
   {
     ss << "#define GLSL 1\n";
     ss << "#define METAL_UBO_PARAM\n";
+    ss << "#define OUT_PARAM(type) out type\n";
+    ss << "#define VECTOR_SELECT(a, b, cond) lerp(a, b, cond)\n";
     ss << "#define METAL_UBO_ARG\n";
     ss << "#define float2 vec2\n";
     ss << "#define float3 vec3\n";
@@ -304,6 +306,8 @@ void ShaderGen::WriteHeader(std::stringstream& ss)
     // helpers have to be handed the entry point's resources on Metal, where
     // there are no globals. Empty elsewhere.
     ss << "#define METAL_UBO_PARAM , constant UBOBlock& ubo\n";
+    ss << "#define OUT_PARAM(type) thread type&\n";
+    ss << "#define VECTOR_SELECT(a, b, cond) select(a, b, cond)\n";
     ss << "#define METAL_UBO_ARG , ubo\n";
     ss << "#define vec2 float2\n";
     ss << "#define vec3 float3\n";
@@ -350,6 +354,8 @@ void ShaderGen::WriteHeader(std::stringstream& ss)
   {
     ss << "#define HLSL 1\n";
     ss << "#define METAL_UBO_PARAM\n";
+    ss << "#define OUT_PARAM(type) out type\n";
+    ss << "#define VECTOR_SELECT(a, b, cond) lerp(a, b, cond)\n";
     ss << "#define METAL_UBO_ARG\n";
     ss << "#define roundEven round\n";
     ss << "#define mix lerp\n";
