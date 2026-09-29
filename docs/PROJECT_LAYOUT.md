@@ -16,7 +16,7 @@ looks the way it does. Read this before moving files around.
 | **Vendored** | `Vendor/`, `OpenEmu/XADMaster.framework` | Third-party C libraries and the prebuilt archive framework `OpenEmuKit` links. |
 | **Automation** | `Scripts/` | Build, verify, and install scripts. `Scripts/cassowary/` is the iOS side. |
 | **Documentation** | `docs/` | Design docs, ADRs, audits, and guides. See [`README.md`](README.md) for the index. |
-| **Config / meta** | `.github/`, `.githooks/` | CI, issue/PR templates, and the pre-push hook. |
+| **Config / meta** | `.github/` | CI and issue templates. |
 
 Root files: `README.md` (start here), `AGENTS.md` (rules for AI sessions),
 `CONTEXT.md` (shared vocabulary), `LICENSE`.
@@ -62,18 +62,15 @@ All paths are relative to `cores/`.
 | Commodore 64 | `VirtualC64/` |
 | Game Boy / GBC | `Gambatte/` |
 | Game Boy Advance | `mGBA/` |
-| GameCube / Wii | `Dolphin/` |
 | Intellivision | `Bliss/` |
 | MSX | `blueMSX/` |
 | NES / FDS | `Nestopia/`, `FCEU/` |
 | Nintendo 64 | `Mupen64Plus/` |
-| Nintendo DS | `melonDS/`, `DeSmuME/` |
+| Nintendo DS | `melonDS/` |
 | Odyssey² | `O2EM/` |
 | PC Engine / PC-FX / Saturn / PSX / WonderSwan / Virtual Boy | `Mednafen/` |
 | Pokémon Mini | `PokeMini/` |
 | Sega 32X / Genesis / Sega CD / Master System / Game Gear | `GenesisPlus/` |
-| Sega Dreamcast | `Flycast/` |
-| Sony PSP | `PPSSPP/` |
 | SNES | `SNES9x/`, `BSNES/` |
 | Supervision | `Potator-Core/` |
 | Sega 32X (alt) | `picodrive/` |

@@ -51,8 +51,6 @@ The emulation cores in this repo are derived from the following upstream project
 | Core | Upstream Project |
 |------|----------------|
 | Gambatte, FCEU, Nestopia, SNES9x, Mupen64Plus, mGBA, GenesisPlus, Mednafen, Stella, Atari800, Bliss, JollyCV, O2EM, PokeMini, Potator, ProSystem, VecXGL, VirtualJaguar, CrabEmu, blueMSX, 4DO, picodrive, Reicast/Flycast, BSNES | OpenEmu core repositories — https://github.com/OpenEmu |
-| PPSSPP | OpenEmu/PPSSPP-Core wrapper — https://github.com/OpenEmu/PPSSPP-Core, against PPSSPP 1.14.4 source. Prebuilt FFmpeg libs from hrydgard/ppsspp-ffmpeg — https://github.com/hrydgard/ppsspp-ffmpeg |
-| Dolphin (GameCube/Wii) | dolphin-emu/dolphin — https://github.com/dolphin-emu/dolphin, pinned to the 2603 release. OpenEmu Metal backend integration layer written for this project. |
 
 The shader compiler bundled into `OpenEmuShaders` also includes glslang
 (BSD-3-Clause and others), SPIRV-Tools, and SPIRV-Cross (Apache-2.0), by the

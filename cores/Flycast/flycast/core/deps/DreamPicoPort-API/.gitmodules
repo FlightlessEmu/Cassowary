@@ -1,3 +1,0 @@
-[submodule "ext/libusb-cmake"]
-	path = ext/libusb-cmake
-	url = https://github.com/libusb/libusb-cmake.git

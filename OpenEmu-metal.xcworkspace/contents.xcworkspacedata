@@ -20,9 +20,6 @@
       location = "group:cores/Stella/Stella.xcodeproj">
    </FileRef>
    <FileRef
-      location = "group:cores/Flycast/Flycast.xcodeproj">
-   </FileRef>
-   <FileRef
       location = "group:cores/Mupen64Plus/Mupen64Plus.xcodeproj">
    </FileRef>
    <FileRef
@@ -30,9 +27,6 @@
    </FileRef>
    <FileRef
       location = "group:cores/Potator-Core/Potator.xcodeproj">
-   </FileRef>
-   <FileRef
-      location = "group:cores/PPSSPP/PPSSPP-Core/PPSSPP.xcodeproj">
    </FileRef>
    <FileRef
       location = "group:cores/4DO/4DO.xcodeproj">
@@ -45,9 +39,6 @@
    </FileRef>
    <FileRef
       location = "group:cores/CrabEmu/CrabEmu.xcodeproj">
-   </FileRef>
-   <FileRef
-      location = "group:cores/DeSmuME/src/frontend/cocoa/DeSmuME (Latest).xcodeproj">
    </FileRef>
    <FileRef
       location = "group:cores/FCEU/FCEU.xcodeproj">
@@ -87,9 +78,6 @@
    </FileRef>
    <FileRef
       location = "group:cores/picodrive/Picodrive.xcodeproj">
-   </FileRef>
-   <FileRef
-      location = "group:cores/Dolphin/Dolphin.xcodeproj">
    </FileRef>
    <FileRef
       location = "group:cores/MAME/MAME.xcodeproj">
