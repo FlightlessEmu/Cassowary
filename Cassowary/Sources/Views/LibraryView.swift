@@ -532,11 +532,14 @@ struct LibraryView: View {
     }
 
     private func detail(for target: LibrarySelection) -> some View {
-        Group {
-            if visibleGames(for: target).isEmpty {
-                emptyState(for: target)
-            } else {
-                grid(for: target)
+        VStack(spacing: 0) {
+            biosBanner(for: target)
+            Group {
+                if visibleGames(for: target).isEmpty {
+                    emptyState(for: target)
+                } else {
+                    grid(for: target)
+                }
             }
         }
         .navigationTitle(detailTitle(for: target))
@@ -582,6 +585,57 @@ struct LibraryView: View {
         }
     }
 
+    /// The BIOS banner for a system whose cores ask for BIOS files: ready,
+    /// or what to add, with a button that takes a BIOS file pick. BIOS files
+    /// dropped anywhere are recognized by name and contents, so the button
+    /// is a shortcut for the same path, not a second one.
+    @ViewBuilder
+    private func biosBanner(for target: LibrarySelection) -> some View {
+        if case .system(let id) = target,
+           let requirement = BIOSCatalog.requirement(forSystemIdentifier: id),
+           !requirement.required.isEmpty {
+            HStack(spacing: 10) {
+                Image(systemName: requirement.isReady ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
+                    .foregroundStyle(requirement.isReady ? Color.green : Color.orange)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(requirement.isReady ? "BIOS ready" : "BIOS needed to play \(detailTitle(for: target))")
+                        .font(.subheadline).bold()
+                    Text(Self.biosDetail(for: requirement))
+                        .font(.caption)
+                        .foregroundStyle(Color.secondary)
+                }
+                Spacer()
+                if !requirement.isReady {
+                    Button("Add BIOS…") { showFileImporter = true }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .background(.thinMaterial)
+            Divider()
+        }
+    }
+
+    /// The banner's second line: which files are in, or what to add.
+    private static func biosDetail(for requirement: BIOSRequirement) -> String {
+        let present = requirement.present.map(\.name).joined(separator: ", ")
+        if requirement.isReady {
+            // A regional set with a region missing still plays everything
+            // else; say which files are in, and what else would help.
+            if requirement.isRegional, !requirement.missing.isEmpty {
+                return "\(present). Other regions' games need their own: \(requirement.missing.map(\.name).joined(separator: ", "))."
+            }
+            return present
+        }
+        let missing = requirement.missing.map(\.name).joined(separator: ", ")
+        if requirement.isRegional {
+            return "Add one for your games' region: \(missing). Drop it here or use Add BIOS."
+        }
+        return "Missing: \(missing). Drop the file here or use Add BIOS."
+    }
+
     /// Shown over the library while a file is held above it.
     private var dropHighlight: some View {
         RoundedRectangle(cornerRadius: 16, style: .continuous)
@@ -591,7 +645,7 @@ struct LibraryView: View {
                     .strokeBorder(Color.accentColor, style: StrokeStyle(lineWidth: 2, dash: [8, 6]))
             }
             .overlay {
-                Label("Drop to add games", systemImage: "plus.circle.fill")
+                Label("Drop to add games or BIOS", systemImage: "plus.circle.fill")
                     .font(.headline)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 10)
@@ -881,11 +935,19 @@ struct LibraryView: View {
     private func notice(for summary: ImportSummary, addedCount: Int? = nil) -> ImportNotice? {
         guard !summary.unsupported.isEmpty
             || !summary.alreadyInLibrary.isEmpty
-            || !summary.failed.isEmpty else {
+            || !summary.failed.isEmpty
+            || !summary.bios.isEmpty
+            || !summary.biosInvalid.isEmpty else {
             return nil
         }
 
         var lines: [String] = []
+        if !summary.bios.isEmpty {
+            lines.append("BIOS files, moved to the BIOS folder where the cores look for them: \(Self.shortList(summary.bios)).")
+        }
+        if !summary.biosInvalid.isEmpty {
+            lines.append("These have BIOS names but the wrong contents, so they were left out: \(Self.shortList(summary.biosInvalid)). Check the file is the right version.")
+        }
         if !summary.unsupported.isEmpty {
             lines.append("Not game files: \(Self.shortList(summary.unsupported)).")
         }

@@ -1,0 +1,1000 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 46;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		0D554D4B2F3141538D3BF37C /* shader_cache.mm in Sources */ = {isa = PBXBuildFile; fileRef = 7731109A08BF4B97B90B7935 /* shader_cache.mm */; };
+		1545DFB29D424C84A6DB6EFB /* stream_buffer.mm in Sources */ = {isa = PBXBuildFile; fileRef = 910CEA55910F41DF8D3ACE01 /* stream_buffer.mm */; };
+		3F58480E294247229F5EC9B4 /* texture.mm in Sources */ = {isa = PBXBuildFile; fileRef = 72AC59F1FC5F4A62A9DD4007 /* texture.mm */; };
+		C3025BFD4230433E971B1209 /* gpu_hw_metal.mm in Sources */ = {isa = PBXBuildFile; fileRef = A19902ED28C647BDBC8AC162 /* gpu_hw_metal.mm */; };
+		000000000000000000000005 /* SwanStationGameCore.mm in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000004 /* SwanStationGameCore.mm */; };
+		000000000000000000000007 /* SwanStationLibretroBridge.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000006 /* SwanStationLibretroBridge.cpp */; };
+		00000000000000000000000A /* SwanStationPortStubs.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000009 /* SwanStationPortStubs.cpp */; };
+		0000000000000000000000A1 /* analog_controller.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 00000000000000000000009F /* analog_controller.cpp */; };
+		0000000000000000000000A4 /* analog_joystick.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 0000000000000000000000A3 /* analog_joystick.cpp */; };
+		0000000000000000000000A7 /* bios.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 0000000000000000000000A6 /* bios.cpp */; };
+		0000000000000000000000AA /* bus.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 0000000000000000000000A9 /* bus.cpp */; };
+		000000000000000000000049 /* byte_stream.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000048 /* byte_stream.cpp */; };
+		00000000000000000000004C /* cd_image.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 00000000000000000000004B /* cd_image.cpp */; };
+		00000000000000000000004F /* cd_image_bin.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 00000000000000000000004E /* cd_image_bin.cpp */; };
+		000000000000000000000051 /* cd_image_cue.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000050 /* cd_image_cue.cpp */; };
+		000000000000000000000053 /* cd_image_ecm.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000052 /* cd_image_ecm.cpp */; };
+		000000000000000000000055 /* cd_image_m3u.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000054 /* cd_image_m3u.cpp */; };
+		000000000000000000000057 /* cd_image_mds.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000056 /* cd_image_mds.cpp */; };
+		000000000000000000000059 /* cd_image_memory.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000058 /* cd_image_memory.cpp */; };
+		00000000000000000000005B /* cd_image_pbp.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 00000000000000000000005A /* cd_image_pbp.cpp */; };
+		00000000000000000000005D /* cd_image_ppf.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 00000000000000000000005C /* cd_image_ppf.cpp */; };
+		00000000000000000000005F /* cd_subchannel_replacement.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 00000000000000000000005E /* cd_subchannel_replacement.cpp */; };
+		000000000000000000000062 /* cd_xa.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000061 /* cd_xa.cpp */; };
+		0000000000000000000000AD /* cdrom.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 0000000000000000000000AC /* cdrom.cpp */; };
+		0000000000000000000000B0 /* cdrom_async_reader.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 0000000000000000000000AF /* cdrom_async_reader.cpp */; };
+		0000000000000000000000B3 /* cheats.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 0000000000000000000000B2 /* cheats.cpp */; };
+		000000000000000000000016 /* compat_posix_string.c in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000013 /* compat_posix_string.c */; };
+		000000000000000000000018 /* compat_strl.c in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000017 /* compat_strl.c */; };
+		0000000000000000000000B6 /* controller.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 0000000000000000000000B5 /* controller.cpp */; };
+		0000000000000000000000B9 /* cpu_code_cache.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 0000000000000000000000B8 /* cpu_code_cache.cpp */; };
+		0000000000000000000000BC /* cpu_core.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 0000000000000000000000BB /* cpu_core.cpp */; };
+		0000000000000000000000C0 /* cpu_types.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 0000000000000000000000BF /* cpu_types.cpp */; };
+		000000000000000000000065 /* cue_parser.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000064 /* cue_parser.cpp */; };
+		000000000000000000000027 /* data_transfer.c in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000025 /* data_transfer.c */; };
+		0000000000000000000000C3 /* digital_controller.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 0000000000000000000000C2 /* digital_controller.cpp */; };
+		0000000000000000000000C6 /* dma.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 0000000000000000000000C5 /* dma.cpp */; };
+		00000000000000000000001D /* encoding_utf.c in Sources */ = {isa = PBXBuildFile; fileRef = 00000000000000000000001B /* encoding_utf.c */; };
+		000000000000000000000069 /* error.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000068 /* error.cpp */; };
+		00000000000000000000006C /* event.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 00000000000000000000006B /* event.cpp */; };
+		000000000000000000000020 /* file_path.c in Sources */ = {isa = PBXBuildFile; fileRef = 00000000000000000000001E /* file_path.c */; };
+		000000000000000000000022 /* file_path_io.c in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000021 /* file_path_io.c */; };
+		00000000000000000000002D /* file_stream.c in Sources */ = {isa = PBXBuildFile; fileRef = 00000000000000000000002B /* file_stream.c */; };
+		000000000000000000000070 /* file_system.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 00000000000000000000006F /* file_system.cpp */; };
+		00000000000000000000001A /* fopen_utf8.c in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000019 /* fopen_utf8.c */; };
+		0000000000000000000000C9 /* gpu.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 0000000000000000000000C8 /* gpu.cpp */; };
+		0000000000000000000000CC /* gpu_backend.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 0000000000000000000000CB /* gpu_backend.cpp */; };
+		0000000000000000000000CF /* gpu_commands.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 0000000000000000000000CE /* gpu_commands.cpp */; };
+		0000000000000000000000D2 /* gpu_sw.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 0000000000000000000000D1 /* gpu_sw.cpp */; };
+		0000000000000000000000D5 /* gpu_sw_backend.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 0000000000000000000000D4 /* gpu_sw_backend.cpp */; };
+		0000000000000000000000D9 /* gte.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 0000000000000000000000D8 /* gte.cpp */; };
+		0000000000000000000000DD /* host_display.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 0000000000000000000000DC /* host_display.cpp */; };
+		0000000000000000000000E0 /* host_interface.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 0000000000000000000000DF /* host_interface.cpp */; };
+		0000000000000000000000E3 /* host_interface_progress_callback.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 0000000000000000000000E2 /* host_interface_progress_callback.cpp */; };
+		000000000000000000000075 /* image.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000074 /* image.cpp */; };
+		0000000000000000000000E6 /* interrupt_controller.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 0000000000000000000000E5 /* interrupt_controller.cpp */; };
+		000000000000000000000078 /* iso_reader.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000077 /* iso_reader.cpp */; };
+		00000000000000000000007B /* jit_code_buffer.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 00000000000000000000007A /* jit_code_buffer.cpp */; };
+		0000000000000000000000E9 /* libcrypt_game_codes.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 0000000000000000000000E8 /* libcrypt_game_codes.cpp */; };
+		000000000000000000000129 /* libretro_audio_stream.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000127 /* libretro_audio_stream.cpp */; };
+		00000000000000000000012C /* libretro_game_settings.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 00000000000000000000012B /* libretro_game_settings.cpp */; };
+		00000000000000000000012F /* libretro_host_display.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 00000000000000000000012E /* libretro_host_display.cpp */; };
+		000000000000000000000132 /* libretro_host_interface.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000131 /* libretro_host_interface.cpp */; };
+		000000000000000000000134 /* libretro_settings_interface.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000133 /* libretro_settings_interface.cpp */; };
+		00000000000000000000007E /* log.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 00000000000000000000007D /* log.cpp */; };
+		000000000000000000000082 /* md5_digest.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000081 /* md5_digest.cpp */; };
+		0000000000000000000000EC /* mdec.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 0000000000000000000000EB /* mdec.cpp */; };
+		00000000000000000000002A /* memmap.c in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000028 /* memmap.c */; };
+		000000000000000000000085 /* memory_arena.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000084 /* memory_arena.cpp */; };
+		0000000000000000000000EF /* memory_card.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 0000000000000000000000EE /* memory_card.cpp */; };
+		0000000000000000000000F2 /* memory_card_image.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 0000000000000000000000F1 /* memory_card_image.cpp */; };
+		000000000000000000000012 /* miniz.c in Sources */ = {isa = PBXBuildFile; fileRef = 00000000000000000000000D /* miniz.c */; };
+		0000000000000000000000F5 /* multitap.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 0000000000000000000000F4 /* multitap.cpp */; };
+		0000000000000000000000F8 /* namco_guncon.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 0000000000000000000000F7 /* namco_guncon.cpp */; };
+		0000000000000000000000FB /* negcon.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 0000000000000000000000FA /* negcon.cpp */; };
+		0000000000000000000000FE /* negcon_rumble.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 0000000000000000000000FD /* negcon_rumble.cpp */; };
+		000000000000000000000101 /* pad.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000100 /* pad.cpp */; };
+		000000000000000000000088 /* page_fault_handler.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000087 /* page_fault_handler.cpp */; };
+		000000000000000000000104 /* pgxp.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000103 /* pgxp.cpp */; };
+		000000000000000000000107 /* playstation_mouse.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000106 /* playstation_mouse.cpp */; };
+		00000000000000000000008D /* progress_callback.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 00000000000000000000008C /* progress_callback.cpp */; };
+		00000000000000000000010A /* psf_loader.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000109 /* psf_loader.cpp */; };
+		00000000000000000000010D /* resources.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 00000000000000000000010C /* resources.cpp */; };
+		000000000000000000000024 /* retro_dirent.c in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000023 /* retro_dirent.c */; };
+		000000000000000000000033 /* rtime.c in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000031 /* rtime.c */; };
+		000000000000000000000111 /* settings.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000110 /* settings.cpp */; };
+		000000000000000000000115 /* sio.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000114 /* sio.cpp */; };
+		000000000000000000000118 /* spu.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000117 /* spu.cpp */; };
+		000000000000000000000091 /* state_wrapper.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000090 /* state_wrapper.cpp */; };
+		00000000000000000000003C /* stb_image.c in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000039 /* stb_image.c */; };
+		00000000000000000000003E /* stb_image_resize.c in Sources */ = {isa = PBXBuildFile; fileRef = 00000000000000000000003D /* stb_image_resize.c */; };
+		000000000000000000000030 /* stdstring.c in Sources */ = {isa = PBXBuildFile; fileRef = 00000000000000000000002E /* stdstring.c */; };
+		000000000000000000000094 /* string.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000093 /* string.cpp */; };
+		000000000000000000000097 /* string_util.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000096 /* string_util.cpp */; };
+		00000000000000000000011B /* system.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 00000000000000000000011A /* system.cpp */; };
+		00000000000000000000011E /* texture_replacements.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 00000000000000000000011D /* texture_replacements.cpp */; };
+		00000000000000000000009B /* timer.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 00000000000000000000009A /* timer.cpp */; };
+		000000000000000000000121 /* timers.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000120 /* timers.cpp */; };
+		000000000000000000000124 /* timing_event.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000123 /* timing_event.cpp */; };
+		000000000000000000000036 /* vfs_hybrid.c in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000034 /* vfs_hybrid.c */; };
+		000000000000000000000038 /* vfs_implementation.c in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000037 /* vfs_implementation.c */; };
+		000000000000000000000042 /* xxhash.c in Sources */ = {isa = PBXBuildFile; fileRef = 00000000000000000000003F /* xxhash.c */; };
+		00000000000000000000013C /* OpenEmuBase.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 00000000000000000000013B /* OpenEmuBase.framework */; };
+		85E08953BFB1400CACCADA04 /* gpu_hw.cpp in Sources */ = {isa = PBXBuildFile; fileRef = D3B710DB4F7048D1AC7A54DE /* gpu_hw.cpp */; };
+		A8A603F2BD9D401CB4CDE9E8 /* gpu_hw_shadergen.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 29028AA9DE684A7E967D4835 /* gpu_hw_shadergen.cpp */; };
+		04044E46D5D0415CB9D685A8 /* shadergen.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 6D1EF369124D4F9389AAD769 /* shadergen.cpp */; };
+		1154DABFCF594F17B250AB0C /* glad.c in Sources */ = {isa = PBXBuildFile; fileRef = 52C21BCA065742559077E1B0 /* glad.c */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		7731109A08BF4B97B90B7935 /* shader_cache.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = src/common/metal/shader_cache.mm; sourceTree = SOURCE_ROOT; };
+		910CEA55910F41DF8D3ACE01 /* stream_buffer.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = src/common/metal/stream_buffer.mm; sourceTree = SOURCE_ROOT; };
+		72AC59F1FC5F4A62A9DD4007 /* texture.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = src/common/metal/texture.mm; sourceTree = SOURCE_ROOT; };
+		A19902ED28C647BDBC8AC162 /* gpu_hw_metal.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = src/core/gpu_hw_metal.mm; sourceTree = SOURCE_ROOT; };
+		000000000000000000000002 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		000000000000000000000003 /* SwanStationGameCore.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SwanStationGameCore.h; sourceTree = "<group>"; };
+		000000000000000000000004 /* SwanStationGameCore.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = SwanStationGameCore.mm; sourceTree = "<group>"; };
+		000000000000000000000006 /* SwanStationLibretroBridge.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = SwanStationLibretroBridge.cpp; sourceTree = "<group>"; };
+		000000000000000000000008 /* SwanStationLibretroBridge.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SwanStationLibretroBridge.h; sourceTree = "<group>"; };
+		000000000000000000000009 /* SwanStationPortStubs.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = SwanStationPortStubs.cpp; sourceTree = "<group>"; };
+		00000000000000000000000B /* config.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = config.h; sourceTree = "<group>"; };
+		00000000000000000000000C /* version.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = version.h; sourceTree = "<group>"; };
+		00000000000000000000000D /* miniz.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = miniz.c; sourceTree = "<group>"; };
+		000000000000000000000013 /* compat_posix_string.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = compat_posix_string.c; sourceTree = "<group>"; };
+		000000000000000000000017 /* compat_strl.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = compat_strl.c; sourceTree = "<group>"; };
+		000000000000000000000019 /* fopen_utf8.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = fopen_utf8.c; sourceTree = "<group>"; };
+		00000000000000000000001B /* encoding_utf.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = encoding_utf.c; sourceTree = "<group>"; };
+		00000000000000000000001E /* file_path.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = file_path.c; sourceTree = "<group>"; };
+		000000000000000000000021 /* file_path_io.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = file_path_io.c; sourceTree = "<group>"; };
+		000000000000000000000023 /* retro_dirent.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = retro_dirent.c; sourceTree = "<group>"; };
+		000000000000000000000025 /* data_transfer.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = data_transfer.c; sourceTree = "<group>"; };
+		000000000000000000000028 /* memmap.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = memmap.c; sourceTree = "<group>"; };
+		00000000000000000000002B /* file_stream.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = file_stream.c; sourceTree = "<group>"; };
+		00000000000000000000002E /* stdstring.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = stdstring.c; sourceTree = "<group>"; };
+		000000000000000000000031 /* rtime.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = rtime.c; sourceTree = "<group>"; };
+		000000000000000000000034 /* vfs_hybrid.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = vfs_hybrid.c; sourceTree = "<group>"; };
+		000000000000000000000037 /* vfs_implementation.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = vfs_implementation.c; sourceTree = "<group>"; };
+		000000000000000000000039 /* stb_image.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = stb_image.c; sourceTree = "<group>"; };
+		00000000000000000000003D /* stb_image_resize.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = stb_image_resize.c; sourceTree = "<group>"; };
+		00000000000000000000003F /* xxhash.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = xxhash.c; sourceTree = "<group>"; };
+		000000000000000000000043 /* align.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = align.h; sourceTree = "<group>"; };
+		000000000000000000000046 /* bitfield.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = bitfield.h; sourceTree = "<group>"; };
+		000000000000000000000047 /* bitutils.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = bitutils.h; sourceTree = "<group>"; };
+		000000000000000000000048 /* byte_stream.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = byte_stream.cpp; sourceTree = "<group>"; };
+		00000000000000000000004A /* byte_stream.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = byte_stream.h; sourceTree = "<group>"; };
+		00000000000000000000004B /* cd_image.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = cd_image.cpp; sourceTree = "<group>"; };
+		00000000000000000000004D /* cd_image.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = cd_image.h; sourceTree = "<group>"; };
+		00000000000000000000004E /* cd_image_bin.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = cd_image_bin.cpp; sourceTree = "<group>"; };
+		000000000000000000000050 /* cd_image_cue.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = cd_image_cue.cpp; sourceTree = "<group>"; };
+		000000000000000000000052 /* cd_image_ecm.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = cd_image_ecm.cpp; sourceTree = "<group>"; };
+		000000000000000000000054 /* cd_image_m3u.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = cd_image_m3u.cpp; sourceTree = "<group>"; };
+		000000000000000000000056 /* cd_image_mds.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = cd_image_mds.cpp; sourceTree = "<group>"; };
+		000000000000000000000058 /* cd_image_memory.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = cd_image_memory.cpp; sourceTree = "<group>"; };
+		00000000000000000000005A /* cd_image_pbp.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = cd_image_pbp.cpp; sourceTree = "<group>"; };
+		00000000000000000000005C /* cd_image_ppf.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = cd_image_ppf.cpp; sourceTree = "<group>"; };
+		00000000000000000000005E /* cd_subchannel_replacement.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = cd_subchannel_replacement.cpp; sourceTree = "<group>"; };
+		000000000000000000000060 /* cd_subchannel_replacement.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = cd_subchannel_replacement.h; sourceTree = "<group>"; };
+		000000000000000000000061 /* cd_xa.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = cd_xa.cpp; sourceTree = "<group>"; };
+		000000000000000000000063 /* cd_xa.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = cd_xa.h; sourceTree = "<group>"; };
+		000000000000000000000064 /* cue_parser.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = cue_parser.cpp; sourceTree = "<group>"; };
+		000000000000000000000066 /* cue_parser.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = cue_parser.h; sourceTree = "<group>"; };
+		000000000000000000000067 /* dimensional_array.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = dimensional_array.h; sourceTree = "<group>"; };
+		000000000000000000000068 /* error.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = error.cpp; sourceTree = "<group>"; };
+		00000000000000000000006A /* error.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = error.h; sourceTree = "<group>"; };
+		00000000000000000000006B /* event.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = event.cpp; sourceTree = "<group>"; };
+		00000000000000000000006D /* event.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = event.h; sourceTree = "<group>"; };
+		00000000000000000000006E /* fifo_queue.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = fifo_queue.h; sourceTree = "<group>"; };
+		00000000000000000000006F /* file_system.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = file_system.cpp; sourceTree = "<group>"; };
+		000000000000000000000071 /* file_system.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = file_system.h; sourceTree = "<group>"; };
+		000000000000000000000072 /* hash_combine.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = hash_combine.h; sourceTree = "<group>"; };
+		000000000000000000000073 /* heap_array.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = heap_array.h; sourceTree = "<group>"; };
+		000000000000000000000074 /* image.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = image.cpp; sourceTree = "<group>"; };
+		000000000000000000000076 /* image.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = image.h; sourceTree = "<group>"; };
+		000000000000000000000077 /* iso_reader.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = iso_reader.cpp; sourceTree = "<group>"; };
+		000000000000000000000079 /* iso_reader.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = iso_reader.h; sourceTree = "<group>"; };
+		00000000000000000000007A /* jit_code_buffer.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = jit_code_buffer.cpp; sourceTree = "<group>"; };
+		00000000000000000000007C /* jit_code_buffer.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = jit_code_buffer.h; sourceTree = "<group>"; };
+		00000000000000000000007D /* log.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = log.cpp; sourceTree = "<group>"; };
+		00000000000000000000007F /* log.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = log.h; sourceTree = "<group>"; };
+		000000000000000000000080 /* make_array.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = make_array.h; sourceTree = "<group>"; };
+		000000000000000000000081 /* md5_digest.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = md5_digest.cpp; sourceTree = "<group>"; };
+		000000000000000000000083 /* md5_digest.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = md5_digest.h; sourceTree = "<group>"; };
+		000000000000000000000084 /* memory_arena.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = memory_arena.cpp; sourceTree = "<group>"; };
+		000000000000000000000086 /* memory_arena.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = memory_arena.h; sourceTree = "<group>"; };
+		000000000000000000000087 /* page_fault_handler.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = page_fault_handler.cpp; sourceTree = "<group>"; };
+		000000000000000000000089 /* page_fault_handler.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = page_fault_handler.h; sourceTree = "<group>"; };
+		00000000000000000000008A /* pbp_types.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = pbp_types.h; sourceTree = "<group>"; };
+		00000000000000000000008B /* platform.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = platform.h; sourceTree = "<group>"; };
+		00000000000000000000008C /* progress_callback.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = progress_callback.cpp; sourceTree = "<group>"; };
+		00000000000000000000008E /* progress_callback.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = progress_callback.h; sourceTree = "<group>"; };
+		00000000000000000000008F /* rectangle.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = rectangle.h; sourceTree = "<group>"; };
+		000000000000000000000090 /* state_wrapper.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = state_wrapper.cpp; sourceTree = "<group>"; };
+		000000000000000000000092 /* state_wrapper.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = state_wrapper.h; sourceTree = "<group>"; };
+		000000000000000000000093 /* string.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = string.cpp; sourceTree = "<group>"; };
+		000000000000000000000095 /* string.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = string.h; sourceTree = "<group>"; };
+		000000000000000000000096 /* string_util.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = string_util.cpp; sourceTree = "<group>"; };
+		000000000000000000000098 /* string_util.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = string_util.h; sourceTree = "<group>"; };
+		000000000000000000000099 /* thread_priority.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = thread_priority.h; sourceTree = "<group>"; };
+		00000000000000000000009A /* timer.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = timer.cpp; sourceTree = "<group>"; };
+		00000000000000000000009C /* timer.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = timer.h; sourceTree = "<group>"; };
+		00000000000000000000009D /* types.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = types.h; sourceTree = "<group>"; };
+		00000000000000000000009E /* window_info.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = window_info.h; sourceTree = "<group>"; };
+		00000000000000000000009F /* analog_controller.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = analog_controller.cpp; sourceTree = "<group>"; };
+		0000000000000000000000A2 /* analog_controller.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = analog_controller.h; sourceTree = "<group>"; };
+		0000000000000000000000A3 /* analog_joystick.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = analog_joystick.cpp; sourceTree = "<group>"; };
+		0000000000000000000000A5 /* analog_joystick.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = analog_joystick.h; sourceTree = "<group>"; };
+		0000000000000000000000A6 /* bios.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = bios.cpp; sourceTree = "<group>"; };
+		0000000000000000000000A8 /* bios.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = bios.h; sourceTree = "<group>"; };
+		0000000000000000000000A9 /* bus.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = bus.cpp; sourceTree = "<group>"; };
+		0000000000000000000000AB /* bus.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = bus.h; sourceTree = "<group>"; };
+		0000000000000000000000AC /* cdrom.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = cdrom.cpp; sourceTree = "<group>"; };
+		0000000000000000000000AE /* cdrom.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = cdrom.h; sourceTree = "<group>"; };
+		0000000000000000000000AF /* cdrom_async_reader.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = cdrom_async_reader.cpp; sourceTree = "<group>"; };
+		0000000000000000000000B1 /* cdrom_async_reader.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = cdrom_async_reader.h; sourceTree = "<group>"; };
+		0000000000000000000000B2 /* cheats.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = cheats.cpp; sourceTree = "<group>"; };
+		0000000000000000000000B4 /* cheats.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = cheats.h; sourceTree = "<group>"; };
+		0000000000000000000000B5 /* controller.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = controller.cpp; sourceTree = "<group>"; };
+		0000000000000000000000B7 /* controller.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = controller.h; sourceTree = "<group>"; };
+		0000000000000000000000B8 /* cpu_code_cache.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = cpu_code_cache.cpp; sourceTree = "<group>"; };
+		0000000000000000000000BA /* cpu_code_cache.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = cpu_code_cache.h; sourceTree = "<group>"; };
+		0000000000000000000000BB /* cpu_core.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = cpu_core.cpp; sourceTree = "<group>"; };
+		0000000000000000000000BD /* cpu_core.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = cpu_core.h; sourceTree = "<group>"; };
+		0000000000000000000000BE /* cpu_core_private.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = cpu_core_private.h; sourceTree = "<group>"; };
+		0000000000000000000000BF /* cpu_types.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = cpu_types.cpp; sourceTree = "<group>"; };
+		0000000000000000000000C1 /* cpu_types.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = cpu_types.h; sourceTree = "<group>"; };
+		0000000000000000000000C2 /* digital_controller.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = digital_controller.cpp; sourceTree = "<group>"; };
+		0000000000000000000000C4 /* digital_controller.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = digital_controller.h; sourceTree = "<group>"; };
+		0000000000000000000000C5 /* dma.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = dma.cpp; sourceTree = "<group>"; };
+		0000000000000000000000C7 /* dma.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = dma.h; sourceTree = "<group>"; };
+		0000000000000000000000C8 /* gpu.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = gpu.cpp; sourceTree = "<group>"; };
+		0000000000000000000000CA /* gpu.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = gpu.h; sourceTree = "<group>"; };
+		0000000000000000000000CB /* gpu_backend.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = gpu_backend.cpp; sourceTree = "<group>"; };
+		0000000000000000000000CD /* gpu_backend.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = gpu_backend.h; sourceTree = "<group>"; };
+		0000000000000000000000CE /* gpu_commands.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = gpu_commands.cpp; sourceTree = "<group>"; };
+		0000000000000000000000D0 /* gpu_hw.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = gpu_hw.h; sourceTree = "<group>"; };
+		0000000000000000000000D1 /* gpu_sw.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = gpu_sw.cpp; sourceTree = "<group>"; };
+		0000000000000000000000D3 /* gpu_sw.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = gpu_sw.h; sourceTree = "<group>"; };
+		0000000000000000000000D4 /* gpu_sw_backend.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = gpu_sw_backend.cpp; sourceTree = "<group>"; };
+		0000000000000000000000D6 /* gpu_sw_backend.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = gpu_sw_backend.h; sourceTree = "<group>"; };
+		0000000000000000000000D7 /* gpu_types.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = gpu_types.h; sourceTree = "<group>"; };
+		0000000000000000000000D8 /* gte.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = gte.cpp; sourceTree = "<group>"; };
+		0000000000000000000000DA /* gte.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = gte.h; sourceTree = "<group>"; };
+		0000000000000000000000DB /* gte_types.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = gte_types.h; sourceTree = "<group>"; };
+		0000000000000000000000DC /* host_display.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = host_display.cpp; sourceTree = "<group>"; };
+		0000000000000000000000DE /* host_display.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = host_display.h; sourceTree = "<group>"; };
+		0000000000000000000000DF /* host_interface.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = host_interface.cpp; sourceTree = "<group>"; };
+		0000000000000000000000E1 /* host_interface.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = host_interface.h; sourceTree = "<group>"; };
+		0000000000000000000000E2 /* host_interface_progress_callback.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = host_interface_progress_callback.cpp; sourceTree = "<group>"; };
+		0000000000000000000000E4 /* host_interface_progress_callback.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = host_interface_progress_callback.h; sourceTree = "<group>"; };
+		0000000000000000000000E5 /* interrupt_controller.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = interrupt_controller.cpp; sourceTree = "<group>"; };
+		0000000000000000000000E7 /* interrupt_controller.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = interrupt_controller.h; sourceTree = "<group>"; };
+		0000000000000000000000E8 /* libcrypt_game_codes.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = libcrypt_game_codes.cpp; sourceTree = "<group>"; };
+		0000000000000000000000EA /* libcrypt_game_codes.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = libcrypt_game_codes.h; sourceTree = "<group>"; };
+		0000000000000000000000EB /* mdec.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = mdec.cpp; sourceTree = "<group>"; };
+		0000000000000000000000ED /* mdec.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = mdec.h; sourceTree = "<group>"; };
+		0000000000000000000000EE /* memory_card.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = memory_card.cpp; sourceTree = "<group>"; };
+		0000000000000000000000F0 /* memory_card.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = memory_card.h; sourceTree = "<group>"; };
+		0000000000000000000000F1 /* memory_card_image.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = memory_card_image.cpp; sourceTree = "<group>"; };
+		0000000000000000000000F3 /* memory_card_image.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = memory_card_image.h; sourceTree = "<group>"; };
+		0000000000000000000000F4 /* multitap.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = multitap.cpp; sourceTree = "<group>"; };
+		0000000000000000000000F6 /* multitap.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = multitap.h; sourceTree = "<group>"; };
+		0000000000000000000000F7 /* namco_guncon.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = namco_guncon.cpp; sourceTree = "<group>"; };
+		0000000000000000000000F9 /* namco_guncon.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = namco_guncon.h; sourceTree = "<group>"; };
+		0000000000000000000000FA /* negcon.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = negcon.cpp; sourceTree = "<group>"; };
+		0000000000000000000000FC /* negcon.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = negcon.h; sourceTree = "<group>"; };
+		0000000000000000000000FD /* negcon_rumble.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = negcon_rumble.cpp; sourceTree = "<group>"; };
+		0000000000000000000000FF /* negcon_rumble.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = negcon_rumble.h; sourceTree = "<group>"; };
+		000000000000000000000100 /* pad.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = pad.cpp; sourceTree = "<group>"; };
+		000000000000000000000102 /* pad.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = pad.h; sourceTree = "<group>"; };
+		000000000000000000000103 /* pgxp.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = pgxp.cpp; sourceTree = "<group>"; };
+		000000000000000000000105 /* pgxp.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = pgxp.h; sourceTree = "<group>"; };
+		000000000000000000000106 /* playstation_mouse.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = playstation_mouse.cpp; sourceTree = "<group>"; };
+		000000000000000000000108 /* playstation_mouse.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = playstation_mouse.h; sourceTree = "<group>"; };
+		000000000000000000000109 /* psf_loader.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = psf_loader.cpp; sourceTree = "<group>"; };
+		00000000000000000000010B /* psf_loader.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = psf_loader.h; sourceTree = "<group>"; };
+		00000000000000000000010C /* resources.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = resources.cpp; sourceTree = "<group>"; };
+		00000000000000000000010E /* resources.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = resources.h; sourceTree = "<group>"; };
+		00000000000000000000010F /* save_state_version.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = save_state_version.h; sourceTree = "<group>"; };
+		000000000000000000000110 /* settings.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = settings.cpp; sourceTree = "<group>"; };
+		000000000000000000000112 /* settings.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = settings.h; sourceTree = "<group>"; };
+		000000000000000000000113 /* shader_cache_version.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = shader_cache_version.h; sourceTree = "<group>"; };
+		000000000000000000000114 /* sio.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = sio.cpp; sourceTree = "<group>"; };
+		000000000000000000000116 /* sio.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = sio.h; sourceTree = "<group>"; };
+		000000000000000000000117 /* spu.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = spu.cpp; sourceTree = "<group>"; };
+		000000000000000000000119 /* spu.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = spu.h; sourceTree = "<group>"; };
+		00000000000000000000011A /* system.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = system.cpp; sourceTree = "<group>"; };
+		00000000000000000000011C /* system.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = system.h; sourceTree = "<group>"; };
+		00000000000000000000011D /* texture_replacements.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = texture_replacements.cpp; sourceTree = "<group>"; };
+		00000000000000000000011F /* texture_replacements.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = texture_replacements.h; sourceTree = "<group>"; };
+		000000000000000000000120 /* timers.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = timers.cpp; sourceTree = "<group>"; };
+		000000000000000000000122 /* timers.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = timers.h; sourceTree = "<group>"; };
+		000000000000000000000123 /* timing_event.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = timing_event.cpp; sourceTree = "<group>"; };
+		000000000000000000000125 /* timing_event.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = timing_event.h; sourceTree = "<group>"; };
+		000000000000000000000126 /* types.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = types.h; sourceTree = "<group>"; };
+		000000000000000000000127 /* libretro_audio_stream.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = libretro_audio_stream.cpp; sourceTree = "<group>"; };
+		00000000000000000000012A /* libretro_audio_stream.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = libretro_audio_stream.h; sourceTree = "<group>"; };
+		00000000000000000000012B /* libretro_game_settings.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = libretro_game_settings.cpp; sourceTree = "<group>"; };
+		00000000000000000000012D /* libretro_game_settings.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = libretro_game_settings.h; sourceTree = "<group>"; };
+		00000000000000000000012E /* libretro_host_display.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = libretro_host_display.cpp; sourceTree = "<group>"; };
+		000000000000000000000130 /* libretro_host_display.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = libretro_host_display.h; sourceTree = "<group>"; };
+		000000000000000000000131 /* libretro_host_interface.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = libretro_host_interface.cpp; sourceTree = "<group>"; };
+		000000000000000000000133 /* libretro_settings_interface.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = libretro_settings_interface.cpp; sourceTree = "<group>"; };
+		000000000000000000000135 /* libretro_settings_interface.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = libretro_settings_interface.h; sourceTree = "<group>"; };
+		00000000000000000000013A /* SwanStation.oecoreplugin */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SwanStation.oecoreplugin; sourceTree = BUILT_PRODUCTS_DIR; };
+		00000000000000000000013B /* OpenEmuBase.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = OpenEmuBase.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		D3B710DB4F7048D1AC7A54DE /* gpu_hw.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = src/core/gpu_hw.cpp; sourceTree = SOURCE_ROOT; };
+		29028AA9DE684A7E967D4835 /* gpu_hw_shadergen.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = src/core/gpu_hw_shadergen.cpp; sourceTree = SOURCE_ROOT; };
+		6D1EF369124D4F9389AAD769 /* shadergen.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = src/core/shadergen.cpp; sourceTree = SOURCE_ROOT; };
+		52C21BCA065742559077E1B0 /* glad.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = dep/glad/src/glad.c; sourceTree = SOURCE_ROOT; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		000000000000000000000139 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				00000000000000000000013C /* OpenEmuBase.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		000000000000000000000001 /* SwanStation */ = {
+			isa = PBXGroup;
+			children = (
+				A19902ED28C647BDBC8AC162 /* gpu_hw_metal.mm */,
+				72AC59F1FC5F4A62A9DD4007 /* texture.mm */,
+				910CEA55910F41DF8D3ACE01 /* stream_buffer.mm */,
+				7731109A08BF4B97B90B7935 /* shader_cache.mm */,
+				D3B710DB4F7048D1AC7A54DE /* gpu_hw.cpp */,
+				29028AA9DE684A7E967D4835 /* gpu_hw_shadergen.cpp */,
+				6D1EF369124D4F9389AAD769 /* shadergen.cpp */,
+				52C21BCA065742559077E1B0 /* glad.c */,
+				000000000000000000000002 /* Info.plist */,
+				000000000000000000000003 /* SwanStationGameCore.h */,
+				000000000000000000000004 /* SwanStationGameCore.mm */,
+				000000000000000000000006 /* SwanStationLibretroBridge.cpp */,
+				000000000000000000000008 /* SwanStationLibretroBridge.h */,
+				000000000000000000000009 /* SwanStationPortStubs.cpp */,
+				00000000000000000000000B /* config.h */,
+				00000000000000000000000C /* version.h */,
+				000000000000000000000011 /* dep */,
+				000000000000000000000045 /* src */,
+				00000000000000000000013B /* OpenEmuBase.framework */,
+				19C28FB0FE9D524F11CA2CBB /* Products */,
+			);
+			name = SwanStation;
+			sourceTree = "<group>";
+		};
+		000000000000000000000011 /* dep */ = {
+			isa = PBXGroup;
+			children = (
+				000000000000000000000010 /* libchdr */,
+				000000000000000000000015 /* libretro-common */,
+				00000000000000000000003B /* stb */,
+				000000000000000000000041 /* xxhash */,
+			);
+			path = dep;
+			sourceTree = "<group>";
+		};
+		000000000000000000000045 /* src */ = {
+			isa = PBXGroup;
+			children = (
+				000000000000000000000044 /* common */,
+				0000000000000000000000A0 /* core */,
+				000000000000000000000128 /* libretro */,
+			);
+			path = src;
+			sourceTree = "<group>";
+		};
+		000000000000000000000010 /* libchdr */ = {
+			isa = PBXGroup;
+			children = (
+				00000000000000000000000F /* deps */,
+			);
+			path = libchdr;
+			sourceTree = "<group>";
+		};
+		000000000000000000000015 /* libretro-common */ = {
+			isa = PBXGroup;
+			children = (
+				000000000000000000000014 /* compat */,
+				00000000000000000000001C /* encodings */,
+				00000000000000000000001F /* file */,
+				000000000000000000000026 /* formats */,
+				000000000000000000000029 /* memmap */,
+				00000000000000000000002C /* streams */,
+				00000000000000000000002F /* string */,
+				000000000000000000000032 /* time */,
+				000000000000000000000035 /* vfs */,
+			);
+			path = libretro-common;
+			sourceTree = "<group>";
+		};
+		00000000000000000000003B /* stb */ = {
+			isa = PBXGroup;
+			children = (
+				00000000000000000000003A /* src */,
+			);
+			path = stb;
+			sourceTree = "<group>";
+		};
+		000000000000000000000041 /* xxhash */ = {
+			isa = PBXGroup;
+			children = (
+				000000000000000000000040 /* src */,
+			);
+			path = xxhash;
+			sourceTree = "<group>";
+		};
+		000000000000000000000044 /* common */ = {
+			isa = PBXGroup;
+			children = (
+				000000000000000000000043 /* align.h */,
+				000000000000000000000046 /* bitfield.h */,
+				000000000000000000000047 /* bitutils.h */,
+				000000000000000000000048 /* byte_stream.cpp */,
+				00000000000000000000004A /* byte_stream.h */,
+				00000000000000000000004B /* cd_image.cpp */,
+				00000000000000000000004D /* cd_image.h */,
+				00000000000000000000004E /* cd_image_bin.cpp */,
+				000000000000000000000050 /* cd_image_cue.cpp */,
+				000000000000000000000052 /* cd_image_ecm.cpp */,
+				000000000000000000000054 /* cd_image_m3u.cpp */,
+				000000000000000000000056 /* cd_image_mds.cpp */,
+				000000000000000000000058 /* cd_image_memory.cpp */,
+				00000000000000000000005A /* cd_image_pbp.cpp */,
+				00000000000000000000005C /* cd_image_ppf.cpp */,
+				00000000000000000000005E /* cd_subchannel_replacement.cpp */,
+				000000000000000000000060 /* cd_subchannel_replacement.h */,
+				000000000000000000000061 /* cd_xa.cpp */,
+				000000000000000000000063 /* cd_xa.h */,
+				000000000000000000000064 /* cue_parser.cpp */,
+				000000000000000000000066 /* cue_parser.h */,
+				000000000000000000000067 /* dimensional_array.h */,
+				000000000000000000000068 /* error.cpp */,
+				00000000000000000000006A /* error.h */,
+				00000000000000000000006B /* event.cpp */,
+				00000000000000000000006D /* event.h */,
+				00000000000000000000006E /* fifo_queue.h */,
+				00000000000000000000006F /* file_system.cpp */,
+				000000000000000000000071 /* file_system.h */,
+				000000000000000000000072 /* hash_combine.h */,
+				000000000000000000000073 /* heap_array.h */,
+				000000000000000000000074 /* image.cpp */,
+				000000000000000000000076 /* image.h */,
+				000000000000000000000077 /* iso_reader.cpp */,
+				000000000000000000000079 /* iso_reader.h */,
+				00000000000000000000007A /* jit_code_buffer.cpp */,
+				00000000000000000000007C /* jit_code_buffer.h */,
+				00000000000000000000007D /* log.cpp */,
+				00000000000000000000007F /* log.h */,
+				000000000000000000000080 /* make_array.h */,
+				000000000000000000000081 /* md5_digest.cpp */,
+				000000000000000000000083 /* md5_digest.h */,
+				000000000000000000000084 /* memory_arena.cpp */,
+				000000000000000000000086 /* memory_arena.h */,
+				000000000000000000000087 /* page_fault_handler.cpp */,
+				000000000000000000000089 /* page_fault_handler.h */,
+				00000000000000000000008A /* pbp_types.h */,
+				00000000000000000000008B /* platform.h */,
+				00000000000000000000008C /* progress_callback.cpp */,
+				00000000000000000000008E /* progress_callback.h */,
+				00000000000000000000008F /* rectangle.h */,
+				000000000000000000000090 /* state_wrapper.cpp */,
+				000000000000000000000092 /* state_wrapper.h */,
+				000000000000000000000093 /* string.cpp */,
+				000000000000000000000095 /* string.h */,
+				000000000000000000000096 /* string_util.cpp */,
+				000000000000000000000098 /* string_util.h */,
+				000000000000000000000099 /* thread_priority.h */,
+				00000000000000000000009A /* timer.cpp */,
+				00000000000000000000009C /* timer.h */,
+				00000000000000000000009D /* types.h */,
+				00000000000000000000009E /* window_info.h */,
+			);
+			path = common;
+			sourceTree = "<group>";
+		};
+		0000000000000000000000A0 /* core */ = {
+			isa = PBXGroup;
+			children = (
+				00000000000000000000009F /* analog_controller.cpp */,
+				0000000000000000000000A2 /* analog_controller.h */,
+				0000000000000000000000A3 /* analog_joystick.cpp */,
+				0000000000000000000000A5 /* analog_joystick.h */,
+				0000000000000000000000A6 /* bios.cpp */,
+				0000000000000000000000A8 /* bios.h */,
+				0000000000000000000000A9 /* bus.cpp */,
+				0000000000000000000000AB /* bus.h */,
+				0000000000000000000000AC /* cdrom.cpp */,
+				0000000000000000000000AE /* cdrom.h */,
+				0000000000000000000000AF /* cdrom_async_reader.cpp */,
+				0000000000000000000000B1 /* cdrom_async_reader.h */,
+				0000000000000000000000B2 /* cheats.cpp */,
+				0000000000000000000000B4 /* cheats.h */,
+				0000000000000000000000B5 /* controller.cpp */,
+				0000000000000000000000B7 /* controller.h */,
+				0000000000000000000000B8 /* cpu_code_cache.cpp */,
+				0000000000000000000000BA /* cpu_code_cache.h */,
+				0000000000000000000000BB /* cpu_core.cpp */,
+				0000000000000000000000BD /* cpu_core.h */,
+				0000000000000000000000BE /* cpu_core_private.h */,
+				0000000000000000000000BF /* cpu_types.cpp */,
+				0000000000000000000000C1 /* cpu_types.h */,
+				0000000000000000000000C2 /* digital_controller.cpp */,
+				0000000000000000000000C4 /* digital_controller.h */,
+				0000000000000000000000C5 /* dma.cpp */,
+				0000000000000000000000C7 /* dma.h */,
+				0000000000000000000000C8 /* gpu.cpp */,
+				0000000000000000000000CA /* gpu.h */,
+				0000000000000000000000CB /* gpu_backend.cpp */,
+				0000000000000000000000CD /* gpu_backend.h */,
+				0000000000000000000000CE /* gpu_commands.cpp */,
+				0000000000000000000000D0 /* gpu_hw.h */,
+				0000000000000000000000D1 /* gpu_sw.cpp */,
+				0000000000000000000000D3 /* gpu_sw.h */,
+				0000000000000000000000D4 /* gpu_sw_backend.cpp */,
+				0000000000000000000000D6 /* gpu_sw_backend.h */,
+				0000000000000000000000D7 /* gpu_types.h */,
+				0000000000000000000000D8 /* gte.cpp */,
+				0000000000000000000000DA /* gte.h */,
+				0000000000000000000000DB /* gte_types.h */,
+				0000000000000000000000DC /* host_display.cpp */,
+				0000000000000000000000DE /* host_display.h */,
+				0000000000000000000000DF /* host_interface.cpp */,
+				0000000000000000000000E1 /* host_interface.h */,
+				0000000000000000000000E2 /* host_interface_progress_callback.cpp */,
+				0000000000000000000000E4 /* host_interface_progress_callback.h */,
+				0000000000000000000000E5 /* interrupt_controller.cpp */,
+				0000000000000000000000E7 /* interrupt_controller.h */,
+				0000000000000000000000E8 /* libcrypt_game_codes.cpp */,
+				0000000000000000000000EA /* libcrypt_game_codes.h */,
+				0000000000000000000000EB /* mdec.cpp */,
+				0000000000000000000000ED /* mdec.h */,
+				0000000000000000000000EE /* memory_card.cpp */,
+				0000000000000000000000F0 /* memory_card.h */,
+				0000000000000000000000F1 /* memory_card_image.cpp */,
+				0000000000000000000000F3 /* memory_card_image.h */,
+				0000000000000000000000F4 /* multitap.cpp */,
+				0000000000000000000000F6 /* multitap.h */,
+				0000000000000000000000F7 /* namco_guncon.cpp */,
+				0000000000000000000000F9 /* namco_guncon.h */,
+				0000000000000000000000FA /* negcon.cpp */,
+				0000000000000000000000FC /* negcon.h */,
+				0000000000000000000000FD /* negcon_rumble.cpp */,
+				0000000000000000000000FF /* negcon_rumble.h */,
+				000000000000000000000100 /* pad.cpp */,
+				000000000000000000000102 /* pad.h */,
+				000000000000000000000103 /* pgxp.cpp */,
+				000000000000000000000105 /* pgxp.h */,
+				000000000000000000000106 /* playstation_mouse.cpp */,
+				000000000000000000000108 /* playstation_mouse.h */,
+				000000000000000000000109 /* psf_loader.cpp */,
+				00000000000000000000010B /* psf_loader.h */,
+				00000000000000000000010C /* resources.cpp */,
+				00000000000000000000010E /* resources.h */,
+				00000000000000000000010F /* save_state_version.h */,
+				000000000000000000000110 /* settings.cpp */,
+				000000000000000000000112 /* settings.h */,
+				000000000000000000000113 /* shader_cache_version.h */,
+				000000000000000000000114 /* sio.cpp */,
+				000000000000000000000116 /* sio.h */,
+				000000000000000000000117 /* spu.cpp */,
+				000000000000000000000119 /* spu.h */,
+				00000000000000000000011A /* system.cpp */,
+				00000000000000000000011C /* system.h */,
+				00000000000000000000011D /* texture_replacements.cpp */,
+				00000000000000000000011F /* texture_replacements.h */,
+				000000000000000000000120 /* timers.cpp */,
+				000000000000000000000122 /* timers.h */,
+				000000000000000000000123 /* timing_event.cpp */,
+				000000000000000000000125 /* timing_event.h */,
+				000000000000000000000126 /* types.h */,
+			);
+			path = core;
+			sourceTree = "<group>";
+		};
+		000000000000000000000128 /* libretro */ = {
+			isa = PBXGroup;
+			children = (
+				000000000000000000000127 /* libretro_audio_stream.cpp */,
+				00000000000000000000012A /* libretro_audio_stream.h */,
+				00000000000000000000012B /* libretro_game_settings.cpp */,
+				00000000000000000000012D /* libretro_game_settings.h */,
+				00000000000000000000012E /* libretro_host_display.cpp */,
+				000000000000000000000130 /* libretro_host_display.h */,
+				000000000000000000000131 /* libretro_host_interface.cpp */,
+				000000000000000000000133 /* libretro_settings_interface.cpp */,
+				000000000000000000000135 /* libretro_settings_interface.h */,
+			);
+			path = libretro;
+			sourceTree = "<group>";
+		};
+		00000000000000000000000F /* deps */ = {
+			isa = PBXGroup;
+			children = (
+				00000000000000000000000E /* miniz-3.1.1 */,
+			);
+			path = deps;
+			sourceTree = "<group>";
+		};
+		000000000000000000000014 /* compat */ = {
+			isa = PBXGroup;
+			children = (
+				000000000000000000000013 /* compat_posix_string.c */,
+				000000000000000000000017 /* compat_strl.c */,
+				000000000000000000000019 /* fopen_utf8.c */,
+			);
+			path = compat;
+			sourceTree = "<group>";
+		};
+		00000000000000000000001C /* encodings */ = {
+			isa = PBXGroup;
+			children = (
+				00000000000000000000001B /* encoding_utf.c */,
+			);
+			path = encodings;
+			sourceTree = "<group>";
+		};
+		00000000000000000000001F /* file */ = {
+			isa = PBXGroup;
+			children = (
+				00000000000000000000001E /* file_path.c */,
+				000000000000000000000021 /* file_path_io.c */,
+				000000000000000000000023 /* retro_dirent.c */,
+			);
+			path = file;
+			sourceTree = "<group>";
+		};
+		000000000000000000000026 /* formats */ = {
+			isa = PBXGroup;
+			children = (
+				000000000000000000000025 /* data_transfer.c */,
+			);
+			path = formats;
+			sourceTree = "<group>";
+		};
+		000000000000000000000029 /* memmap */ = {
+			isa = PBXGroup;
+			children = (
+				000000000000000000000028 /* memmap.c */,
+			);
+			path = memmap;
+			sourceTree = "<group>";
+		};
+		00000000000000000000002C /* streams */ = {
+			isa = PBXGroup;
+			children = (
+				00000000000000000000002B /* file_stream.c */,
+			);
+			path = streams;
+			sourceTree = "<group>";
+		};
+		00000000000000000000002F /* string */ = {
+			isa = PBXGroup;
+			children = (
+				00000000000000000000002E /* stdstring.c */,
+			);
+			path = string;
+			sourceTree = "<group>";
+		};
+		000000000000000000000032 /* time */ = {
+			isa = PBXGroup;
+			children = (
+				000000000000000000000031 /* rtime.c */,
+			);
+			path = time;
+			sourceTree = "<group>";
+		};
+		000000000000000000000035 /* vfs */ = {
+			isa = PBXGroup;
+			children = (
+				000000000000000000000034 /* vfs_hybrid.c */,
+				000000000000000000000037 /* vfs_implementation.c */,
+			);
+			path = vfs;
+			sourceTree = "<group>";
+		};
+		00000000000000000000003A /* src */ = {
+			isa = PBXGroup;
+			children = (
+				000000000000000000000039 /* stb_image.c */,
+				00000000000000000000003D /* stb_image_resize.c */,
+			);
+			path = src;
+			sourceTree = "<group>";
+		};
+		000000000000000000000040 /* src */ = {
+			isa = PBXGroup;
+			children = (
+				00000000000000000000003F /* xxhash.c */,
+			);
+			path = src;
+			sourceTree = "<group>";
+		};
+		00000000000000000000000E /* miniz-3.1.1 */ = {
+			isa = PBXGroup;
+			children = (
+				00000000000000000000000D /* miniz.c */,
+			);
+			path = miniz-3.1.1;
+			sourceTree = "<group>";
+		};
+		19C28FB0FE9D524F11CA2CBB /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				00000000000000000000013A /* SwanStation.oecoreplugin */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		000000000000000000000136 /* SwanStation */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 00000000000000000000013D /* Build configuration list for PBXNativeTarget "SwanStation" */;
+			buildPhases = (
+				000000000000000000000138 /* Sources */,
+				000000000000000000000139 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = SwanStation;
+			productName = SwanStation;
+			productReference = 00000000000000000000013A /* SwanStation.oecoreplugin */;
+			productType = "com.apple.product-type.bundle";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		000000000000000000000137 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				LastUpgradeCheck = 1130;
+			};
+			buildConfigurationList = 00000000000000000000013E /* Build configuration list for PBXProject "SwanStation" */;
+			compatibilityVersion = "Xcode 3.2";
+			developmentRegion = en;
+			hasScannedForEncodings = 1;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 000000000000000000000001;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				000000000000000000000136 /* SwanStation */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		000000000000000000000138 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				0D554D4B2F3141538D3BF37C /* shader_cache.mm in Sources */,
+				1545DFB29D424C84A6DB6EFB /* stream_buffer.mm in Sources */,
+				3F58480E294247229F5EC9B4 /* texture.mm in Sources */,
+				C3025BFD4230433E971B1209 /* gpu_hw_metal.mm in Sources */,
+				000000000000000000000005 /* SwanStationGameCore.mm in Sources */,
+				000000000000000000000007 /* SwanStationLibretroBridge.cpp in Sources */,
+				00000000000000000000000A /* SwanStationPortStubs.cpp in Sources */,
+				0000000000000000000000A1 /* analog_controller.cpp in Sources */,
+				0000000000000000000000A4 /* analog_joystick.cpp in Sources */,
+				0000000000000000000000A7 /* bios.cpp in Sources */,
+				0000000000000000000000AA /* bus.cpp in Sources */,
+				000000000000000000000049 /* byte_stream.cpp in Sources */,
+				00000000000000000000004C /* cd_image.cpp in Sources */,
+				00000000000000000000004F /* cd_image_bin.cpp in Sources */,
+				000000000000000000000051 /* cd_image_cue.cpp in Sources */,
+				000000000000000000000053 /* cd_image_ecm.cpp in Sources */,
+				000000000000000000000055 /* cd_image_m3u.cpp in Sources */,
+				000000000000000000000057 /* cd_image_mds.cpp in Sources */,
+				000000000000000000000059 /* cd_image_memory.cpp in Sources */,
+				00000000000000000000005B /* cd_image_pbp.cpp in Sources */,
+				00000000000000000000005D /* cd_image_ppf.cpp in Sources */,
+				00000000000000000000005F /* cd_subchannel_replacement.cpp in Sources */,
+				000000000000000000000062 /* cd_xa.cpp in Sources */,
+				0000000000000000000000AD /* cdrom.cpp in Sources */,
+				0000000000000000000000B0 /* cdrom_async_reader.cpp in Sources */,
+				0000000000000000000000B3 /* cheats.cpp in Sources */,
+				000000000000000000000016 /* compat_posix_string.c in Sources */,
+				000000000000000000000018 /* compat_strl.c in Sources */,
+				0000000000000000000000B6 /* controller.cpp in Sources */,
+				0000000000000000000000B9 /* cpu_code_cache.cpp in Sources */,
+				0000000000000000000000BC /* cpu_core.cpp in Sources */,
+				0000000000000000000000C0 /* cpu_types.cpp in Sources */,
+				000000000000000000000065 /* cue_parser.cpp in Sources */,
+				000000000000000000000027 /* data_transfer.c in Sources */,
+				0000000000000000000000C3 /* digital_controller.cpp in Sources */,
+				0000000000000000000000C6 /* dma.cpp in Sources */,
+				00000000000000000000001D /* encoding_utf.c in Sources */,
+				000000000000000000000069 /* error.cpp in Sources */,
+				00000000000000000000006C /* event.cpp in Sources */,
+				000000000000000000000020 /* file_path.c in Sources */,
+				000000000000000000000022 /* file_path_io.c in Sources */,
+				00000000000000000000002D /* file_stream.c in Sources */,
+				000000000000000000000070 /* file_system.cpp in Sources */,
+				00000000000000000000001A /* fopen_utf8.c in Sources */,
+				0000000000000000000000C9 /* gpu.cpp in Sources */,
+				0000000000000000000000CC /* gpu_backend.cpp in Sources */,
+				0000000000000000000000CF /* gpu_commands.cpp in Sources */,
+				0000000000000000000000D2 /* gpu_sw.cpp in Sources */,
+				0000000000000000000000D5 /* gpu_sw_backend.cpp in Sources */,
+				0000000000000000000000D9 /* gte.cpp in Sources */,
+				0000000000000000000000DD /* host_display.cpp in Sources */,
+				0000000000000000000000E0 /* host_interface.cpp in Sources */,
+				0000000000000000000000E3 /* host_interface_progress_callback.cpp in Sources */,
+				000000000000000000000075 /* image.cpp in Sources */,
+				0000000000000000000000E6 /* interrupt_controller.cpp in Sources */,
+				000000000000000000000078 /* iso_reader.cpp in Sources */,
+				00000000000000000000007B /* jit_code_buffer.cpp in Sources */,
+				0000000000000000000000E9 /* libcrypt_game_codes.cpp in Sources */,
+				000000000000000000000129 /* libretro_audio_stream.cpp in Sources */,
+				00000000000000000000012C /* libretro_game_settings.cpp in Sources */,
+				00000000000000000000012F /* libretro_host_display.cpp in Sources */,
+				000000000000000000000132 /* libretro_host_interface.cpp in Sources */,
+				000000000000000000000134 /* libretro_settings_interface.cpp in Sources */,
+				00000000000000000000007E /* log.cpp in Sources */,
+				000000000000000000000082 /* md5_digest.cpp in Sources */,
+				0000000000000000000000EC /* mdec.cpp in Sources */,
+				00000000000000000000002A /* memmap.c in Sources */,
+				000000000000000000000085 /* memory_arena.cpp in Sources */,
+				0000000000000000000000EF /* memory_card.cpp in Sources */,
+				0000000000000000000000F2 /* memory_card_image.cpp in Sources */,
+				000000000000000000000012 /* miniz.c in Sources */,
+				0000000000000000000000F5 /* multitap.cpp in Sources */,
+				0000000000000000000000F8 /* namco_guncon.cpp in Sources */,
+				0000000000000000000000FB /* negcon.cpp in Sources */,
+				0000000000000000000000FE /* negcon_rumble.cpp in Sources */,
+				000000000000000000000101 /* pad.cpp in Sources */,
+				000000000000000000000088 /* page_fault_handler.cpp in Sources */,
+				000000000000000000000104 /* pgxp.cpp in Sources */,
+				000000000000000000000107 /* playstation_mouse.cpp in Sources */,
+				00000000000000000000008D /* progress_callback.cpp in Sources */,
+				00000000000000000000010A /* psf_loader.cpp in Sources */,
+				00000000000000000000010D /* resources.cpp in Sources */,
+				000000000000000000000024 /* retro_dirent.c in Sources */,
+				000000000000000000000033 /* rtime.c in Sources */,
+				000000000000000000000111 /* settings.cpp in Sources */,
+				000000000000000000000115 /* sio.cpp in Sources */,
+				000000000000000000000118 /* spu.cpp in Sources */,
+				000000000000000000000091 /* state_wrapper.cpp in Sources */,
+				00000000000000000000003C /* stb_image.c in Sources */,
+				00000000000000000000003E /* stb_image_resize.c in Sources */,
+				000000000000000000000030 /* stdstring.c in Sources */,
+				000000000000000000000094 /* string.cpp in Sources */,
+				000000000000000000000097 /* string_util.cpp in Sources */,
+				00000000000000000000011B /* system.cpp in Sources */,
+				00000000000000000000011E /* texture_replacements.cpp in Sources */,
+				00000000000000000000009B /* timer.cpp in Sources */,
+				000000000000000000000121 /* timers.cpp in Sources */,
+				000000000000000000000124 /* timing_event.cpp in Sources */,
+				000000000000000000000036 /* vfs_hybrid.c in Sources */,
+				000000000000000000000038 /* vfs_implementation.c in Sources */,
+				000000000000000000000042 /* xxhash.c in Sources */,
+				85E08953BFB1400CACCADA04 /* gpu_hw.cpp in Sources */,
+				A8A603F2BD9D401CB4CDE9E8 /* gpu_hw_shadergen.cpp in Sources */,
+				04044E46D5D0415CB9D685A8 /* shadergen.cpp in Sources */,
+				1154DABFCF594F17B250AB0C /* glad.c in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		00000000000000000000013F /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_CXX_LANGUAGE_STANDARD = "c++17";
+				CLANG_ENABLE_OBJC_ARC = YES;
+				GCC_C_LANGUAGE_STANDARD = c99;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"SWANSTATION_NO_HW_RENDER_APIS=1",
+				);
+				HEADER_SEARCH_PATHS = (
+					"$(SRCROOT)/src",
+					"$(SRCROOT)/src/core",
+					"$(SRCROOT)/src/libretro",
+					"$(SRCROOT)/dep/libretro-common/include",
+					"$(SRCROOT)/dep/openbios",
+					"$(SRCROOT)/dep/stb/include",
+					"$(SRCROOT)/dep/xxhash/include",
+				);
+				INFOPLIST_FILE = Info.plist;
+				PRODUCT_BUNDLE_IDENTIFIER = "org.openemu.${PRODUCT_NAME:identifier}";
+				PRODUCT_NAME = SwanStation;
+				SKIP_INSTALL = YES;
+				WRAPPER_EXTENSION = oecoreplugin;
+			};
+			name = Debug;
+		};
+		000000000000000000000140 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_CXX_LANGUAGE_STANDARD = "c++17";
+				CLANG_ENABLE_OBJC_ARC = YES;
+				GCC_C_LANGUAGE_STANDARD = c99;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"SWANSTATION_NO_HW_RENDER_APIS=1",
+				);
+				HEADER_SEARCH_PATHS = (
+					"$(SRCROOT)/src",
+					"$(SRCROOT)/src/core",
+					"$(SRCROOT)/src/libretro",
+					"$(SRCROOT)/dep/libretro-common/include",
+					"$(SRCROOT)/dep/openbios",
+					"$(SRCROOT)/dep/stb/include",
+					"$(SRCROOT)/dep/xxhash/include",
+				);
+				INFOPLIST_FILE = Info.plist;
+				PRODUCT_BUNDLE_IDENTIFIER = "org.openemu.${PRODUCT_NAME:identifier}";
+				PRODUCT_NAME = SwanStation;
+				SKIP_INSTALL = YES;
+				WRAPPER_EXTENSION = oecoreplugin;
+			};
+			name = Release;
+		};
+		000000000000000000000141 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+		000000000000000000000142 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		00000000000000000000013D /* Build configuration list for PBXNativeTarget "SwanStation" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				00000000000000000000013F /* Debug */,
+				000000000000000000000140 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		00000000000000000000013E /* Build configuration list for PBXProject "SwanStation" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				000000000000000000000141 /* Debug */,
+				000000000000000000000142 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 000000000000000000000137 /* Project object */;
+}

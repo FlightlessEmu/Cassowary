@@ -34,6 +34,7 @@ Potator-Core:Potator
 ProSystem:ProSystem
 SNES9x:SNES9x
 Stella:Stella
+SwanStation:SwanStation
 VecXGL:VecXGL
 VirtualC64:VirtualC64
 VirtualJaguar:VirtualJaguar

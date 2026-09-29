@@ -80,6 +80,14 @@ struct ImportSummary: Sendable {
     var unsupported: [String] = []
     /// File names that could not be read or copied.
     var failed: [String] = []
+    /// File names recognized as BIOS files and filed into the BIOS folder
+    /// instead of the library. A BIOS is not a game: launching one as a disc
+    /// can only fail, so it never reaches the grid.
+    var bios: [String] = []
+    /// File names that look like BIOS files (right name) but failed the
+    /// size/hash check. Kept out of the library: a bad BIOS as a game tile
+    /// can only fail to launch.
+    var biosInvalid: [String] = []
 }
 
 /// Finds games on disk and remembers which ones the user has added.
@@ -185,6 +193,21 @@ final class GameLibrary: ObservableObject {
             options: [.skipsHiddenFiles]
         )) ?? []
 
+        // A file that a .cue or .m3u beside it points at is not a game of its
+        // own: the sheet is the entry point, and listing the file too would
+        // offer the same disc twice. A multi-track disc names each track
+        // ("Game (Track 01).bin", ...) and a multi-disc game lists a .cue per
+        // disc, so the sheets are read for the files they list; an image
+        // named like its .cue is covered too.
+        let sheets = found.filter { Self.sheetExtensions.contains($0.pathExtension.lowercased()) }
+        var trackNames = Set(sheets.flatMap(Self.filesReferenced(bySheet:)))
+        for cue in sheets where cue.pathExtension.lowercased() == "cue" {
+            let base = cue.deletingPathExtension().lastPathComponent.lowercased()
+            for ext in ["bin", "img", "iso"] {
+                trackNames.insert(base + "." + ext)
+            }
+        }
+
         games = found
             .compactMap { url -> Game? in
                 guard let system = Self.system(
@@ -193,6 +216,11 @@ final class GameLibrary: ObservableObject {
                     byExtension: byExtension,
                     byIdentifier: byIdentifier
                 ) else { return nil }
+
+                if trackNames.contains(url.lastPathComponent.lowercased()) {
+                    return nil
+                }
+
                 return Game(url: url, system: system)
             }
             .sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
@@ -246,15 +274,29 @@ final class GameLibrary: ObservableObject {
         let automatic = Self.automaticExtensions()
         let assignedNames = Set(Self.assignedSystemIdentifiers().keys)
         let documents = Self.documentsDirectory
+        let biosFolder = BIOSCatalog.directory
+        let biosFiles = BIOSCatalog.signatures()
 
-        let summary = await Task.detached(priority: .userInitiated) {
+        var summary = await Task.detached(priority: .userInitiated) {
             Self.copy(
                 urls,
                 into: documents,
                 automaticExtensions: automatic,
-                assignedNames: assignedNames
+                assignedNames: assignedNames,
+                biosFolder: biosFolder,
+                biosFiles: biosFiles
             )
         }.value
+
+        // The files a .cue or .m3u lists are never games of their own
+        // (refresh hides them), so there is nothing to ask about them: only
+        // the sheet is.
+        let tracks = Set(summary.needsSystem
+            .filter { Self.sheetExtensions.contains($0.pathExtension.lowercased()) }
+            .flatMap(Self.filesReferenced(bySheet:)))
+        summary.needsSystem.removeAll { url in
+            tracks.contains(url.lastPathComponent.lowercased())
+        }
 
         refresh()
         return summary
@@ -291,7 +333,9 @@ final class GameLibrary: ObservableObject {
         _ urls: [URL],
         into documents: URL,
         automaticExtensions: Set<String>,
-        assignedNames: Set<String>
+        assignedNames: Set<String>,
+        biosFolder: URL,
+        biosFiles: [String: (md5: String, size: UInt64)]
     ) -> ImportSummary {
         let fm = FileManager.default
         var summary = ImportSummary()
@@ -312,6 +356,21 @@ final class GameLibrary: ObservableObject {
             guard !isDirectory.boolValue else {
                 // Folders are not games; only files are copied.
                 summary.unsupported.append(name)
+                continue
+            }
+
+            // A BIOS goes to the BIOS folder, never the game grid.
+            switch BIOSCatalog.file(url, signatures: biosFiles, into: biosFolder) {
+            case .notBIOS:
+                break
+            case .filed:
+                summary.bios.append(name)
+                continue
+            case .invalid:
+                summary.biosInvalid.append(name)
+                continue
+            case .failed:
+                summary.failed.append(name)
                 continue
             }
 
@@ -345,5 +404,53 @@ final class GameLibrary: ObservableObject {
         }
 
         return summary
+    }
+
+    /// Files that list other files: a .cue its tracks, an .m3u its discs.
+    private nonisolated static let sheetExtensions: Set<String> = ["cue", "m3u"]
+
+    /// The lowercase names of the files a .cue sheet or .m3u playlist lists.
+    /// A .cue names them on `FILE "name" BINARY` lines; an .m3u puts one per
+    /// line, with `#` starting a comment. Both are a few lines of text; a file
+    /// too big to be one is skipped rather than read.
+    private nonisolated static func filesReferenced(bySheet url: URL) -> [String] {
+        guard let size = fileSize(at: url), size < 64 * 1024,
+              let data = try? Data(contentsOf: url) else {
+            return []
+        }
+        let text = String(decoding: data, as: UTF8.self)
+        let isPlaylist = url.pathExtension.lowercased() == "m3u"
+
+        return text.split(whereSeparator: \.isNewline).compactMap { line in
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if isPlaylist {
+                guard !trimmed.isEmpty, !trimmed.hasPrefix("#") else { return nil }
+                let fileName = (trimmed as NSString).lastPathComponent.lowercased()
+                return fileName.isEmpty ? nil : fileName
+            }
+
+            guard trimmed.uppercased().hasPrefix("FILE ") else { return nil }
+            let rest = trimmed.dropFirst(5).trimmingCharacters(in: .whitespaces)
+
+            // Quoted names can hold spaces; an unquoted one runs to the next
+            // space, before the file type.
+            let name: Substring
+            if rest.hasPrefix("\""), let end = rest.dropFirst().firstIndex(of: "\"") {
+                name = rest[rest.index(after: rest.startIndex)..<end]
+            } else if let end = rest.firstIndex(of: " ") {
+                name = rest[..<end]
+            } else {
+                name = Substring(rest)
+            }
+
+            // Only the name: tracks sit beside the .cue in the flat library.
+            let fileName = (String(name) as NSString).lastPathComponent.lowercased()
+            return fileName.isEmpty ? nil : fileName
+        }
+    }
+
+    /// The size of a file, or nil when it cannot be read.
+    private nonisolated static func fileSize(at url: URL) -> UInt64? {
+        (try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? NSNumber)?.uint64Value
     }
 }

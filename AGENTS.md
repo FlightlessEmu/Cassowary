@@ -143,6 +143,7 @@ both read it. This table is the human-friendly view of it; keep the two in step.
 | Nintendo DS | melonDS |
 | Odyssey² / Videopac+ | O2EM |
 | PC Engine / PC-FX / Sega Saturn / PlayStation / WonderSwan / Virtual Boy / Atari Lynx / Neo Geo Pocket | Mednafen |
+| PlayStation (Metal renderer) | SwanStation |
 | Pokémon Mini | PokeMini |
 | Sega 32X / Genesis / Sega CD / Master System / Game Gear | Genesis Plus GX |
 | Sega 32X (alt) | picodrive |

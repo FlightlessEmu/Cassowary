@@ -150,6 +150,10 @@ final class GameSession: NSObject {
     /// Whether emulation is paused.
     var isPaused = false
 
+    /// How many discs the loaded game has, as the core reports it. More than
+    /// one puts a disc picker in the game menu.
+    var discCount: UInt = 0
+
     /// The game's display aspect ratio, as width ÷ height.
     ///
     /// The core reports the aspect size it wants, which is not always the

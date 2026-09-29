@@ -55,6 +55,8 @@ struct GameView: View {
     @State private var notice: String?
     @State private var raSignedIn = false
     @State private var showingAchievements = false
+    /// The disc in the drive, numbered from 1. Every game starts on its first.
+    @State private var currentDisc: UInt = 1
 
     /// The app's foreground/background state, so a game can be paused on the way
     /// out and picked back up on the way in.
@@ -238,6 +240,16 @@ struct GameView: View {
                     }
                     Button("Reset Game") {
                         session.resetEmulation()
+                    }
+                    // Multi-disc games (an .m3u playlist) ask for the next
+                    // disc on screen; this is the lid and the swap.
+                    if session.discCount > 1 {
+                        Picker("Disc: \(currentDisc) of \(session.discCount)", selection: discBinding(for: session)) {
+                            ForEach(1...Int(session.discCount), id: \.self) { disc in
+                                Text("Disc \(disc)").tag(UInt(disc))
+                            }
+                        }
+                        .pickerStyle(.menu)
                     }
                     Divider()
                     // A picker in a menu becomes a submenu with a checkmark
@@ -476,6 +488,17 @@ struct GameView: View {
 
     /// The rumble picker's binding. The strength is read from defaults each
     /// time a rumble starts, so writing the pick is all it takes.
+    private func discBinding(for session: GameSession) -> Binding<UInt> {
+        Binding(
+            get: { currentDisc },
+            set: { disc in
+                guard disc != currentDisc else { return }
+                session.setDisc(disc)
+                currentDisc = disc
+            }
+        )
+    }
+
     private var rumbleBinding: Binding<RumbleStrength> {
         Binding(
             get: { RumbleStrength(rawValue: rumbleStrength) ?? .medium },
@@ -680,7 +703,15 @@ struct GameView: View {
 
             runTestHooks(session)
         } catch {
-            errorMessage = error.localizedDescription
+            // The engine wraps the core's reason as the underlying error
+            // (missing BIOS, bad image, ...). Show it: the wrapper alone
+            // ("could not load ROM") never says what to fix.
+            let underlying = (error as NSError).userInfo[NSUnderlyingErrorKey] as? NSError
+            if let detail = underlying?.localizedDescription, !detail.isEmpty {
+                errorMessage = "\(error.localizedDescription)\n\(detail)"
+            } else {
+                errorMessage = error.localizedDescription
+            }
         }
     }
 
@@ -731,8 +762,12 @@ struct GameView: View {
     private func runTestHooks(_ session: GameSession) {
 #if DEBUG
         if let button = UserDefaults.standard.string(forKey: "cassowary.testHoldButton") {
+            // Three seconds suits a cartridge. A disc game's menu only takes a
+            // fresh press once it is up, so a test can wait longer with
+            // -cassowary.testHoldDelay <seconds>.
+            let delay = UserDefaults.standard.double(forKey: "cassowary.testHoldDelay")
             Task {
-                try? await Task.sleep(for: .seconds(3))
+                try? await Task.sleep(for: .seconds(delay > 0 ? delay : 3))
                 session.pressButton(named: button)
             }
         }

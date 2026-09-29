@@ -59,6 +59,7 @@ enum AboutContent {
         "org.openemu.PokeMini": "GPL-3.0-or-later (PokeMini)",
         "org.openemu.ProSystem": "GPL-2.0 (ProSystem)",
         "org.openemu.Stella": "GPL-2.0-or-later (Stella)",
+        "org.openemu.SwanStation": "GPL-3.0-or-later (SwanStation, a DuckStation fork)",
         "org.openemu.VecXGL": "GPL-2.0-or-later (vecx / VecXGL)",
         "org.openemu.VirtualC64": "GPL-3.0-or-later or MPL-2.0 (VirtualC64)",
         "org.openemu.VirtualJaguar": "GPL-3.0-or-later (Virtual Jaguar)",

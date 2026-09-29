@@ -26,6 +26,7 @@ The shipped cores are listed in [`Scripts/cassowary/cores.txt`](../Scripts/casso
 | Doc | What's in it |
 |---|---|
 | [core-audit/core-upscaling-investigation.md](core-audit/core-upscaling-investigation.md) | How upscaling could be added to the cores, bitmap ones first. |
+| [PS1_METAL_PLAN.md](PS1_METAL_PLAN.md) | Bringing up the two PlayStation cores, and where the Metal work goes. |
 
 ## Features
 
