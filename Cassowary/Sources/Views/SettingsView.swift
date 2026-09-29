@@ -253,6 +253,18 @@ struct SettingsView: View {
                     LabeledContent("Cores", value: "\(catalog.coreCount)")
                     LabeledContent("Version", value: appVersion)
                 }
+
+                Section {
+                    NavigationLink {
+                        DiagnosticsView(store: .shared)
+                    } label: {
+                        Label("Crash & Hang Reports", systemImage: "stethoscope")
+                    }
+                } header: {
+                    Text("Diagnostics")
+                } footer: {
+                    Text("See what the system has handed back about crashes and hangs, and the last game that did not close cleanly. Nothing leaves the device unless you share it.")
+                }
             }
             .navigationTitle("Settings")
             .toolbar {

@@ -38,4 +38,5 @@ The shipped cores are listed in [`Scripts/cassowary/cores.txt`](../Scripts/casso
 
 | Doc | What's in it |
 |---|---|
+| [crash-reports.md](crash-reports.md) | How crashes and hangs are collected, read and symbolicated. |
 | `images/` | Images used by the docs. |

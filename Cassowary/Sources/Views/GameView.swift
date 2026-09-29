@@ -172,6 +172,7 @@ struct GameView: View {
             // still winding down.
             guard let session else { return }
             session.stop {
+                DiagnosticsStore.shared.noteSessionEnded()
                 self.session = nil
             }
         }
@@ -656,6 +657,16 @@ struct GameView: View {
 
             self.session = session
             self.raSignedIn = RetroAchievementsCredentialStore.load().isSignedIn
+
+            // Leave a note that a game is running. It is cleared when the game
+            // stops cleanly, so one that survives to the next launch marks the
+            // app having been killed mid-game.
+            DiagnosticsStore.shared.noteSessionStarted(
+                title: game.title,
+                core: session.coreDisplayName,
+                system: game.system?.identifier
+            )
+
             session.start {
                 // The filter and upscaling switches remembered for this
                 // system. Shared with the TV player: see `VideoSettings`.
@@ -866,6 +877,7 @@ struct GameView: View {
         if let seconds = Self.testCloseDelay {
             Task {
                 try? await Task.sleep(for: .seconds(seconds))
+                NSLog("[Cassowary] test close after %gs", seconds)
                 onClose()
             }
         }

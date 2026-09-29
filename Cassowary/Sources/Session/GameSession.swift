@@ -315,11 +315,14 @@ final class GameSession: NSObject {
         stopCompletions.append(completionHandler)
 
         // The helper answers on the main thread, after it has dropped the
-        // renderer and the core. Hop there explicitly so the state below is
-        // touched on the actor that owns it.
-        helper.stopEmulation { [weak self] in
-            Task { @MainActor in
-                guard let self else { return }
+        // renderer and the core. `self` is held by this closure on purpose: the
+        // teardown has to finish, and the callers waiting on it have to be told,
+        // even if nothing else is holding the session by then.
+        helper.stopEmulation {
+            // The helper answers on the main thread (see -didStopEmulation and
+            // the early return above), and `stop` is only ever called from the
+            // main actor, so this is already where the state below lives.
+            MainActor.assumeIsolated {
                 self.isStopping = false
                 let completions = self.stopCompletions
                 self.stopCompletions.removeAll()
