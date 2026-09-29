@@ -98,6 +98,7 @@ int main(int argc, char** argv)
     int frames = 300;
     int series = 0;
     bool software = false;
+    int state_at = -1;
 
     for (int i = 1; i < argc; i++)
     {
@@ -120,6 +121,8 @@ int main(int argc, char** argv)
         series = std::atoi(value().c_str());
       else if (argument == "--software")
         software = true;
+      else if (argument == "--state-at")
+        state_at = std::atoi(value().c_str());
       else if (argument == "--press")
       {
         // ID,START,END, repeatable.
@@ -234,10 +237,36 @@ int main(int argc, char** argv)
       return true;
     };
 
+    // --state-at N saves a state at frame N, keeps running to the end, then
+    // loads it back and runs one frame, so the dump shows frame N + 1 as the
+    // save state restored it.
+    std::vector<uint8_t> state;
     for (int i = 0; i < frames; i++)
     {
+      if (i == state_at)
+      {
+        state.resize(SwanStationBridge::SerializeSize());
+        if (!SwanStationBridge::Serialize(state.data(), state.size()))
+        {
+          std::fprintf(stderr, "saving a state failed\n");
+          return 1;
+        }
+      }
+
       SwanStationBridge::RunFrame();
       s_frame++;
+    }
+
+    if (!state.empty())
+    {
+      if (!SwanStationBridge::Deserialize(state.data(), state.size()))
+      {
+        std::fprintf(stderr, "loading the state failed\n");
+        return 1;
+      }
+
+      SwanStationBridge::RunFrame();
+      s_frame = state_at + 1;
     }
 
     if (!vram_path.empty())

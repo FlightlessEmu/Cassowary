@@ -452,13 +452,16 @@ void GPU_HW_Metal::Reset(bool clear_vram)
 {
   GPU_HW::Reset(clear_vram);
 
-  EndRenderPass();
+  // Finish the queued work first: the clear below is a CPU write that lands at
+  // once, and draws still waiting to run would land on top of it.
+  EndFrame();
 
   if (clear_vram)
   {
     // Everything is in shared memory, so a CPU fill is the simplest way to get
-    // a known-clear VRAM and depth buffer.
-    std::vector<uint8_t> zero(VRAM_WIDTH * VRAM_HEIGHT * 4, 0);
+    // a known-clear VRAM and depth buffer. The textures are scaled by the
+    // internal resolution, so the zeroes are too.
+    std::vector<uint8_t> zero(static_cast<size_t>(m_vram_texture.GetWidth()) * m_vram_texture.GetHeight() * 4, 0);
     m_vram_texture.Replace(zero.data());
     m_vram_read_texture.Replace(zero.data());
 
@@ -469,21 +472,11 @@ void GPU_HW_Metal::Reset(bool clear_vram)
 
 bool GPU_HW_Metal::DoState(StateWrapper& sw, HostDisplayTexture** host_texture, bool update_display)
 {
-  // The base class serialises the shadow copy of VRAM, so bring the texture in
-  // step with it on the way in and out.
-  if (sw.IsWriting())
-    ReadVRAM(0, 0, VRAM_WIDTH, VRAM_HEIGHT);
-
-  if (!GPU_HW::DoState(sw, host_texture, update_display))
-    return false;
-
-  if (sw.IsReading())
-  {
-    UpdateVRAM(0, 0, VRAM_WIDTH, VRAM_HEIGHT, m_vram_shadow.data(), false, false);
-    UpdateVRAMReadTexture();
-  }
-
-  return true;
+  // GPU::DoState already moves VRAM through ReadVRAM and UpdateVRAM, which
+  // this renderer implements. Uploading the shadow copy again after it, as
+  // this used to, put back the zeroes the load's reset had just left there,
+  // and every loaded state came up black.
+  return GPU_HW::DoState(sw, host_texture, update_display);
 }
 
 void GPU_HW_Metal::ResetGraphicsAPIState()
@@ -1466,9 +1459,7 @@ void GPU_HW_Metal::CopyVRAM(uint32_t src_x, uint32_t src_y, uint32_t dst_x, uint
 
   RestoreGraphicsAPIState();
 
-  if (m_GPUSTAT.check_mask_before_draw)
-    m_current_depth++;
-
+  // Marks the destination dirty, and moves the mask depth on when masking.
   GPU_HW::CopyVRAM(src_x, src_y, dst_x, dst_y, width, height);
 }
 

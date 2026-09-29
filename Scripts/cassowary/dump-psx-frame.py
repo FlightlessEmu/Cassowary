@@ -17,6 +17,7 @@ than the minutes an app build and a simulator install take.
 Usage:
     dump-psx-frame.py --game FILE --out FILE [--software] [--frames N]
                       [--bios DIR] [--save DIR] [--keep-going]
+                      [--press ID,START,END] [--state-at N]
 
 Options:
     --frames N    frames to run before dumping (default 300: a few seconds of
@@ -24,6 +25,12 @@ Options:
     --bios DIR    BIOS directory (default: the BIOS pack in ~/Downloads if it
                   is there, otherwise no BIOS, which boots OpenBIOS)
     --save DIR    where memory cards go (default: build/psx-frame-dump/save)
+    --press ID,START,END
+                  hold a RetroPad button (0 is B, the PlayStation's cross;
+                  3 is Start) from frame START up to END. Repeatable.
+    --state-at N  save a state at frame N, run on to --frames, then load it
+                  back and dump the frame after N. Compare it with a plain
+                  run of --frames N+1 to check save states.
 """
 
 import argparse
@@ -155,6 +162,8 @@ def main():
     parser.add_argument('--vram', default=None, help='also write the renderer VRAM out as a PPM here')
     parser.add_argument('--press', action='append', default=[],
                         help='hold a joypad button for frames ID,START,END (repeatable)')
+    parser.add_argument('--state-at', type=int, default=None,
+                        help='save a state at this frame, run on, then load it back and dump the frame after it')
     parser.add_argument('--verbose', action='store_true')
     parser.add_argument('--no-build', action='store_true')
     args = parser.parse_args()
@@ -185,6 +194,8 @@ def main():
         command += ['--press', press]
     if args.software:
         command.append('--software')
+    if args.state_at is not None:
+        command += ['--state-at', str(args.state_at)]
 
     return subprocess.run(command).returncode
 
