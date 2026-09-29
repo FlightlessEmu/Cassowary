@@ -23,6 +23,7 @@
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import SwiftUI
+import UIKit
 
 /// The library: the same shape as the phone's — a sidebar of systems next to
 /// a grid of games — over the TV's own library.
@@ -36,7 +37,8 @@ struct TVLibraryView: View {
     /// tab bar is not in the way.
     var onPlay: (TVStore.LocalGame) -> Void
 
-    /// What the sidebar has selected.
+    /// What the sidebar has selected. Systems are keyed by identifier: names
+    /// are display only, and two systems never share an identifier.
     private enum Selection: Hashable {
         case all
         case favorites
@@ -44,10 +46,21 @@ struct TVLibraryView: View {
         case system(String)
     }
 
+    /// How the grid is ordered. The phone sorts the same two ways.
+    private enum SortOption: String, CaseIterable, Identifiable {
+        case title
+        case system
+
+        var id: String { rawValue }
+    }
+
     @ObservedObject private var store = TVStore.shared
+    @StateObject private var coreCatalog = CoreCatalog()
 
     @State private var showConflict = false
     @State private var selection: Selection = .all
+    @State private var searchText = ""
+    @State private var sort: SortOption = .title
     /// Which sidebar row has the focus, so the highlight can be drawn here
     /// rather than by the TV's focus effect.
     @FocusState private var focusedRow: Selection?
@@ -77,6 +90,7 @@ struct TVLibraryView: View {
         }
         .onAppear {
             store.start()
+            coreCatalog.refresh()
         }
         .onChange(of: store.conflicts.count) { _, count in
             if count > 0 { showConflict = true }
@@ -144,9 +158,12 @@ struct TVLibraryView: View {
 
                 if !systems.isEmpty {
                     sidebarSection("Systems") {
-                        ForEach(systems, id: \.name) { system in
-                            sidebarRow(system.name, symbol: "gamecontroller",
-                                       count: system.count, value: .system(system.name))
+                        ForEach(systems, id: \.id) { system in
+                            sidebarRow(system.name,
+                                       symbol: nil,
+                                       icon: coreCatalog.system(forIdentifier: system.id)?.icon,
+                                       count: system.count,
+                                       value: .system(system.id))
                         }
                     }
                 }
@@ -181,13 +198,24 @@ struct TVLibraryView: View {
     }
 
     private func sidebarRow(_ title: String, symbol: String, count: Int, value: Selection) -> some View {
+        sidebarRow(title, symbol: symbol, icon: nil, count: count, value: value)
+    }
+
+    private func sidebarRow(_ title: String, symbol: String?, icon: UIImage?, count: Int, value: Selection) -> some View {
         Button {
             selection = value
         } label: {
             HStack(spacing: 14) {
-                Image(systemName: symbol)
-                    .font(.system(size: 20))
-                    .frame(width: 28)
+                if let icon {
+                    Image(uiImage: icon)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 28, height: 28)
+                } else {
+                    Image(systemName: symbol ?? "gamecontroller")
+                        .font(.system(size: 20))
+                        .frame(width: 28)
+                }
                 Text(title)
                     .font(.body)
                 Spacer(minLength: 12)
@@ -217,11 +245,27 @@ struct TVLibraryView: View {
 
     private var detail: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text(detailTitle)
-                .font(.title2.weight(.semibold))
-                .padding(.horizontal, 40)
-                .padding(.top, 28)
-                .padding(.bottom, 8)
+            HStack(spacing: 16) {
+                Text(detailTitle)
+                    .font(.title2.weight(.semibold))
+
+                Spacer()
+
+                TextField("Search", text: $searchText)
+                    .frame(maxWidth: 320)
+
+                Menu {
+                    Picker("Sort by", selection: $sort) {
+                        Text("Title").tag(SortOption.title)
+                        Text("System").tag(SortOption.system)
+                    }
+                } label: {
+                    Label("Sort", systemImage: "arrow.up.arrow.down")
+                }
+            }
+            .padding(.horizontal, 40)
+            .padding(.top, 28)
+            .padding(.bottom, 8)
 
             if visibleGames.isEmpty {
                 emptyState
@@ -249,6 +293,11 @@ struct TVLibraryView: View {
                         } else if !game.isDownloaded {
                             Button("Download") {
                                 Task { await store.download(game) }
+                            }
+                        }
+                        if store.artwork[game.id] == nil {
+                            Button("Retry Cover Art") {
+                                store.retryArtwork(for: game)
                             }
                         }
                         Button(game.favorite ? "Remove from Favorites" : "Add to Favorites") {
@@ -281,7 +330,7 @@ struct TVLibraryView: View {
         switch selection {
         case .favorites: return "Nothing is marked as a favorite yet. Long-press a game to add one."
         case .recent:    return "Nothing has been played on this Apple TV yet."
-        case .system(let name): return "No \(name) games are in the library."
+        case .system(let id): return "No \(systemName(for: id)) games are in the library."
         default:         return "No games yet. Open Sources to connect to a phone."
         }
     }
@@ -292,15 +341,48 @@ struct TVLibraryView: View {
                 RoundedRectangle(cornerRadius: 18, style: .continuous)
                     .fill(.quaternary)
 
+                // Art, or the system's icon when there is none: box art comes
+                // in every shape, and cropping it to the square keeps the grid
+                // even. The same rule as the phone's tiles.
                 if let image = store.artwork[game.id] {
                     Image(uiImage: image)
                         .resizable()
+                        .scaledToFill()
+                } else if let icon = coreCatalog.system(forIdentifier: game.systemIdentifier)?.icon {
+                    Image(uiImage: icon)
+                        .resizable()
                         .scaledToFit()
-                        .padding(8)
+                        .padding(24)
                 } else {
                     Image(systemName: "gamecontroller.fill")
                         .font(.system(size: 64))
                         .foregroundStyle(.secondary)
+                }
+
+                if store.hasLocalSaveState(for: game) || store.isFetchingArtwork(game.id) {
+                    VStack {
+                        HStack {
+                            Spacer()
+                            if store.hasLocalSaveState(for: game) {
+                                Image(systemName: "bookmark.fill")
+                                    .font(.caption)
+                                    .foregroundStyle(.white)
+                                    .padding(7)
+                                    .background(.black.opacity(0.45), in: .circle)
+                            }
+                        }
+                        Spacer()
+                        HStack {
+                            if store.isFetchingArtwork(game.id) {
+                                ProgressView()
+                                    .tint(.white)
+                                    .padding(6)
+                                    .background(.black.opacity(0.45), in: .circle)
+                            }
+                            Spacer()
+                        }
+                    }
+                    .padding(8)
                 }
 
                 if let progress = store.progress(for: game.id) {
@@ -318,6 +400,7 @@ struct TVLibraryView: View {
                 }
             }
             .aspectRatio(1, contentMode: .fit)
+            .clipShape(.rect(cornerRadius: 18))
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(game.title)
@@ -364,9 +447,19 @@ struct TVLibraryView: View {
 
     // MARK: - Data
 
-    private var systems: [(name: String, count: Int)] {
-        Dictionary(grouping: store.games, by: \.systemName)
-            .map { (name: $0.key, count: $0.value.count) }
+    private struct SystemGroup: Hashable {
+        var id: String
+        var name: String
+        var count: Int
+    }
+
+    private var systems: [SystemGroup] {
+        Dictionary(grouping: store.games, by: \.systemIdentifier)
+            .map { id, games in
+                SystemGroup(id: id,
+                            name: games.first?.systemName ?? "Unknown System",
+                            count: games.count)
+            }
             .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
     }
 
@@ -381,12 +474,32 @@ struct TVLibraryView: View {
     }
 
     private var visibleGames: [TVStore.LocalGame] {
+        var games: [TVStore.LocalGame]
         switch selection {
-        case .all:               return store.games
-        case .favorites:         return favorites
-        case .recent:            return recent
-        case .system(let name):  return store.games.filter { $0.systemName == name }
+        case .all:               games = store.games
+        case .favorites:         games = favorites
+        case .recent:            games = recent
+        case .system(let id):    games = store.games.filter { $0.systemIdentifier == id }
         }
+
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !query.isEmpty {
+            games = games.filter { $0.title.localizedCaseInsensitiveContains(query) }
+        }
+
+        switch sort {
+        case .title:
+            games.sort { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
+        case .system:
+            games.sort {
+                if $0.systemName != $1.systemName {
+                    return $0.systemName.localizedStandardCompare($1.systemName) == .orderedAscending
+                }
+                return $0.title.localizedStandardCompare($1.title) == .orderedAscending
+            }
+        }
+
+        return games
     }
 
     private var detailTitle: String {
@@ -394,7 +507,11 @@ struct TVLibraryView: View {
         case .all:              return "All Games"
         case .favorites:        return "Favorites"
         case .recent:           return "Continue"
-        case .system(let name): return name
+        case .system(let id):   return systemName(for: id)
         }
+    }
+
+    private func systemName(for identifier: String) -> String {
+        store.games.first { $0.systemIdentifier == identifier }?.systemName ?? "Games"
     }
 }

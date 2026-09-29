@@ -386,18 +386,32 @@ final class HostShareController: ObservableObject {
 
     private func handleArtwork(_ request: HTTPRequest) -> HTTPResponse {
         let gameID = String(request.path.dropFirst(TransferProtocol.Path.artworkPrefix.count))
-        guard let record = GameIndexStore.shared.record(forHash: gameID),
-              let game = games.first(where: { $0.url.path == record.path }),
-              let artwork = HostLibrary.shared.artworkURL(for: game),
-              let data = try? Data(contentsOf: artwork)
-        else {
+        guard let record = GameIndexStore.shared.record(forHash: gameID) else {
             return .empty(status: 404)
         }
 
-        return HTTPResponse(status: 200,
-                            reason: "OK",
-                            headers: ["Content-Type": "image/png"],
-                            body: data)
+        // The live library object first. The index record is the fallback, so
+        // art still serves when the game has not been indexed into the current
+        // library pass yet — otherwise the TV's tiles stay blank until the
+        // host's next rescan.
+        if let game = games.first(where: { $0.url.path == record.path }),
+           let artwork = HostLibrary.shared.artworkURL(for: game),
+           let data = try? Data(contentsOf: artwork) {
+            return HTTPResponse(status: 200,
+                                reason: "OK",
+                                headers: ["Content-Type": "image/png"],
+                                body: data)
+        }
+
+        if let artwork = HostLibrary.shared.artworkURL(for: record),
+           let data = try? Data(contentsOf: artwork) {
+            return HTTPResponse(status: 200,
+                                reason: "OK",
+                                headers: ["Content-Type": "image/png"],
+                                body: data)
+        }
+
+        return .empty(status: 404)
     }
 
     // MARK: - Save routes

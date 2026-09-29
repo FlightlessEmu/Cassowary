@@ -29,6 +29,9 @@ import SwiftUI
 struct TVSettingsView: View {
 
     @ObservedObject private var store = TVStore.shared
+    @StateObject private var catalog = CoreCatalog()
+    @StateObject private var shaderCatalog = ShaderCatalog()
+    @StateObject private var upscalingOptions = UpscalingOptions()
 
     private let budgets: [(String, Int64)] = [
         ("1 GB", 1 * 1024 * 1024 * 1024),
@@ -66,6 +69,28 @@ struct TVSettingsView: View {
                 }
 
                 Section {
+                    Picker("Video Filter", selection: globalShaderBinding) {
+                        Text("None").tag(nil as String?)
+                        ForEach(shaderCatalog.names, id: \.self) { name in
+                            Text(name).tag(name as String?)
+                        }
+                    }
+                    Picker("MetalFX Upscaling", selection: globalUpscalingBinding(.metalFX)) {
+                        Text("Off").tag(false)
+                        Text("On").tag(true)
+                    }
+                    Picker("Pixel Perfect Scaling", selection: globalUpscalingBinding(.integerScaling)) {
+                        Text("Fill").tag(false)
+                        Text("Pixel Perfect").tag(true)
+                    }
+                    Text("Applies to every game unless a system sets its own. A filter compiles the first time it is used, which takes a moment. MetalFX runs only on devices that support it; elsewhere the picture is drawn the normal way.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } header: {
+                    Text("Video")
+                }
+
+                Section {
                     ForEach(budgets, id: \.1) { budget in
                         Button {
                             store.setCacheBudget(budget.1)
@@ -85,13 +110,99 @@ struct TVSettingsView: View {
                     Text("Used \(store.cacheBytes.formatted(.byteCount(style: .file))) of \(store.cacheBudget.formatted(.byteCount(style: .file))). Apple TV can remove downloaded games at any time; saves are kept separately and sent back to the phone.")
                 }
 
+                Section {
+                    ForEach(catalog.systems) { system in
+                        NavigationLink {
+                            TVSystemView(catalog: catalog,
+                                         shaderCatalog: shaderCatalog,
+                                         upscalingOptions: upscalingOptions,
+                                         systemID: system.id)
+                        } label: {
+                            HStack(spacing: 12) {
+                                SystemIconView(system: system, size: 32)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(system.name)
+                                    Text(coreSummary(for: system))
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            .padding(.vertical, 2)
+                        }
+                    }
+                } header: {
+                    Text("Systems")
+                } footer: {
+                    Text("The default core is used when you start a game. Cover art comes from the source you borrow the game from.")
+                }
+
                 Section("About") {
                     Text("Apple TV is a borrower: it copies a game from the phone, plays it locally, and sends saves back. The phone has to stay open with sharing switched on while you play.")
                         .font(.callout)
                         .foregroundStyle(.secondary)
+                    LabeledContent("Systems", value: "\(catalog.systems.count)")
+                    LabeledContent("Cores", value: "\(catalog.coreCount)")
+                    LabeledContent("Version", value: appVersion)
+                }
+
+                Section {
+                    ForEach(installedCores) { core in
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(core.displayName)
+                            Text(AboutContent.licenseLine(coreID: core.id, version: core.version))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                } header: {
+                    Text("Cores")
+                } footer: {
+                    Text("Each core is its authors' work and keeps its own license. Cassowary is an independent project, not affiliated with the OpenEmu Team; its engine is OpenEmu's work, used under its licenses.")
                 }
             }
             .navigationTitle("Settings")
+            .onAppear { catalog.refresh() }
         }
+    }
+
+    private var globalShaderBinding: Binding<String?> {
+        Binding(
+            get: { shaderCatalog.globalShaderName },
+            set: { shaderCatalog.globalShaderName = $0 }
+        )
+    }
+
+    private func globalUpscalingBinding(_ option: UpscalingOptions.Option) -> Binding<Bool> {
+        Binding(
+            get: { upscalingOptions.isOn(option) },
+            set: { upscalingOptions.setOn($0, for: option) }
+        )
+    }
+
+    private func coreSummary(for system: SystemEntry) -> String {
+        if system.cores.isEmpty {
+            return "No core installed"
+        }
+        if let id = catalog.defaultCoreID(forSystemIdentifier: system.id),
+           let core = system.cores.first(where: { $0.id == id }) {
+            return "Default: \(core.displayName)"
+        }
+        if system.cores.count == 1 {
+            return system.cores[0].displayName
+        }
+        return "\(system.cores.count) cores · Automatic"
+    }
+
+    /// Distinct installed cores, sorted by name.
+    private var installedCores: [CoreEntry] {
+        var seen: [String: CoreEntry] = [:]
+        for core in catalog.systems.flatMap(\.cores) {
+            seen[core.id] = core
+        }
+        return seen.values.sorted { $0.displayName < $1.displayName }
+    }
+
+    private var appVersion: String {
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "–"
     }
 }

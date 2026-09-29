@@ -23,6 +23,15 @@
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import SwiftUI
+import OpenEmuKit
+
+/// A request to pick a core before playing. The phone asks the same way when
+/// a system has more than one installed core and no default.
+private struct TVCorePickerRequest: Identifiable {
+    let id = UUID()
+    let game: TVStore.LocalGame
+    let system: SystemEntry
+}
 
 /// The Apple TV app's root: the library, the sources, and settings, with the
 /// game on top when one is running.
@@ -34,8 +43,11 @@ import SwiftUI
 struct TVHomeView: View {
 
     @ObservedObject private var store = TVStore.shared
+    @StateObject private var coreCatalog = CoreCatalog()
 
     @State private var playing: TVStore.LocalGame?
+    @State private var playingCore: OECorePlugin?
+    @State private var pickerRequest: TVCorePickerRequest?
 
     /// A game picked before the source was reachable, waiting for the link.
     @State private var waitingToPlay: TVStore.LocalGame?
@@ -51,10 +63,12 @@ struct TVHomeView: View {
     var body: some View {
         Group {
             if let playing, let url = store.playableURL(for: playing) {
-                TVPlayerView(title: playing.title,
+                TVPlayerView(game: playing,
                              url: url,
+                             core: playingCore,
                              onFinished: { store.finishPlaying(playing) }) {
                     self.playing = nil
+                    self.playingCore = nil
                 }
             } else {
                 TabView {
@@ -75,10 +89,17 @@ struct TVHomeView: View {
                             Label("Settings", systemImage: "gearshape")
                         }
                 }
+                .sheet(item: $pickerRequest) { request in
+                    TVCorePickerView(catalog: coreCatalog, game: request.game, system: request.system) { plugin in
+                        pickerRequest = nil
+                        launch(request.game, core: plugin)
+                    }
+                }
             }
         }
         .onAppear {
             store.start()
+            coreCatalog.refresh()
             autoPlayIfAsked()
         }
         .onChange(of: playing?.id) { _, id in
@@ -99,15 +120,34 @@ struct TVHomeView: View {
         }
     }
 
+    /// Play a game, asking which core when there is a real choice. The same
+    /// rule as the phone's library: one core or a remembered default launches
+    /// straight away, several cores without a default ask first.
     private func play(_ game: TVStore.LocalGame) {
-        guard store.hasCore(for: game) else {
-            store.note("No core for \(game.systemName) is on this Apple TV yet.")
+        guard let system = coreCatalog.system(forIdentifier: game.systemIdentifier) else {
+            // Unknown system: let the session resolve it and report the error.
+            launch(game, core: nil)
             return
         }
+        if system.cores.isEmpty {
+            store.note("No core for \(system.name) is on this Apple TV yet.")
+            return
+        }
+        if system.cores.count == 1 {
+            launch(game, core: system.cores[0].plugin)
+        } else if let id = coreCatalog.defaultCoreID(forSystemIdentifier: system.id),
+                  let core = system.cores.first(where: { $0.id == id }) {
+            launch(game, core: core.plugin)
+        } else {
+            pickerRequest = TVCorePickerRequest(game: game, system: system)
+        }
+    }
 
+    private func launch(_ game: TVStore.LocalGame, core: OECorePlugin?) {
         if game.isDownloaded {
             store.prepareForPlay(game)
             playing = game
+            playingCore = core
         } else if store.connection.isConnected {
             // Copy it down and stay in the library. Picking several games in
             // a row is a normal thing to do, and starting the first one would

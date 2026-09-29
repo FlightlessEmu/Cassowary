@@ -23,7 +23,13 @@
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import SwiftUI
+import Metal
+import OpenEmuBase
+import OpenEmuSystem
 import OpenEmuKit
+#if canImport(MetalFX)
+import MetalFX
+#endif
 
 /// Plays one game on the Apple TV.
 ///
@@ -33,8 +39,11 @@ import OpenEmuKit
 /// `GameSession` starts when the game does.
 struct TVPlayerView: View {
 
-    let title: String
+    let game: TVStore.LocalGame
     let url: URL
+    /// The picked core, when the library resolved one. Nil means the session
+    /// falls back to the first installed core for the game's system.
+    let core: OECorePlugin?
     /// Called once the game has stopped, before the view goes away, so the
     /// caller can file the save state and tell the phone about the session.
     var onFinished: (() -> Void)?
@@ -46,15 +55,21 @@ struct TVPlayerView: View {
     @State private var notice: String?
     /// The game's menu is open. Back opens it and closes it again.
     @State private var isMenuOpen = false
-    /// The menu is showing the filter list instead of its buttons. Back
-    /// returns to the buttons, so the list is one level, not a maze.
+    /// What the menu is showing instead of its buttons. Back returns to the
+    /// buttons, so each list is one level, not a maze.
     @State private var showingFilters = false
+    @State private var showingVideo = false
 
     /// The installed filters and the remembered picks, shared with the
     /// phone: the same presets, the same per-system memory.
     @StateObject private var shaderCatalog = ShaderCatalog()
     /// The filter on the running game, if any.
     @State private var shaderName: String?
+
+    /// The two upscaling switches, shared with the phone: the same app-wide
+    /// defaults and per-system overrides.
+    @StateObject private var upscalingOptions = UpscalingOptions()
+    @AppStorage(RumbleHaptics.strengthKey) private var rumbleStrength = RumbleStrength.medium.rawValue
 
     /// Which of the menu's buttons is chosen.
     ///
@@ -66,13 +81,22 @@ struct TVPlayerView: View {
     /// case instead of sharing the optional's absence with "nothing".
     @FocusState private var filterFocus: FilterFocus?
 
+    /// Which video row is chosen.
+    @FocusState private var videoFocus: VideoFocus?
+
     private enum MenuFocus: Hashable {
-        case resume, saveState, loadState, reset, filter, close
+        case resume, saveState, loadState, reset, filter, video, close
     }
 
     private enum FilterFocus: Hashable {
         case none
         case shader(String)
+    }
+
+    private enum VideoFocus: Hashable {
+        case metalFX(UpscalingOptions.Choice)
+        case scaling(UpscalingOptions.Choice)
+        case rumble(RumbleStrength)
     }
 
     /// A line telling the player how to reach the menu, shown once at the
@@ -132,12 +156,14 @@ struct TVPlayerView: View {
             stopGame()
         }
         .onExitCommand {
-            // Back walks one level at a time: out of the filter list to the
-            // menu, out of the menu to the game. Closing the game stays a
-            // button on the menu, so a stray press can never throw a
+            // Back walks one level at a time: out of the filter or video list
+            // to the menu, out of the menu to the game. Closing the game stays
+            // a button on the menu, so a stray press can never throw a
             // session away — which is what made the old control row dangerous.
             if showingFilters {
                 closeFilters()
+            } else if showingVideo {
+                closeVideo()
             } else if isMenuOpen {
                 closeMenu()
             } else {
@@ -157,12 +183,14 @@ struct TVPlayerView: View {
             Color.black.opacity(0.75).ignoresSafeArea()
 
             VStack(spacing: 34) {
-                Text(title)
+                Text(game.title)
                     .font(.title2.weight(.semibold))
                     .foregroundStyle(.white)
 
                 if showingFilters {
                     filterList
+                } else if showingVideo {
+                    videoList
                 } else {
                     menuButtons
                 }
@@ -209,6 +237,11 @@ struct TVPlayerView: View {
                     openFilters()
                 }
                 .focused($menuFocus, equals: .filter)
+
+                Button("Video…") {
+                    openVideo()
+                }
+                .focused($menuFocus, equals: .video)
             }
 
             Button("Close") { close() }
@@ -260,6 +293,76 @@ struct TVPlayerView: View {
             .padding(.horizontal, 24)
         }
         .focused($filterFocus, equals: focus)
+    }
+
+    /// Upscaling and rumble, in place of the buttons. The same app-wide
+    /// defaults and per-system overrides as the phone: "Use Default" follows
+    /// what Settings says, and a pick here is remembered for this system.
+    private var videoList: some View {
+        VStack(spacing: 24) {
+            Text("Video")
+                .font(.title2.weight(.semibold))
+                .foregroundStyle(.white)
+
+            ScrollView(.vertical) {
+                VStack(spacing: 12) {
+                    videoRow(title: "Upscaling: \(upscalingSummary(.metalFX))",
+                             selected: false) { }
+                        .disabled(true)
+                    ForEach(upscalingChoices, id: \.self) { choice in
+                        videoRow(title: metalFXTitle(choice),
+                                 selected: metalFXChoice == choice) {
+                            applyMetalFXUpscaling(choice)
+                        }
+                        .focused($videoFocus, equals: .metalFX(choice))
+                    }
+
+                    videoRow(title: "Scaling: \(upscalingSummary(.integerScaling))",
+                             selected: false) { }
+                        .disabled(true)
+                    ForEach(upscalingChoices, id: \.self) { choice in
+                        videoRow(title: scalingTitle(choice),
+                                 selected: scalingChoice == choice) {
+                            applyIntegerScaling(choice)
+                        }
+                        .focused($videoFocus, equals: .scaling(choice))
+                    }
+
+                    videoRow(title: "Rumble: \(rumbleTitle)", selected: false) { }
+                        .disabled(true)
+                    ForEach(RumbleStrength.allCases) { strength in
+                        videoRow(title: strength.title,
+                                 selected: rumbleStrength == strength.rawValue) {
+                            rumbleStrength = strength.rawValue
+                            show(notice: "Rumble \(strength.title.lowercased())")
+                        }
+                        .focused($videoFocus, equals: .rumble(strength))
+                    }
+                }
+                .padding(.horizontal, 40)
+            }
+            .frame(maxHeight: 560)
+        }
+    }
+
+    private var upscalingChoices: [UpscalingOptions.Choice] {
+        [.automatic, .off, .on]
+    }
+
+    private func videoRow(title: String, selected: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack {
+                Text(title)
+                    .font(.headline)
+                Spacer()
+                if selected {
+                    Image(systemName: "checkmark")
+                }
+            }
+            .frame(width: 560)
+            .padding(.vertical, 14)
+            .padding(.horizontal, 24)
+        }
     }
 
     /// Tells the player how to reach the menu, then gets out of the way.
@@ -316,9 +419,14 @@ struct TVPlayerView: View {
         guard session == nil else { return }
 
         do {
-            let session = try GameSession(romURL: url)
+            // The library resolved the system and core when the game was
+            // picked; the extension guess is only the fallback for games
+            // added before systems were tracked.
+            let systemID = game.systemIdentifier.isEmpty ? nil : game.systemIdentifier
+            let session = try GameSession(romURL: url, core: core, systemIdentifier: systemID)
 
-            if let plugin = TVDemoLibrary.systemPlugin(forExtension: url.pathExtension) {
+            if let plugin = OESystemPlugin.allPlugins.first(where: { $0.systemIdentifier == session.systemIdentifier })
+                ?? TVDemoLibrary.systemPlugin(forExtension: url.pathExtension) {
                 session.layout = ControllerLayout(systemPlugin: plugin)
             }
 
@@ -338,7 +446,13 @@ struct TVPlayerView: View {
                     }
                 }
             }
-            applySavedFilter(on: session)
+            // The filter and upscaling switches remembered for this system.
+            // Shared with the phone player: see `VideoSettings`.
+            shaderName = shaderCatalog.resolvedShaderName(forSystem: systemID)
+            VideoSettings.applySaved(to: session,
+                                     systemIdentifier: systemID,
+                                     shaderCatalog: shaderCatalog,
+                                     upscaling: upscalingOptions)
 
             // A word about the menu, then out of the way. Nothing focusable,
             // so it cannot hold the game's controller.
@@ -455,7 +569,9 @@ struct TVPlayerView: View {
     private func closeMenu() {
         menuFocus = nil
         showingFilters = false
+        showingVideo = false
         filterFocus = nil
+        videoFocus = nil
         withAnimation(.easeInOut(duration: 0.2)) { isMenuOpen = false }
         session?.setPaused(false)
         ControllerCapture.setInterfaceActive(false)
@@ -482,19 +598,114 @@ struct TVPlayerView: View {
         }
     }
 
-    // MARK: - Video filter
-
-    /// Apply the filter remembered for this system, if any.
-    ///
-    /// The game starts unfiltered and the shader is compiled once it is
-    /// running, so a slow first compile never delays the launch. Same rule
-    /// as the phone.
-    private func applySavedFilter(on session: GameSession) {
-        shaderName = shaderCatalog.resolvedShaderName(forSystem: session.systemIdentifier)
-        if let shader = shaderCatalog.shader(named: shaderName) {
-            session.setShader(shader)
+    /// Shows the video list in place of the menu's buttons. The rows are not
+    /// in the hierarchy during this turn, so asking for focus comes after it.
+    private func openVideo() {
+        menuFocus = nil
+        withAnimation(.easeInOut(duration: 0.2)) { showingVideo = true }
+        Task { @MainActor in
+            videoFocus = .metalFX(metalFXChoice)
         }
     }
+
+    /// Returns from the video list to the menu's buttons, landing back on
+    /// the Video button the list came from.
+    private func closeVideo() {
+        videoFocus = nil
+        withAnimation(.easeInOut(duration: 0.2)) { showingVideo = false }
+        Task { @MainActor in
+            menuFocus = .video
+        }
+    }
+
+    // MARK: - Upscaling and rumble
+
+    /// Whether this device can run MetalFX at all.
+    private var metalFXAvailable: Bool {
+#if canImport(MetalFX)
+        guard let device = MTLCreateSystemDefaultDevice() else { return false }
+        return MTLFXSpatialScalerDescriptor.supportsDevice(device)
+#else
+        return false
+#endif
+    }
+
+    private var systemID: String? {
+        game.systemIdentifier.isEmpty ? nil : game.systemIdentifier
+    }
+
+    private var metalFXChoice: UpscalingOptions.Choice {
+        guard let systemID else { return upscalingOptions.isOn(.metalFX) ? .on : .off }
+        return upscalingOptions.choice(for: .metalFX, system: systemID)
+    }
+
+    private var scalingChoice: UpscalingOptions.Choice {
+        guard let systemID else { return upscalingOptions.isOn(.integerScaling) ? .on : .off }
+        return upscalingOptions.choice(for: .integerScaling, system: systemID)
+    }
+
+    private func upscalingSummary(_ option: UpscalingOptions.Option) -> String {
+        guard let systemID else { return upscalingOptions.isOn(option) ? "On" : "Off" }
+        return upscalingOptions.summary(option, forSystem: systemID)
+    }
+
+    private func metalFXTitle(_ choice: UpscalingOptions.Choice) -> String {
+        switch choice {
+        case .automatic: return "Use Default"
+        case .off:       return "Off"
+        case .on:        return metalFXAvailable ? "MetalFX Spatial" : "MetalFX Spatial (Unavailable)"
+        }
+    }
+
+    private func scalingTitle(_ choice: UpscalingOptions.Choice) -> String {
+        switch choice {
+        case .automatic: return "Use Default"
+        case .off:       return "Fill"
+        case .on:        return "Pixel Perfect"
+        }
+    }
+
+    /// The current rumble strength, for the video list.
+    private var rumbleTitle: String {
+        (RumbleStrength(rawValue: rumbleStrength) ?? .medium).title
+    }
+
+    /// Switch MetalFX spatial upscaling on the running game.
+    ///
+    /// The pick is remembered for this system, and the engine quietly keeps
+    /// the plain picture where MetalFX cannot run. The same rule as the phone.
+    private func applyMetalFXUpscaling(_ choice: UpscalingOptions.Choice) {
+        guard choice != .on || metalFXAvailable else {
+            show(notice: "MetalFX is not available on this device")
+            return
+        }
+
+        storeUpscaling(choice, for: .metalFX)
+        session?.setMetalFXUpscalingEnabled(upscalingOptions.isEnabled(.metalFX, forSystem: systemID))
+        show(notice: upscalingOptions.isEnabled(.metalFX, forSystem: systemID) ? "MetalFX upscaling on" : "MetalFX upscaling off")
+    }
+
+    /// Switch whole-number (pixel-perfect) scaling on the running game.
+    ///
+    /// The pick is remembered for this system. The engine keeps the picture
+    /// filling the screen when it would not fit a whole number of times.
+    private func applyIntegerScaling(_ choice: UpscalingOptions.Choice) {
+        storeUpscaling(choice, for: .integerScaling)
+        session?.setIntegerScalingEnabled(upscalingOptions.isEnabled(.integerScaling, forSystem: systemID))
+        show(notice: upscalingOptions.isEnabled(.integerScaling, forSystem: systemID) ? "Pixel-perfect scaling on" : "Fill scaling on")
+    }
+
+    /// Remember an upscaling pick for this system, or app-wide when the game
+    /// has no system — the same rule the video filter follows.
+    private func storeUpscaling(_ choice: UpscalingOptions.Choice, for option: UpscalingOptions.Option) {
+        if let systemID {
+            upscalingOptions.setChoice(choice, for: option, system: systemID)
+        } else {
+            upscalingOptions.setOn(choice == .on, for: option)
+        }
+    }
+
+    // MARK: - Video filter
 
     /// Switch the filter on the running game and remember the pick for this
     /// system, so the next launch uses it. The list closes and the menu

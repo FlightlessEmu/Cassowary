@@ -440,31 +440,6 @@ private struct SystemCoresView: View {
     }
 }
 
-/// A system icon in a rounded tile, with a game-controller fallback.
-struct SystemIconView: View {
-
-    let system: SystemEntry
-    var size: CGFloat = 44
-
-    var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: size * 0.24, style: .continuous)
-                .fill(.quaternary)
-            if let icon = system.icon {
-                Image(uiImage: icon)
-                    .resizable()
-                    .scaledToFit()
-                    .padding(size * 0.14)
-            } else {
-                Image(systemName: "gamecontroller")
-                    .font(.system(size: size * 0.42))
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .frame(width: size, height: size)
-    }
-}
-
 /// What Cassowary is, who made the engine, and under what licenses.
 ///
 /// Cassowary is an independent project with no affiliation with the OpenEmu
@@ -590,44 +565,9 @@ struct AboutView: View {
         return seen.values.sorted { $0.displayName < $1.displayName }
     }
 
-    /// Known core licenses by bundle identifier. Cores ported later get an
-    /// entry here; anything unknown points at the core project.
+    /// Known core licenses by bundle identifier. Shared with the TV app: see
+    /// `AboutContent.coreLicenses`.
     private func licenseLine(for core: CoreEntry) -> String {
-        let license = Self.licenses[core.id] ?? "License: see the core project"
-        if core.version.isEmpty {
-            return license
-        }
-        return "Version \(core.version) · \(license)"
+        AboutContent.licenseLine(coreID: core.id, version: core.version)
     }
-
-    private static let licenses: [String: String] = [
-        // Non-commercial only: never charge for a build that includes these.
-        "org.openemu.4DO": "Non-commercial, modified LGPL (4DO / FreeDO)",
-        "org.openemu.GenesisPlus": "Non-commercial (Genesis Plus GX)",
-        "org.openemu.Picodrive": "Non-commercial (Picodrive)",
-        "org.openemu.Potator": "Non-commercial (Potator2x / M65C02)",
-        "org.openemu.SNES9x": "Non-commercial (Snes9x)",
-        // Free and open source.
-        "org.openemu.Atari800": "GPL-2.0-or-later (Atari800)",
-        "org.openemu.Bliss": "GPL-2.0 (Bliss)",
-        "org.openemu.blueMSX": "GPL-2.0-or-later (blueMSX)",
-        "org.openemu.BSNES": "GPL-3.0 (bsnes)",
-        "org.openemu.CrabEmu": "GPL-2.0 (CrabEmu)",
-        "org.openemu.FCEU": "GPL-2.0-or-later (FCEU)",
-        "org.openemu.Gambatte": "GPL-2.0-or-later (Gambatte-DMS)",
-        "org.openemu.JollyCV": "BSD-3-Clause (JollyCV)",
-        "org.openemu.MAME": "BSD-3-Clause (MAME)",
-        "org.openemu.Mednafen": "GPL-2.0-or-later (Mednafen)",
-        "org.openemu.melonDS": "GPL-3.0-or-later (melonDS)",
-        "org.openemu.mGBA": "MPL-2.0 (mGBA)",
-        "org.openemu.Mupen64Plus": "GPL-2.0 (Mupen64Plus / GLideN64)",
-        "org.openemu.Nestopia": "GPL-2.0-or-later (Nestopia)",
-        "org.openemu.O2EM": "Clarified Artistic License (O2EM)",
-        "org.openemu.PokeMini": "GPL-3.0-or-later (PokeMini)",
-        "org.openemu.ProSystem": "GPL-2.0 (ProSystem)",
-        "org.openemu.Stella": "GPL-2.0-or-later (Stella)",
-        "org.openemu.VecXGL": "GPL-2.0-or-later (vecx / VecXGL)",
-        "org.openemu.VirtualC64": "GPL-3.0-or-later or MPL-2.0 (VirtualC64)",
-        "org.openemu.VirtualJaguar": "GPL-3.0-or-later (Virtual Jaguar)",
-    ]
 }

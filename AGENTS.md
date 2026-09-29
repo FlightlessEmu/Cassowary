@@ -285,9 +285,9 @@ project. A core needs:
 Cores that render through Metal are the easiest port. Cores that need OpenGL
 cannot run on iOS at all.
 
-When porting a core, add its license to the map in `AboutView`
-(`Cassowary/Sources/Views/SettingsView.swift`) so the in-app credits stay
-complete.
+When porting a core, add its license to `AboutContent.coreLicenses`
+(`Cassowary/Sources/Shared/AboutContent.swift`) so the in-app credits stay
+complete on both the phone and the TV.
 
 ---
 
