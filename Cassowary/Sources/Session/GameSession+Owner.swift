@@ -89,6 +89,14 @@ extension GameSession: OEGameCoreOwner {
         helper.resetEmulation {}
     }
 
+    /// Swaps to another disc of a multi-disc game, numbered from 1. The core
+    /// opens the lid, changes the disc and closes it again a moment later,
+    /// the way a player would.
+    func setDisc(_ discNumber: UInt) {
+        guard discNumber >= 1, discNumber <= discCount else { return }
+        helper.setDisc(discNumber)
+    }
+
     func toggleEmulationPaused() {
         isPaused.toggle()
         setPaused(isPaused)
