@@ -610,8 +610,12 @@ struct GameView: View {
     private func runTestHooks(_ session: GameSession) {
 #if DEBUG
         if let button = UserDefaults.standard.string(forKey: "cassowary.testHoldButton") {
+            // Three seconds suits a cartridge. A disc game's menu only takes a
+            // fresh press once it is up, so a test can wait longer with
+            // -cassowary.testHoldDelay <seconds>.
+            let delay = UserDefaults.standard.double(forKey: "cassowary.testHoldDelay")
             Task {
-                try? await Task.sleep(for: .seconds(3))
+                try? await Task.sleep(for: .seconds(delay > 0 ? delay : 3))
                 session.pressButton(named: button)
             }
         }
