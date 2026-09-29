@@ -29,8 +29,7 @@ What the iOS build leaves out, and why:
 - **The CPU recompiler.** iOS does not allow JIT, so the core is built without
   `WITH_RECOMPILER` and runs its interpreter. The aarch64 recompiler sources
   are left in the tree, unused.
-- **Disk control (multi-disc swapping), rumble and RetroAchievements** are not
-  wired up yet.
+- **RetroAchievements** are not wired up yet.
 
 ## The Metal renderer
 
@@ -117,12 +116,31 @@ What is deliberately not there yet:
 - **The software cursor.**
 - **Save states** move VRAM through a full readback and re-upload rather than
   copying GPU-side, which is slower but correct.
-- **Higher internal resolution.** The renderer supports it, but the bridge
-  does not ask for it yet, so games render at the console's own 1x.
+- **Adaptive downsampling** and **multisampling** (see above).
 
 The renderer is on by default. Set the `SwanStationMetalRenderer` user default
 to `NO` to fall back to software rendering; if the Metal renderer cannot start,
 the core falls back on its own.
+
+### Settings, rumble and discs
+
+The app's PlayStation page writes `SwanStation.*` user defaults (internal
+resolution, true colour, texture filter, PGXP geometry correction,
+widescreen), and `SwanStationGameCore` hands them to the core as its own
+`swanstation_` options through `SwanStationBridge::SetOption`. They are read
+at boot and again whenever the defaults change, so a change applies to a
+running game on its next frame. A resolution change moves VRAM across in
+`GPU_HW_Metal::UpdateSettings`: read back at the old scale, uploaded at the
+new one.
+
+Checked in the frame dumper (`--option`, `--option-at`): 1x to 8x, a live 1x
+to 3x switch, true colour, Bilinear, JINC2 and xBR filtering, PGXP with and
+without its depth buffer, and the widescreen hack.
+
+Rumble goes through libretro's rumble interface to the app's haptics, and an
+`.m3u` playlist's discs swap through the core's disk control interface
+(`--disc-at` in the dumper). The DualShock's ANALOG button presses the core's
+analog-mode combo, L1+R1+L3+R3.
 
 Two port details worth knowing:
 

@@ -11,6 +11,8 @@ Worktree: `../Cassowary-ps1-metal` (branched from `main`)
 | SwanStation Metal shaders | All 70 variants generated as MSL and compiled with `xcrun metal` |
 | SwanStation Metal renderer | Matches the software renderer through Crash Bandicoot's title, menu and first level; save states load correctly |
 | Input, memory cards | Working: DualShock on port 1, a card per game title |
+| Upscaling and enhancements | 1x-8x internal resolution, true colour, texture filtering, PGXP, widescreen; in the PlayStation settings page, applied live |
+| Rumble, disc swapping | Wired up; disc swapping checked with Chrono Cross's .m3u; rumble untested with a game that vibrates |
 | Mednafen PSX core | Plan only, not started |
 
 Two PlayStation cores are in play. Mednafen's PSX core is a software renderer
@@ -32,13 +34,12 @@ being brought up first. Its port notes live in `cores/SwanStation/README.md`.
    `common/metal/` wrappers and the MSL back end in `ShaderGen`, checked frame
    by frame against the software renderer with
    `Scripts/cassowary/dump-psx-frame.py` (see `cores/SwanStation/README.md`).
-   Still to check: more games than Crash Bandicoot, 24-bit display areas, and
-   higher internal resolutions, which the bridge does not ask for yet.
+   Higher internal resolutions and the enhancements are checked too. Still to
+   check: more games than Crash Bandicoot, and 24-bit display areas (FMV).
    Multisampling, adaptive downsampling, texture replacements and the software
    cursor are deliberately not written yet.
-5. **Fill in the gaps**: multi-disc swapping (needs the libretro disk control
-   interface), rumble, RetroAchievements, and the core's option list surfaced
-   as `OEGameCore` display modes.
+5. **Fill in the gaps**: RetroAchievements (being done separately), and a
+   check of rumble against a game that uses the DualShock's motors.
 
 ## What we already know
 
