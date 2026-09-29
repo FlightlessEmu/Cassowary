@@ -1384,7 +1384,16 @@ void HostInterface::UpdateSettings()
       // moves base only (Box -> base / N, otherwise base * N). The
       // SET_GEOMETRY path is correct - and crucial - for any
       // downsample-only change.
-      if (resolution_scale_changed)
+      if (resolution_scale_changed && g_settings.gpu_renderer == GPURenderer::HardwareMetal)
+      {
+        // Metal has no libretro context for the frontend to rebuild: the
+        // renderer owns its textures and moves VRAM across itself in
+        // GPU_HW_Metal::UpdateSettings, so the change goes straight to it
+        // (the base class below does that). The frontend only needs the
+        // new frame size.
+        UpdateSystemAVInfo(true);
+      }
+      else if (resolution_scale_changed)
       {
         ReportMessage("Resolution changed, updating system AV info...");
         UpdateSystemAVInfo(true);
@@ -1407,8 +1416,10 @@ void HostInterface::UpdateSettings()
         UpdateGeometry();
       }
 
-      // Don't let the base class mess with the GPU.
-      old_settings.gpu_resolution_scale = g_settings.gpu_resolution_scale;
+      // Don't let the base class mess with the GPU, unless it is Metal's
+      // (see above).
+      if (g_settings.gpu_renderer != GPURenderer::HardwareMetal)
+        old_settings.gpu_resolution_scale = g_settings.gpu_resolution_scale;
     }
 
     if (g_settings.memory_card_types[0] != old_settings.memory_card_types[0])

@@ -500,6 +500,15 @@ void GPU_HW_Metal::RestoreGraphicsAPIState()
 
 void GPU_HW_Metal::UpdateSettings()
 {
+  // A new internal resolution means new VRAM textures, and the game's VRAM
+  // has to survive the move. Read it back now, while the textures and the
+  // scale still match: once the settings below are applied the old texture
+  // can no longer be read at the right coordinates. Settings only change when
+  // the player changes one, so the full readback is rare.
+  const bool had_textures = m_vram_texture.IsValid();
+  if (had_textures)
+    ReadVRAM(0, 0, VRAM_WIDTH, VRAM_HEIGHT);
+
   GPU_HW::UpdateSettings();
 
   bool framebuffer_changed = false;
@@ -507,7 +516,7 @@ void GPU_HW_Metal::UpdateSettings()
   UpdateHWSettings(&framebuffer_changed, &shaders_changed);
   if (framebuffer_changed)
   {
-    EndRenderPass();
+    EndFrame();
     if (!CreateTextures())
       Log_ErrorPrintf("Failed to recreate textures after a settings change.");
   }
@@ -519,6 +528,14 @@ void GPU_HW_Metal::UpdateSettings()
     m_depth_stencil_states.clear();
     m_shader_cache.Clear();
     CreateShaderGen();
+  }
+
+  if (framebuffer_changed && had_textures)
+  {
+    // Back into the new textures, and the mask bits back into depth.
+    UpdateVRAM(0, 0, VRAM_WIDTH, VRAM_HEIGHT, m_vram_ptr, false, false);
+    UpdateDepthBufferFromMaskBit();
+    RestoreGraphicsAPIState();
   }
 }
 
@@ -1080,9 +1097,17 @@ void GPU_HW_Metal::UpdateDisplay()
 
   const InterlacedRenderMode interlaced = GetInterlacedRenderMode();
   const uint32_t height_div2 = (interlaced == InterlacedRenderMode::SeparateFields) ? 1u : 0u;
+  const bool depth_24bit = m_GPUSTAT.display_area_color_depth_24;
 
-  const uint32_t display_width = m_crtc_state.display_vram_width;
-  const uint32_t display_height = m_crtc_state.display_vram_height >> height_div2;
+  // The frame comes out at the internal resolution, so upscaling reaches the
+  // screen. Two exceptions, as in the OpenGL renderer: 24-bit video (FMV) is
+  // raw VRAM bytes that only exist at 1x, and a box-downsampled frame is 1x
+  // by definition.
+  const bool downsampling = IsUsingDownsampling();
+  const uint32_t output_scale = (downsampling || depth_24bit) ? 1u : m_resolution_scale;
+
+  const uint32_t display_width = m_crtc_state.display_vram_width * output_scale;
+  const uint32_t display_height = (m_crtc_state.display_vram_height * output_scale) >> height_div2;
   if (display_width == 0 || display_height == 0)
   {
     EndFrame();
@@ -1107,14 +1132,12 @@ void GPU_HW_Metal::UpdateDisplay()
     m_display_texture_height = display_height;
   }
 
-  const bool depth_24bit = m_GPUSTAT.display_area_color_depth_24;
-
   // The display shader samples whatever holds the 1x image: the VRAM texture
   // directly, or the downsampled copy when the internal resolution is higher
   // than the screen's.
   Metal::Texture* source_texture = &m_vram_texture;
   uint32_t source_resolution_scale = m_resolution_scale;
-  if (IsUsingDownsampling())
+  if (downsampling)
   {
     DownsampleFramebufferBoxFilter(m_vram_texture, m_crtc_state.display_vram_left * m_resolution_scale,
                                    m_crtc_state.display_vram_top * m_resolution_scale,
@@ -1140,8 +1163,8 @@ void GPU_HW_Metal::UpdateDisplay()
     uint32_t u_field_offset;
     uint32_t u_resolution_scale;
     uint32_t u_pad0;
-  } uniforms = {{m_crtc_state.regs.X * source_resolution_scale, m_crtc_state.display_vram_top},
-                (m_crtc_state.display_vram_left - m_crtc_state.regs.X) * source_resolution_scale,
+  } uniforms = {{m_crtc_state.regs.X * output_scale, m_crtc_state.display_vram_top * output_scale},
+                (m_crtc_state.display_vram_left - m_crtc_state.regs.X) * output_scale,
                 field_offset,
                 source_resolution_scale,
                 0u};
@@ -1371,7 +1394,6 @@ void GPU_HW_Metal::UpdateVRAM(uint32_t x, uint32_t y, uint32_t width, uint32_t h
   const auto map_result = MapStream(*m_texture_stream_buffer, sizeof(uint16_t), num_pixels * sizeof(uint16_t));
   std::memcpy(map_result.pointer, data, num_pixels * sizeof(uint16_t));
   m_texture_stream_buffer->Unmap(num_pixels * sizeof(uint16_t));
-  m_texture_buffer_offset = map_result.buffer_offset;
 
   const VRAMWriteUBOData uniforms =
     GetVRAMWriteUBOData(x, y, width, height, map_result.index_aligned, set_mask, check_mask);
@@ -1401,7 +1423,10 @@ void GPU_HW_Metal::UpdateVRAM(uint32_t x, uint32_t y, uint32_t width, uint32_t h
     [encoder setRenderPipelineState:pipeline];
     [encoder setDepthStencilState:GetDepthStencilState(key.depth)];
     [encoder setFragmentBuffer:m_uniform_stream_buffer->GetBuffer() offset:m_uniform_buffer_offset atIndex:1];
-    [encoder setFragmentBuffer:m_texture_stream_buffer->GetBuffer() offset:m_texture_buffer_offset atIndex:2];
+    // Bound from the start: the shader finds the pixels itself, from
+    // u_buffer_base_offset. Binding at their offset as well counted it twice
+    // and read past them, so every upload above 1x came out empty.
+    [encoder setFragmentBuffer:m_texture_stream_buffer->GetBuffer() offset:0 atIndex:2];
     [encoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:3];
   }
 

@@ -240,7 +240,6 @@ private:
 
   uint32_t m_uniform_buffer_offset = 0;
   uint32_t m_batch_uniform_offset = 0;
-  uint32_t m_texture_buffer_offset = 0;
   uint32_t m_display_texture_width = 0;
   uint32_t m_display_texture_height = 0;
 
