@@ -416,8 +416,18 @@ final class TVStore: ObservableObject {
             }
         }
 
-        // A game the source no longer lists is kept: this TV's library is its
-        // own, and a game that was downloaded here plays here regardless.
+        // A game the source no longer lists is kept once it is downloaded:
+        // this TV's library is its own, and a game that is here plays here
+        // regardless. One that was never copied down cannot be played or
+        // fetched any more, so it goes rather than sit there as a ghost.
+        let listed = Set(manifest.games.map(\.id))
+        if let hostID = host?.deviceID {
+            updated = updated.filter { id, game in
+                game.sourceDeviceID != hostID || game.isDownloaded || listed.contains(id)
+            }
+        }
+        hostGameIDs = listed
+
         state.games = updated
         saveState()
         refreshPlayInfo()
@@ -717,6 +727,10 @@ final class TVStore: ObservableObject {
     /// away does not throw the saves away with it. Games that belong to this
     /// TV and nowhere else (the bundled demo) are left out: there is no other
     /// device that would have the same game.
+    /// The games the connected source listed last time, so a sync only
+    /// offers it saves for games it has.
+    private var hostGameIDs: Set<String> = []
+
     private var locations: [GameLocation] {
         state.games.values
             .filter { $0.sourceDeviceID != nil }
@@ -764,7 +778,11 @@ final class TVStore: ObservableObject {
         // Pick up games added on the phone since the last look.
         try? await refreshLibrary()
 
-        let result = await SaveSyncEngine.sync(games: locations, with: client)
+        // Only the games this source has: the phone answers 404 for any
+        // other, and that would show as an error on every sync. Saves for a
+        // game from elsewhere wait for its own source.
+        let result = await SaveSyncEngine.sync(games: locations.filter { hostGameIDs.contains($0.id) },
+                                               with: client)
         pendingUploads = SaveIndexStore.shared.pendingCount()
         conflicts = ConflictStore.shared.conflicts
         syncSummary = result.summary
