@@ -84,7 +84,35 @@ final class GameSession: NSObject {
     /// The system's identifier, for per-system choices like video filters.
     var systemIdentifier: String { systemPlugin.systemIdentifier }
 
+    /// Whether the game has finished starting and has not been asked to stop.
     var isRunning = false
+
+    /// Whether `start` has been called.
+    ///
+    /// The core takes a moment to come up: it is running on its own thread
+    /// before `isRunning` turns true. Stopping in that window still has to stop
+    /// it, so this — not `isRunning` — is what tells a stop that there is a core
+    /// to shut down.
+    private var hasStarted = false
+
+    /// Whether a stop is in flight.
+    ///
+    /// The core finishes the frame it is in on its own thread, so tearing a
+    /// game down is not instant. This keeps a second stop — the view closing at
+    /// the same moment the core asks to quit, say — from running teardown
+    /// twice, and lets every caller wait for the one teardown.
+    private var isStopping = false
+
+    /// Callers waiting for the in-flight stop to finish.
+    private var stopCompletions: [() -> Void] = []
+
+    /// Set once a stop has been asked for, and never cleared.
+    ///
+    /// The core can finish coming up after a stop has begun (its start is
+    /// reported from its own thread). A late start must not put the session
+    /// back into a running state, so it checks this rather than `isStopping`,
+    /// which is cleared when the teardown finishes.
+    private var stopRequested = false
 
     /// Plays the emulated Rumble Pak as device haptics.
     let rumble = RumbleHaptics()
@@ -187,6 +215,8 @@ final class GameSession: NSObject {
     // MARK: - Lifecycle
 
     func start(completionHandler: @escaping () -> Void) {
+        hasStarted = true
+
         // The bindings have to be in the responder's key map before the first
         // frame, or the opening seconds of input go nowhere.
         attachBindings()
@@ -207,22 +237,74 @@ final class GameSession: NSObject {
         helper.setHardcoreEnabled(false)
 
         helper.setupEmulation { [weak self] _, _ in
-            guard let self else { return }
+            // The view can ask to stop before the core has finished coming up.
+            guard let self, !self.stopRequested else { return }
             self.helper.startEmulation {
+                // Same again: the stop may have arrived while the core was
+                // starting. If it did, leave the state alone — the game is
+                // already going away.
+                guard !self.stopRequested else { return }
                 self.isRunning = true
                 completionHandler()
             }
         }
     }
 
-    func stop() {
-        guard isRunning else { return }
+    /// Stop the game.
+    ///
+    /// Teardown is not instant: the core finishes the frame it is in on its own
+    /// thread, and only then does the helper let go of the display, the audio
+    /// and the core. `completionHandler` runs on the main thread once that has
+    /// happened — the moment it is safe to let go of this session, or to start
+    /// another game.
+    ///
+    /// Calling this more than once is harmless: every caller waits for the same
+    /// teardown.
+    func stop(completionHandler: @escaping () -> Void = {}) {
+        // A stop is wanted from here on, even if the core has not finished
+        // coming up yet.
+        stopRequested = true
+
+        // A stop already under way: wait for it rather than start another.
+        if isStopping {
+            stopCompletions.append(completionHandler)
+            return
+        }
+
+        // Never started: there is no core thread to stop, but the helper still
+        // holds a back-reference to this session. Let go of it there so the
+        // session is not left in a retain cycle.
+        guard hasStarted else {
+            helper.gameCoreOwner = nil
+            completionHandler()
+            return
+        }
+
+        isStopping = true
+        isRunning = false
+        isPaused = false
+
+        // Stop feeding the game before the core goes away, so nothing new
+        // arrives while it is being torn down.
         helper.setHandleEvents(false)
         OEiOSGameControllerManager.shared.stop()
         rumble.stop()
         detachBindings()
-        helper.stopEmulation {}
-        isRunning = false
+
+        stopCompletions.append(completionHandler)
+
+        // The helper answers on the main thread, after it has dropped the
+        // renderer and the core. Hop there explicitly so the state below is
+        // touched on the actor that owns it.
+        helper.stopEmulation { [weak self] in
+            Task { @MainActor in
+                guard let self else { return }
+                self.isStopping = false
+                let completions = self.stopCompletions
+                self.stopCompletions.removeAll()
+                completions.forEach { $0() }
+            }
+        }
     }
 
     // MARK: - Bindings
@@ -281,6 +363,18 @@ final class GameSession: NSObject {
         handleKeyEvent(keyCode: Int(event.keycode), isDown: true)
     }
 
+    /// Remap a button through the same call the settings screen makes, so the
+    /// automated test can prove a remap survives a relaunch.
+    func remapForTesting(buttonID: String, keyCode: Int) {
+        guard let player = systemBindings?.keyboardPlayerBindings(forPlayer: 1),
+              let event = InputBindings.keyEvent(keyCode: keyCode, isDown: true)
+        else { return }
+
+        player.assign(event, toKeyWithName: buttonID)
+        InputBindings.save()
+        NSLog("[Cassowary] test remap: %@ → %@", buttonID, KeyboardKey.name(for: keyCode))
+    }
+
     /// Hold the gamepad control with a HID usage, for the automated test.
     ///
     /// The Simulator has no hardware controller, so the test drives the same
@@ -303,6 +397,17 @@ final class GameSession: NSObject {
             return
         }
         press(button.systemKey)
+    }
+
+    /// Report an analog deflection by button name, for automated testing.
+    ///
+    /// Mirrors what the on-screen thumbstick and a physical gamepad stick do.
+    func moveAnalogButton(named name: String, value: CGFloat = 1) {
+        guard let layout, let button = layout.allButtons.first(where: { $0.id == name }) else {
+            NSLog("[Cassowary] no button named %@; have %@", name, layout?.allButtons.map(\.id).joined(separator: ",") ?? "none")
+            return
+        }
+        moveAnalog(button.systemKey, value: value)
     }
 
     /// Release a button by its name.

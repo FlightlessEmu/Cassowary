@@ -602,9 +602,23 @@ extension OSLog {
     }
     
     public func stopEmulation(completionHandler handler: @escaping () -> Void) {
-        guard let gameCore = gameCore else { return }
+        // Answer even when there is nothing loaded, so a caller waiting on the
+        // completion is never left hanging. The session, for one, only lets go
+        // of the game once this fires.
+        guard let gameCore = gameCore else {
+            handler()
+            return
+        }
 
         stopRetroAchievementsIdleTimer()
+
+        // The monitor is held by the shared device manager, not by us, so it
+        // outlives this helper unless it is taken back. Left in place it keeps
+        // a closure alive for every game that has ever run.
+        if let monitor = _unhandledEventsMonitor {
+            OEDeviceManager.shared.removeMonitor(monitor)
+            _unhandledEventsMonitor = nil
+        }
 
         if let observer = _achievementObserver {
             NotificationCenter.default.removeObserver(observer)
