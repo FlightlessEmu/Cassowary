@@ -19,6 +19,9 @@
 #   Scripts/cassowary/test-sharing.sh --tv       only the Apple TV half
 #   Scripts/cassowary/test-sharing.sh --skip-build
 #
+# CASSOWARY_TEST_PHONE and CASSOWARY_TEST_TV name the simulators to use
+# instead of the shared defaults.
+#
 # Exit status is 0 when every check passed.
 
 set -euo pipefail
@@ -38,10 +41,13 @@ for arg in "$@"; do
   esac
 done
 
-PHONE_NAME="Cassowary-iPhone-17"
+# The simulators are shared by every worktree on this Mac, so a game left in
+# one by other work can change what the test sees. Set these to run on a
+# simulator of your own; it is created if it does not exist.
+PHONE_NAME="${CASSOWARY_TEST_PHONE:-Cassowary-iPhone-17}"
 PHONE_TYPE="com.apple.CoreSimulator.SimDeviceType.iPhone-17"
 PHONE_RUNTIME="com.apple.CoreSimulator.SimRuntime.iOS-26-5"
-TV_NAME="Cassowary-TV"
+TV_NAME="${CASSOWARY_TEST_TV:-Cassowary-TV}"
 TV_TYPE="com.apple.CoreSimulator.SimDeviceType.Apple-TV-4K-3rd-generation-1080p"
 TV_RUNTIME="com.apple.CoreSimulator.SimRuntime.tvOS-26-5"
 PORT=8765
@@ -59,7 +65,7 @@ fail() { print -- "FAIL  $1"; failures+=("$1") }
 simulator_udid() {
   local name=$1 type=$2 runtime=$3
   if ! xcrun simctl list devices | grep -q "$name"; then
-    print -- "creating simulator $name"
+    print -u2 -- "creating simulator $name"
     xcrun simctl create "$name" "$type" "$runtime" >/dev/null
   fi
   local udid
@@ -87,7 +93,16 @@ xcrun simctl install "$PHONE_UDID" "$PHONE_APP"
 
 CONTAINER=$(xcrun simctl get_app_container "$PHONE_UDID" org.cassowary.Cassowary data)
 mkdir -p "$CONTAINER/Documents"
-cp Cassowary/Resources/TV/Demo.gb "$CONTAINER/Documents/SharedDemo.gb"
+# Not the TV's own demo: the Apple TV ships that game, so it would already
+# have it and never copy anything down. The generated input ROM with one
+# padding byte changed is a game no device has yet, and it still boots.
+python3 Scripts/cassowary/make-test-rom.py "$SHOTS/shared-base.gb" >/dev/null
+python3 -c '
+import sys
+data = bytearray(open(sys.argv[1], "rb").read())
+data[-1] ^= 0x5A
+open(sys.argv[2], "wb").write(data)' "$SHOTS/shared-base.gb" "$SHOTS/SharedDemo.gb"
+cp "$SHOTS/SharedDemo.gb" "$CONTAINER/Documents/SharedDemo.gb"
 
 # Sharing on, the Allow prompt skipped, and a pinned port so curl can find it.
 # The app has to stay in front: iOS stops serving when it is put away, which
@@ -160,7 +175,7 @@ print((mine or games)[0]["id"] if games else "")')
       -H "Range: bytes=1000-" -o "$SHOTS/part2.bin" "http://127.0.0.1:$PORT/v1/games/$GAME_ID/file/0"
     cat "$SHOTS/part1.bin" "$SHOTS/part2.bin" > "$SHOTS/rejoined.gb"
 
-    if [[ "$(shasum -a 256 Cassowary/Resources/TV/Demo.gb | awk '{print $1}')" \
+    if [[ "$(shasum -a 256 "$SHOTS/SharedDemo.gb" | awk '{print $1}')" \
        == "$(shasum -a 256 "$SHOTS/rejoined.gb" | awk '{print $1}')" ]]; then
       pass "ranged download rejoins to the original bytes"
     else
@@ -207,6 +222,10 @@ if [[ "$MODE" != host ]]; then
   launch_phone
   sleep 1
 
+  # Only files written from here on count as a download: a used simulator
+  # keeps games copied down by earlier runs.
+  touch "$SHOTS/tv-start"
+
   print -- "launching the Apple TV app..."
   xcrun simctl launch "$TV_UDID" org.cassowary.CassowaryTV \
     -cassowary.tvAutoConnectFirstHost YES \
@@ -218,7 +237,7 @@ if [[ "$MODE" != host ]]; then
   TV_CONTAINER=$(xcrun simctl get_app_container "$TV_UDID" org.cassowary.CassowaryTV data)
   downloaded=0
   for _ in {1..60}; do
-    MEDIA=$(find "$TV_CONTAINER/Library/Caches/Media" -type f 2>/dev/null || true)
+    MEDIA=$(find "$TV_CONTAINER/Library/Caches/Media" -type f -newer "$SHOTS/tv-start" 2>/dev/null || true)
     if [[ -n "$MEDIA" ]]; then
       downloaded=1
       break

@@ -59,6 +59,8 @@ struct TVHomeView: View {
     /// UserDefaults — so clearing it there never stuck, and closing the game
     /// started the same game again straight away.
     @State private var didAutoPlay = false
+    /// The game the test scripts' auto-play picked, while it is copied down.
+    @State private var autoPlayTargetID: String?
 
     var body: some View {
         Group {
@@ -168,12 +170,28 @@ struct TVHomeView: View {
     /// library may already be loaded when this view appears, so both the
     /// on-appear and the on-change paths call this. In normal use the flag is
     /// not set.
+    ///
+    /// Only a game from a source counts: the bundled demo is in the library
+    /// from the first launch, and playing it would skip the copy-down the
+    /// scripts are there to check. Until the source's games arrive there is
+    /// nothing to pick, and the next library change asks again.
     private func autoPlayIfAsked() {
         guard !didAutoPlay,
               UserDefaults.standard.bool(forKey: "cassowary.autoPlayFirstGame"),
-              playing == nil,
-              let first = store.games.first else { return }
+              playing == nil else { return }
+
+        // Picking a game that is not here yet copies it down and stays in the
+        // library, the way a first tap does. So pick once, then play it on
+        // the library change that shows the copy has finished.
+        guard let targetID = autoPlayTargetID else {
+            guard let first = store.games.first(where: { $0.sourceDeviceID != nil }) else { return }
+            autoPlayTargetID = first.id
+            didAutoPlay = first.isDownloaded
+            play(first)
+            return
+        }
+        guard let target = store.games.first(where: { $0.id == targetID }), target.isDownloaded else { return }
         didAutoPlay = true
-        play(first)
+        play(target)
     }
 }
