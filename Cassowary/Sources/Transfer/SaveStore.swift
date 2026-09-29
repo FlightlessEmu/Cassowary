@@ -103,6 +103,19 @@ struct GameLocation: Hashable {
     let romURL: URL
 }
 
+/// What this device knows about one save-state slot: when it was written,
+/// how big it is, and which device wrote it.
+struct SaveSlotInfo: Hashable {
+    var kind: String
+    var modifiedAt: Date
+    var size: Int64
+    /// The device that wrote the newest version, when versions remember it.
+    var deviceID: String?
+    var hasScreenshot: Bool
+
+    var displayName: String { SaveKind.displayName(for: kind) }
+}
+
 /// Finds, reads and writes the save files on this device.
 ///
 /// Save states live next to the ROM, the way the engine writes them. Battery
@@ -120,10 +133,12 @@ struct SaveStore {
         var metas: [TransferProtocol.SaveBlobMeta] = []
 
         for game in games {
-            let stateURL = saveStateURL(for: game.romURL)
-            if FileManager.default.fileExists(atPath: stateURL.path) {
-                if let meta = meta(gameID: game.id, kind: SaveKind.state, url: stateURL, deviceID: deviceID) {
-                    metas.append(meta)
+            for kind in SaveKind.allStateKinds {
+                let stateURL = saveStateURL(for: game.romURL, kind: kind)
+                if FileManager.default.fileExists(atPath: stateURL.path) {
+                    if let meta = meta(gameID: game.id, kind: kind, url: stateURL, deviceID: deviceID) {
+                        metas.append(meta)
+                    }
                 }
             }
 
@@ -201,9 +216,78 @@ struct SaveStore {
     // MARK: - Where files live
 
     /// The engine writes a save state beside the ROM, keeping the ROM's name
-    /// and replacing its extension.
-    static func saveStateURL(for romURL: URL) -> URL {
-        romURL.deletingPathExtension().appendingPathExtension("oesavestate")
+    /// and replacing its extension. The main slot keeps the original name, so
+    /// states saved before slots existed are still found. Other slots add
+    /// their name in the middle: `Game.slot-1.oesavestate`.
+    static func saveStateURL(for romURL: URL, kind: String = SaveKind.state) -> URL {
+        let base = romURL.deletingPathExtension()
+        guard kind != SaveKind.state, SaveKind.isStateKind(kind) else {
+            return base.appendingPathExtension("oesavestate")
+        }
+        let middle = kind
+            .replacingOccurrences(of: "state:", with: "")
+            .replacingOccurrences(of: ":", with: "_")
+        return base.appendingPathExtension("\(middle).oesavestate")
+    }
+
+    /// A screenshot of the moment a state was saved, beside the state file.
+    /// Screenshots stay on the device that took them: they are a preview,
+    /// not progress, so they never sync.
+    static func screenshotURL(forStateURL stateURL: URL) -> URL {
+        stateURL.appendingPathExtension("png")
+    }
+
+    /// Every save-state slot holding a file for this game, newest first.
+    static func slotSummaries(gameID: String, romURL: URL) -> [SaveSlotInfo] {
+        var slots: [SaveSlotInfo] = []
+        for kind in SaveKind.allStateKinds {
+            let url = saveStateURL(for: romURL, kind: kind)
+            guard let values = try? url.resourceValues(forKeys: [.fileSizeKey, .contentModificationDateKey]),
+                  let size = values.fileSize,
+                  let modified = values.contentModificationDate
+            else { continue }
+            let record = SaveIndexStore.shared.record(gameID: gameID, kind: kind)
+            slots.append(SaveSlotInfo(kind: kind,
+                                      modifiedAt: record?.modifiedAt ?? modified,
+                                      size: Int64(size),
+                                      deviceID: record?.deviceID,
+                                      hasScreenshot: FileManager.default.fileExists(
+                                        atPath: screenshotURL(forStateURL: url).path)))
+        }
+        return slots.sorted { $0.modifiedAt > $1.modifiedAt }
+    }
+
+    /// True when any save-state slot holds a file for this game.
+    static func hasAnyState(romURL: URL) -> Bool {
+        SaveKind.allStateKinds.contains { kind in
+            FileManager.default.fileExists(atPath: saveStateURL(for: romURL, kind: kind).path)
+        }
+    }
+
+    /// Removes a save state, its screenshot, and its version record.
+    static func deleteState(gameID: String, romURL: URL, kind: String) {
+        let url = saveStateURL(for: romURL, kind: kind)
+        try? FileManager.default.removeItem(at: url)
+        try? FileManager.default.removeItem(at: screenshotURL(forStateURL: url))
+        SaveIndexStore.shared.remove(gameID: gameID, kind: kind)
+    }
+
+    /// Removes a game's play history and its version record.
+    static func deletePlayInfo(gameID: String) {
+        try? FileManager.default.removeItem(at: playInfoURL(gameID: gameID))
+        SaveIndexStore.shared.remove(gameID: gameID, kind: SaveKind.playInfo)
+    }
+
+    /// Files a screenshot (PNG bytes) beside a save state.
+    static func saveScreenshot(_ data: Data, romURL: URL, kind: String) {
+        let url = screenshotURL(forStateURL: saveStateURL(for: romURL, kind: kind))
+        try? data.write(to: url, options: .atomic)
+    }
+
+    /// Reads a slot's screenshot, when the device that saved the slot took one.
+    static func screenshotData(romURL: URL, kind: String) -> Data? {
+        let url = screenshotURL(forStateURL: saveStateURL(for: romURL, kind: kind))
+        return try? Data(contentsOf: url)
     }
 
     /// Battery saves are named after the ROM and live under the core that
@@ -245,7 +329,11 @@ struct SaveStore {
                 .appendingPathComponent(parts.file)
         }
 
-        return saveStateURL(for: game.romURL)
+        // Each save-state slot has its own file. Anything else is not a kind
+        // this version knows, and guessing a file for it would overwrite real
+        // progress.
+        guard SaveKind.isStateKind(meta.kind) else { return nil }
+        return saveStateURL(for: game.romURL, kind: meta.kind)
     }
 
     /// Play history lives beside the rest of the sharing state, not next to a

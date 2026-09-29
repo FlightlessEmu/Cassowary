@@ -29,14 +29,18 @@ import OpenEmuKit
 /// Which games the library shows.
 private enum LibrarySelection: Hashable {
     case all
+    case continuePlaying
+    case favorites
     case system(String)
 }
 
-/// A game being played, with the core it launched with.
+/// A game being played, with the core it launched with and the save-state
+/// slot to resume, if it is picking up where it left off.
 private struct ActiveGame: Identifiable {
     let id = UUID()
     let game: Game
     let core: OECorePlugin?
+    let slot: String?
 }
 
 /// A request to pick a core before playing.
@@ -44,6 +48,8 @@ private struct CorePickerRequest: Identifiable {
     let id = UUID()
     let game: Game
     let system: SystemEntry
+    /// The save-state slot to resume once a core is picked, if one was chosen.
+    let slot: String?
 }
 
 /// A drop the library could not take in full, and needs to explain.
@@ -96,6 +102,7 @@ struct LibraryView: View {
     @State private var sort: SortOption = .title
     @State private var playing: ActiveGame?
     @State private var pickerRequest: CorePickerRequest?
+    @State private var resumeRequest: ResumeRequest?
     @State private var showSettings = false
     @State private var showCoverArtSettings = false
     @State private var dropTargeted = false
@@ -152,14 +159,30 @@ struct LibraryView: View {
             }
         }
         .fullScreenCover(item: $playing) { active in
-            GameView(game: active.game, core: active.core) {
+            GameView(game: active.game, core: active.core, resumeSlot: active.slot) {
+                // The game just closed: its autosave is on disk, and it
+                // counts as played. File both before the cover goes away.
+                PlayHistory.recordPlayed(active.game)
+                HostShareController.shared.refreshSaveState()
                 playing = nil
             }
         }
         .sheet(item: $pickerRequest) { request in
             CorePickerSheet(catalog: catalog, game: request.game, system: request.system) { plugin in
                 pickerRequest = nil
-                playing = ActiveGame(game: request.game, core: plugin)
+                playing = ActiveGame(game: request.game, core: plugin, slot: request.slot)
+            }
+        }
+        .sheet(item: $resumeRequest) { request in
+            ResumeSheet(
+                game: request.game,
+                slots: SaveStore.slotSummaries(gameID: PlayHistory.gameID(for: request.game),
+                                               romURL: request.game.url)
+            ) { slot in
+                resumeRequest = nil
+                launch(request.game, core: request.core, slot: slot)
+            } onCancel: {
+                resumeRequest = nil
             }
         }
         .sheet(item: $systemPicker) { request in
@@ -328,6 +351,12 @@ struct LibraryView: View {
                 }
             }
             .badge(library.games.count)
+            sidebarRow(for: .continuePlaying, linked: linked) {
+                Label("Continue", systemImage: "clock")
+            }
+            sidebarRow(for: .favorites, linked: linked) {
+                Label("Favorites", systemImage: "heart")
+            }
         }
 
         Section("Systems") {
@@ -598,6 +627,9 @@ struct LibraryView: View {
                                     }
                                 }
                             }
+                        }
+                        Button(PlayHistory.info(for: game).favorite ? "Remove from Favorites" : "Add to Favorites") {
+                            PlayHistory.setFavorite(!PlayHistory.info(for: game).favorite, for: game)
                         }
                         if coverArt.hasArtwork(for: game) {
                             Button("Download New Cover Art") { coverArt.download(for: game) }
@@ -922,6 +954,10 @@ struct LibraryView: View {
         switch target {
         case .system(let id):
             return catalog.system(forIdentifier: id)?.name ?? "Games"
+        case .continuePlaying:
+            return "Continue"
+        case .favorites:
+            return "Favorites"
         default:
             return "Games"
         }
@@ -944,6 +980,22 @@ struct LibraryView: View {
         switch target {
         case .system(let id):
             games = games.filter { $0.system?.identifier == id }
+        case .favorites:
+            games = games.filter { PlayHistory.info(for: $0).favorite }
+        case .continuePlaying:
+            games = games
+                .filter { PlayHistory.info(for: $0).lastPlayedAt != nil }
+                .sorted {
+                    (PlayHistory.info(for: $0).lastPlayedAt ?? .distantPast) >
+                    (PlayHistory.info(for: $1).lastPlayedAt ?? .distantPast)
+                }
+            // Continue is already in play order; the sort picker stays out,
+            // but searching still applies.
+            let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !query.isEmpty {
+                games = games.filter { $0.title.localizedCaseInsensitiveContains(query) }
+            }
+            return games
         default:
             break
         }
@@ -972,29 +1024,59 @@ struct LibraryView: View {
 
     // MARK: - Launch
 
-    /// Play a game, asking which core when there is a real choice.
+    /// Play a game, asking which core when there is a real choice, and
+    /// whether to resume when it has save states.
     private func play(_ game: Game, core: OECorePlugin? = nil) {
+        // The automated test boots straight in: a resume sheet would leave it
+        // waiting for a tap that never comes.
+        // Hardcore RetroAchievements refuses to load states, so there is
+        // nothing to resume from: start fresh.
+        let skipResume = UserDefaults.standard.bool(forKey: "cassowary.autoPlayFirstGame")
+            || (RetroAchievementsCredentialStore.load().isSignedIn && RetroAchievementsCredentialStore.hardcoreEnabled)
+        if !skipResume, SaveStore.hasAnyState(romURL: game.url) {
+            resumeRequest = ResumeRequest(game: game, core: core ?? defaultCore(for: game))
+            return
+        }
+        launch(game, core: core, slot: nil)
+    }
+
+    /// The core playing this game when there is no real choice, so the resume
+    /// sheet can launch directly. Nil when the core picker still has to ask.
+    private func defaultCore(for game: Game) -> OECorePlugin? {
+        guard let systemID = game.system?.identifier,
+              let system = catalog.system(forIdentifier: systemID),
+              !system.cores.isEmpty
+        else { return nil }
+        if system.cores.count == 1 { return system.cores[0].plugin }
+        if let id = catalog.defaultCoreID(forSystemIdentifier: system.id),
+           let core = system.cores.first(where: { $0.id == id }) {
+            return core.plugin
+        }
+        return nil
+    }
+
+    private func launch(_ game: Game, core: OECorePlugin?, slot: String?) {
         if let core {
-            playing = ActiveGame(game: game, core: core)
+            playing = ActiveGame(game: game, core: core, slot: slot)
             return
         }
         guard let systemID = game.system?.identifier,
               let system = catalog.system(forIdentifier: systemID) else {
             // Unknown system: let the session resolve it and report the error.
-            playing = ActiveGame(game: game, core: nil)
+            playing = ActiveGame(game: game, core: nil, slot: slot)
             return
         }
         if system.cores.isEmpty {
             // No core: the session throws missingCorePlugin and GameView
             // shows it, which is clearer than silence here.
-            playing = ActiveGame(game: game, core: nil)
+            playing = ActiveGame(game: game, core: nil, slot: slot)
         } else if system.cores.count == 1 {
-            playing = ActiveGame(game: game, core: system.cores[0].plugin)
+            playing = ActiveGame(game: game, core: system.cores[0].plugin, slot: slot)
         } else if let id = catalog.defaultCoreID(forSystemIdentifier: system.id),
                   let core = system.cores.first(where: { $0.id == id }) {
-            playing = ActiveGame(game: game, core: core.plugin)
+            playing = ActiveGame(game: game, core: core.plugin, slot: slot)
         } else {
-            pickerRequest = CorePickerRequest(game: game, system: system)
+            pickerRequest = CorePickerRequest(game: game, system: system, slot: slot)
         }
     }
 }
@@ -1076,10 +1158,9 @@ private struct GameTile: View {
     /// Whether a cover art download for this game is running.
     let isFetching: Bool
 
-    /// Whether a save state sits next to the ROM.
+    /// Whether any save-state slot holds a file for this game.
     private var hasSaveState: Bool {
-        let url = game.url.deletingPathExtension().appendingPathExtension("oesavestate")
-        return FileManager.default.fileExists(atPath: url.path)
+        SaveStore.hasAnyState(romURL: game.url)
     }
 
     var body: some View {

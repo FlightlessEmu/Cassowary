@@ -24,6 +24,7 @@
 
 import Foundation
 import QuartzCore
+import UIKit
 import OpenEmuBase
 import OpenEmuSystem
 import OpenEmuKit
@@ -552,22 +553,46 @@ final class GameSession: NSObject {
 
     /// Where save states for a game live.
     ///
-    /// One file per game, named after the ROM, next to the ROM in Documents so
-    /// it travels with the file when the user backs the folder up.
-    private static func saveStateURL(for romURL: URL) -> URL {
-        romURL.deletingPathExtension().appendingPathExtension("oesavestate")
+    /// One file per slot, named after the ROM, next to the ROM in Documents
+    /// so it travels with the file when the user backs the folder up. The
+    /// main slot keeps the original name, so states saved before slots
+    /// existed are still found.
+    private func saveStateURL(forSlot slot: String) -> URL {
+        SaveStore.saveStateURL(for: romURL, kind: slot)
     }
 
-    private var saveStateURL: URL { Self.saveStateURL(for: romURL) }
+    private var saveStateURL: URL { saveStateURL(forSlot: SaveKind.state) }
 
-    /// Whether a save state exists for this game.
+    /// Whether the main save state exists for this game.
     var hasSaveState: Bool {
-        FileManager.default.fileExists(atPath: saveStateURL.path)
+        hasSaveState(in: SaveKind.state)
+    }
+
+    /// Whether a slot holds a save state for this game.
+    func hasSaveState(in slot: String) -> Bool {
+        FileManager.default.fileExists(atPath: saveStateURL(forSlot: slot).path)
+    }
+
+    /// Every slot holding a save state for this game, newest first.
+    var filledSlots: [SaveSlotInfo] {
+        // The version records are keyed by content hash, which is the same
+        // id the sync code uses — but this session has no hash for this ROM,
+        // so pass an empty id and let the dates come from the files.
+        SaveStore.slotSummaries(gameID: "", romURL: romURL)
     }
 
     func saveState(completionHandler: ((Result<Void, Error>) -> Void)? = nil) {
-        helper.saveStateToFile(at: saveStateURL) { success, error in
+        saveState(in: SaveKind.state, completionHandler: completionHandler)
+    }
+
+    /// Writes a save state into a slot, then files a screenshot beside it
+    /// for the resume sheet. The screenshot is a preview only and never
+    /// syncs; a device that loads the slot takes its own.
+    func saveState(in slot: String, completionHandler: ((Result<Void, Error>) -> Void)? = nil) {
+        helper.saveStateToFile(at: saveStateURL(forSlot: slot)) { [weak self] success, error in
+            guard let self else { return }
             if success {
+                self.captureScreenshot(forSlot: slot)
                 completionHandler?(.success(()))
             } else {
                 completionHandler?(.failure(error ?? SessionError.saveStateFailed))
@@ -576,12 +601,28 @@ final class GameSession: NSObject {
     }
 
     func loadState(completionHandler: ((Result<Void, Error>) -> Void)? = nil) {
-        helper.loadStateFromFile(at: saveStateURL) { success, error in
+        loadState(from: SaveKind.state, completionHandler: completionHandler)
+    }
+
+    func loadState(from slot: String, completionHandler: ((Result<Void, Error>) -> Void)? = nil) {
+        helper.loadStateFromFile(at: saveStateURL(forSlot: slot)) { success, error in
             if success {
                 completionHandler?(.success(()))
             } else {
                 completionHandler?(.failure(error ?? SessionError.loadStateFailed))
             }
+        }
+    }
+
+    /// Takes a picture of the running game and files it beside a slot.
+    ///
+    /// Only while the game runs: before the renderer exists there is nothing
+    /// to photograph, and after it is gone the call would trap.
+    func captureScreenshot(forSlot slot: String) {
+        guard isRunning else { return }
+        helper.captureSourceImage { [romURL] image in
+            guard let data = image.pngData() else { return }
+            SaveStore.saveScreenshot(data, romURL: romURL, kind: slot)
         }
     }
 

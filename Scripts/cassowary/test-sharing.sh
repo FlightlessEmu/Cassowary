@@ -117,15 +117,15 @@ if [[ "$MODE" == tv ]]; then
 else
   echo "== server checks"
 
-  INFO=$(curl -s -m 10 -H "X-Cassowary-Protocol: 1" "http://127.0.0.1:$PORT/v1/info")
-  if [[ "$INFO" == *'"protocolVersion":1'* ]]; then
-    pass "info answers with protocol 1"
+  INFO=$(curl -s -m 10 -H "X-Cassowary-Protocol: 2" "http://127.0.0.1:$PORT/v1/info")
+  if [[ "$INFO" == *'"protocolVersion":2'* ]]; then
+    pass "info answers with protocol 2"
   else
     fail "info did not answer: $INFO"
     print -- ""; print -- "checks failed:"; for f in "${failures[@]}"; do print -- "  $f"; done; exit 1
   fi
 
-  TOKEN=$(curl -s -m 10 -X POST -H "X-Cassowary-Protocol: 1" -H "Content-Type: application/json" \
+  TOKEN=$(curl -s -m 10 -X POST -H "X-Cassowary-Protocol: 2" -H "Content-Type: application/json" \
     -d '{"deviceID":"sharing-test-tv","deviceName":"Test TV","platformName":"tvos"}' \
     "http://127.0.0.1:$PORT/v1/pair" | python3 -c 'import sys,json; print(json.load(sys.stdin).get("token") or "")')
   if [[ -n "$TOKEN" ]]; then
@@ -134,7 +134,7 @@ else
     fail "pairing returned no token"
   fi
 
-  LIB=$(curl -s -m 10 -H "X-Cassowary-Protocol: 1" -H "X-Cassowary-Token: $TOKEN" \
+  LIB=$(curl -s -m 10 -H "X-Cassowary-Protocol: 2" -H "X-Cassowary-Token: $TOKEN" \
     "http://127.0.0.1:$PORT/v1/library")
   # Pick the demo this script copied in, not merely the first game: the phone
   # simulator is shared with test-cassowary.sh, which leaves its own ROM in
@@ -154,9 +154,9 @@ print((mine or games)[0]["id"] if games else "")')
   fi
 
   if [[ -n "$GAME_ID" ]]; then
-    curl -s -m 20 -H "X-Cassowary-Protocol: 1" -H "X-Cassowary-Token: $TOKEN" \
+    curl -s -m 20 -H "X-Cassowary-Protocol: 2" -H "X-Cassowary-Token: $TOKEN" \
       -H "Range: bytes=0-999" -o "$SHOTS/part1.bin" "http://127.0.0.1:$PORT/v1/games/$GAME_ID/file/0"
-    curl -s -m 20 -H "X-Cassowary-Protocol: 1" -H "X-Cassowary-Token: $TOKEN" \
+    curl -s -m 20 -H "X-Cassowary-Protocol: 2" -H "X-Cassowary-Token: $TOKEN" \
       -H "Range: bytes=1000-" -o "$SHOTS/part2.bin" "http://127.0.0.1:$PORT/v1/games/$GAME_ID/file/0"
     cat "$SHOTS/part1.bin" "$SHOTS/part2.bin" > "$SHOTS/rejoined.gb"
 
@@ -168,7 +168,7 @@ print((mine or games)[0]["id"] if games else "")')
     fi
 
     printf 'sharing test save state' > "$SHOTS/test.oesavestate"
-    PUT=$(curl -s -m 10 -X PUT -H "X-Cassowary-Protocol: 1" -H "X-Cassowary-Token: $TOKEN" \
+    PUT=$(curl -s -m 10 -X PUT -H "X-Cassowary-Protocol: 2" -H "X-Cassowary-Token: $TOKEN" \
       --data-binary @"$SHOTS/test.oesavestate" "http://127.0.0.1:$PORT/v1/saves/$GAME_ID/state")
     if [[ "$PUT" == *'"stored":true'* ]]; then
       pass "a save state uploads"
@@ -176,7 +176,7 @@ print((mine or games)[0]["id"] if games else "")')
       fail "save state upload answered: $PUT"
     fi
 
-    BACK=$(curl -s -m 10 -H "X-Cassowary-Protocol: 1" -H "X-Cassowary-Token: $TOKEN" \
+    BACK=$(curl -s -m 10 -H "X-Cassowary-Protocol: 2" -H "X-Cassowary-Token: $TOKEN" \
       "http://127.0.0.1:$PORT/v1/saves/$GAME_ID/state")
     if [[ "$BACK" == "sharing test save state" ]]; then
       pass "the save state reads back unchanged"

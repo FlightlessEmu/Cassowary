@@ -80,6 +80,11 @@ struct TVPlayerView: View {
     /// the way of the game either.
     @State private var showsHint = true
     @State private var hideHint: Task<Void, Never>?
+    /// `close` has been asked for. The save, its timeout, and the test hook
+    /// below all go through it, and only the first one counts.
+    @State private var didClose = false
+    /// The close callbacks have fired.
+    @State private var finishedClosing = false
 
     var body: some View {
         ZStack {
@@ -184,9 +189,9 @@ struct TVPlayerView: View {
                     }
                     .focused($menuFocus, equals: .saveState)
 
-                    if session.hasSaveState {
-                        Button("Load State") {
-                            session.loadState { result in
+                    if let newest = session.filledSlots.first {
+                        Button("Load \(newest.displayName)") {
+                            session.loadState(from: newest.kind) { result in
                                 report(result, success: "Loaded")
                             }
                         }
@@ -318,7 +323,21 @@ struct TVPlayerView: View {
             }
 
             self.session = session
-            session.start { }
+            session.start {
+                // Pick up where the game was left, on either device. The menu
+                // can still load any slot by hand. Hardcore refuses to load
+                // states, so it starts fresh.
+                if !session.raHardcoreActive, let newest = session.filledSlots.first {
+                    session.loadState(from: newest.kind) { result in
+                        switch result {
+                        case .success:
+                            self.show(notice: "Resumed \(newest.displayName)")
+                        case .failure(let error):
+                            self.show(notice: error.localizedDescription)
+                        }
+                    }
+                }
+            }
             applySavedFilter(on: session)
 
             // A word about the menu, then out of the way. Nothing focusable,
@@ -498,6 +517,29 @@ struct TVPlayerView: View {
     }
 
     private func close() {
+        // Write the autosave first so the phone can pick up where the TV
+        // stopped. Each of the save, its timeout, and the no-session path
+        // finishes the close, and only the first one counts.
+        guard !didClose else { return }
+        didClose = true
+        // Nothing ran, nothing to save: closing before the core started goes
+        // straight out. Hardcore refuses save states, so it does too.
+        if let session, session.isRunning, !session.raHardcoreActive {
+            session.saveState(in: SaveKind.autosave) { _ in
+                self.finishClose()
+            }
+            Task {
+                try? await Task.sleep(for: .seconds(5))
+                self.finishClose()
+            }
+        } else {
+            finishClose()
+        }
+    }
+
+    private func finishClose() {
+        guard !finishedClosing else { return }
+        finishedClosing = true
         onFinished?()
         onClose()
     }

@@ -591,34 +591,45 @@ final class TVStore: ObservableObject {
 
     // MARK: - Playing
 
-    /// Puts the vault's save state beside the ROM the engine is about to open.
+    /// Stages the vault's save states beside the ROM the engine is about to
+    /// open, every slot and their screenshots.
+    ///
+    /// The vault is the source of truth on this device: sync writes to the
+    /// vault, never beside the ROM, so whatever the vault holds is what the
+    /// game opens with.
     func prepareForPlay(_ game: LocalGame) {
         guard let rom = playableURL(for: game) else { return }
-        let vault = stateURL(gameID: game.id)
-        let beside = SaveStore.saveStateURL(for: rom)
-
-        let fm = FileManager.default
-        let vaultDate = (try? vault.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate ?? .distantPast
-        let besideDate = (try? beside.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate ?? .distantPast
-
-        if fm.fileExists(atPath: vault.path), vaultDate > besideDate {
-            try? fm.removeItem(at: beside)
-            try? fm.copyItem(at: vault, to: beside)
+        for kind in SaveKind.allStateKinds {
+            stageVaultFile(stateURL(gameID: game.id, kind: kind),
+                           to: SaveStore.saveStateURL(for: rom, kind: kind))
         }
     }
 
-    /// Takes the save state back to the vault, records the session, and hands
-    /// everything to the phone.
+    private func stageVaultFile(_ vault: URL, to beside: URL) {
+        guard FileManager.default.fileExists(atPath: vault.path) else { return }
+        try? FileManager.default.removeItem(at: beside)
+        try? FileManager.default.copyItem(at: vault, to: beside)
+        // Screenshots ride along so the menus can show them.
+        let vaultShot = SaveStore.screenshotURL(forStateURL: vault)
+        if FileManager.default.fileExists(atPath: vaultShot.path) {
+            let besideShot = SaveStore.screenshotURL(forStateURL: beside)
+            try? FileManager.default.removeItem(at: besideShot)
+            try? FileManager.default.copyItem(at: vaultShot, to: besideShot)
+        }
+    }
+
+    /// Takes the save states back to the vault, records the session, and
+    /// hands everything to the phone.
     func finishPlaying(_ game: LocalGame) {
         if let rom = playableURL(for: game) {
-            let beside = SaveStore.saveStateURL(for: rom)
-            let vault = stateURL(gameID: game.id)
-            if FileManager.default.fileExists(atPath: beside.path) {
-                try? FileManager.default.createDirectory(at: vault.deletingLastPathComponent(),
-                                                         withIntermediateDirectories: true)
-                try? FileManager.default.removeItem(at: vault)
-                try? FileManager.default.copyItem(at: beside, to: vault)
+            for kind in SaveKind.allStateKinds {
+                fileVaultFile(SaveStore.saveStateURL(for: rom, kind: kind),
+                              to: stateURL(gameID: game.id, kind: kind))
             }
+            // Filing the vault copies changed what is on disk. Scan again so
+            // the versions remember the new files and mark them for upload —
+            // without it a session played here would never reach the phone.
+            _ = SaveStore.scan(games: locations)
         }
 
         var info = SaveStore.loadPlayInfo(gameID: game.id)
@@ -683,8 +694,22 @@ final class TVStore: ObservableObject {
         SharingPaths.tvSaveVault.appendingPathComponent("\(gameID).rom")
     }
 
-    private func stateURL(gameID: String) -> URL {
-        SaveStore.saveStateURL(for: vaultROMURL(gameID: gameID))
+    private func stateURL(gameID: String, kind: String = SaveKind.state) -> URL {
+        SaveStore.saveStateURL(for: vaultROMURL(gameID: gameID), kind: kind)
+    }
+
+    private func fileVaultFile(_ beside: URL, to vault: URL) {
+        guard FileManager.default.fileExists(atPath: beside.path) else { return }
+        try? FileManager.default.createDirectory(at: vault.deletingLastPathComponent(),
+                                                 withIntermediateDirectories: true)
+        try? FileManager.default.removeItem(at: vault)
+        try? FileManager.default.copyItem(at: beside, to: vault)
+        let besideShot = SaveStore.screenshotURL(forStateURL: beside)
+        if FileManager.default.fileExists(atPath: besideShot.path) {
+            let vaultShot = SaveStore.screenshotURL(forStateURL: vault)
+            try? FileManager.default.removeItem(at: vaultShot)
+            try? FileManager.default.copyItem(at: besideShot, to: vaultShot)
+        }
     }
 
     private func refreshPlayInfo() {
@@ -736,10 +761,11 @@ final class TVStore: ObservableObject {
 
         // A settled state should be sitting beside the game if it is here.
         if choice != .keepLocal,
+           SaveKind.isStateKind(conflict.kind),
            let game = state.games[conflict.gameID],
            let rom = playableURL(for: game) {
-            let vault = stateURL(gameID: game.id)
-            let beside = SaveStore.saveStateURL(for: rom)
+            let vault = stateURL(gameID: game.id, kind: conflict.kind)
+            let beside = SaveStore.saveStateURL(for: rom, kind: conflict.kind)
             try? FileManager.default.removeItem(at: beside)
             if FileManager.default.fileExists(atPath: vault.path) {
                 try? FileManager.default.copyItem(at: vault, to: beside)

@@ -33,7 +33,11 @@ enum TransferProtocol {
 
     /// Bumped whenever a message changes shape. A peer that speaks a different
     /// version is refused politely instead of half-working.
-    static let version = 1
+    ///
+    /// Version 2 adds named save slots: besides "state" and battery saves,
+    /// kinds can now be "state:autosave" and "state:slot-N". A version 1 peer
+    /// would file those under the wrong file, so it is refused instead.
+    static let version = 2
 
     /// How the host is advertised and found. Matches `NSBonjourServices` in
     /// both Info.plists.
@@ -126,7 +130,8 @@ enum TransferProtocol {
     /// One save file, on either end.
     struct SaveBlobMeta: Codable, Hashable {
         var gameID: String
-        /// "state", or "battery:<core>:<file name>".
+        /// "state", "state:autosave", "state:slot-N", or
+        /// "battery:<core>:<file name>".
         var kind: String
         /// Goes up on every write. Device clocks cannot be trusted, so the
         /// counter decides who is newer, and the device id breaks ties.
@@ -176,7 +181,45 @@ enum TransferProtocol {
 
 /// How a save file is named on disk, and how a game is recognized.
 enum SaveKind {
+    /// The main manual slot, one file per game beside the ROM. This is the
+    /// kind version 1 knew, so old states keep working.
     static let state = "state"
+    /// Written automatically when a game closes. Never overwritten by hand:
+    /// it is how a game picks up where it was left, on any device.
+    static let autosave = "state:autosave"
+    /// How many extra manual slots a game gets, besides the main one.
+    static let manualSlotCount = 3
+
+    /// The kind for manual slot `index`, starting at 1.
+    static func stateSlot(_ index: Int) -> String {
+        "state:slot-\(index)"
+    }
+
+    /// Every save-state kind a game can hold: the main slot, the manual
+    /// slots, and the autosave.
+    static var allStateKinds: [String] {
+        [state] + (1...manualSlotCount).map(stateSlot) + [autosave]
+    }
+
+    /// True for the main slot, the manual slots, and the autosave — anything
+    /// that is a save state rather than a battery save or play history.
+    static func isStateKind(_ kind: String) -> Bool {
+        kind == state || kind == autosave || stateSlotIndex(kind) != nil
+    }
+
+    /// The manual slot number for a "state:slot-N" kind, if it is one.
+    static func stateSlotIndex(_ kind: String) -> Int? {
+        guard kind.hasPrefix("state:slot-") else { return nil }
+        return Int(kind.dropFirst("state:slot-".count))
+    }
+
+    /// A short name for a state kind, for menus and conflict prompts.
+    static func displayName(for kind: String) -> String {
+        if kind == state { return "Main save" }
+        if kind == autosave { return "Autosave" }
+        if let index = stateSlotIndex(kind) { return "Slot \(index)" }
+        return kind
+    }
     /// What every device remembers about playing a game: last played, play
     /// count, favorite. It travels as a save blob so it uses the same queue,
     /// the same retries, and the same storage.
