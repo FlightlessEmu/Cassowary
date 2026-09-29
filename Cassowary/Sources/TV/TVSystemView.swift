@@ -63,6 +63,7 @@ struct TVSystemView: View {
                                 Text(core.displayName).tag(core.id as String?)
                             }
                         }
+                        .pickerStyle(.navigationLink)
                         .disabled(system.cores.isEmpty)
                     } footer: {
                         Text("Automatic uses the first installed core.")
@@ -76,16 +77,19 @@ struct TVSystemView: View {
                                 Text(name).tag(ShaderCatalog.SystemChoice.shader(name))
                             }
                         }
+                        .pickerStyle(.navigationLink)
                         Picker("MetalFX Upscaling", selection: upscalingChoiceBinding(.metalFX, for: system)) {
                             Text("Use Default").tag(UpscalingOptions.Choice.automatic)
                             Text("Off").tag(UpscalingOptions.Choice.off)
                             Text("On").tag(UpscalingOptions.Choice.on)
                         }
+                        .pickerStyle(.navigationLink)
                         Picker("Pixel Perfect Scaling", selection: upscalingChoiceBinding(.integerScaling, for: system)) {
                             Text("Use Default").tag(UpscalingOptions.Choice.automatic)
                             Text("Fill").tag(UpscalingOptions.Choice.off)
                             Text("Pixel Perfect").tag(UpscalingOptions.Choice.on)
                         }
+                        .pickerStyle(.navigationLink)
                     } header: {
                         Text("Video")
                     } footer: {

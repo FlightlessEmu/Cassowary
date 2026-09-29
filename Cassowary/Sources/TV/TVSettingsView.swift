@@ -69,20 +69,17 @@ struct TVSettingsView: View {
                 }
 
                 Section {
+                    // A list of its own: inline, tvOS squeezes every filter
+                    // into one segmented row and cuts each name to "…".
                     Picker("Video Filter", selection: globalShaderBinding) {
                         Text("None").tag(nil as String?)
                         ForEach(shaderCatalog.names, id: \.self) { name in
                             Text(name).tag(name as String?)
                         }
                     }
-                    Picker("MetalFX Upscaling", selection: globalUpscalingBinding(.metalFX)) {
-                        Text("Off").tag(false)
-                        Text("On").tag(true)
-                    }
-                    Picker("Pixel Perfect Scaling", selection: globalUpscalingBinding(.integerScaling)) {
-                        Text("Fill").tag(false)
-                        Text("Pixel Perfect").tag(true)
-                    }
+                    .pickerStyle(.navigationLink)
+                    Toggle("MetalFX Upscaling", isOn: globalUpscalingBinding(.metalFX))
+                    Toggle("Pixel Perfect Scaling", isOn: globalUpscalingBinding(.integerScaling))
                     Text("Applies to every game unless a system sets its own. A filter compiles the first time it is used, which takes a moment. MetalFX runs only on devices that support it; elsewhere the picture is drawn the normal way.")
                         .font(.caption)
                         .foregroundStyle(.secondary)

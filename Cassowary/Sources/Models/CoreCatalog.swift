@@ -64,11 +64,20 @@ struct SystemEntry: Identifiable, Hashable {
     let icon: UIImage?
     let extensions: [String]
     let cores: [CoreEntry]
+    /// The plugin, for the pictures that are only worth loading when shown.
+    private let plugin: OESystemPlugin
 
     /// Whether at least one core can run this system.
     var hasCore: Bool { !cores.isEmpty }
 
+    /// The system's controller, drawn large. The icon is a 16-point list
+    /// glyph; this is the picture to use at poster size.
+    var controllerImage: UIImage? {
+        plugin.controller?.controllerImage as? UIImage
+    }
+
     init(plugin: OESystemPlugin) {
+        self.plugin = plugin
         self.id = plugin.systemIdentifier
         self.name = plugin.systemName
         self.icon = plugin.systemIcon as? UIImage

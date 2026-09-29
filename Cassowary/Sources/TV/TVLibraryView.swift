@@ -103,40 +103,53 @@ struct TVLibraryView: View {
     /// used to live here are tabs now, because the focus engine could not be
     /// trusted to reach them.
     private var status: some View {
-        HStack(spacing: 16) {
+        HStack(spacing: 14) {
             switch store.connection {
             case .connected(let host):
-                Label("Games from \(host.name)", systemImage: "wifi")
-                    .foregroundStyle(.secondary)
+                statusPill(host.name, systemImage: "circle.fill", tint: .green)
             case .connecting(let name):
-                Label("Connecting to \(name)…", systemImage: "wifi")
-                    .foregroundStyle(.secondary)
+                statusPill("Connecting to \(name)…", systemImage: "circle.dotted", tint: .secondary)
             default:
-                Label("Downloaded games · not connected", systemImage: "wifi.slash")
-                    .foregroundStyle(.orange)
+                statusPill("Not connected · downloaded games only", systemImage: "wifi.slash", tint: .orange)
             }
 
             if store.libraryIsLoading {
                 ProgressView()
+                    .scaleEffect(0.7)
             }
 
             if store.pendingUploads > 0 {
-                Label("\(store.pendingUploads) save\(store.pendingUploads == 1 ? "" : "s") to send",
-                      systemImage: "arrow.up.circle")
-                    .foregroundStyle(.secondary)
+                statusPill("\(store.pendingUploads) save\(store.pendingUploads == 1 ? "" : "s") to send",
+                           systemImage: "arrow.up.circle", tint: .secondary)
             }
 
             if let summary = store.syncSummary {
-                Text(summary)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                statusPill(summary, systemImage: "arrow.triangle.2.circlepath", tint: .secondary)
+                    .frame(maxWidth: 760, alignment: .leading)
             }
 
             Spacer()
         }
-        .font(.callout)
         .padding(.horizontal, 60)
         .padding(.top, 20)
+    }
+
+    /// One fact about the link, in a capsule, so several can sit on a line
+    /// without running together.
+    private func statusPill(_ text: String, systemImage: String, tint: Color) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: systemImage)
+                .font(.system(size: 14, weight: .bold))
+                .foregroundStyle(tint)
+            Text(text)
+                .lineLimit(1)
+                .truncationMode(.tail)
+        }
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .padding(.horizontal, 18)
+        .padding(.vertical, 9)
+        .background(.white.opacity(0.08), in: .capsule)
     }
 
     // MARK: - Sidebar
@@ -245,14 +258,13 @@ struct TVLibraryView: View {
 
     private var detail: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 16) {
+            HStack(spacing: 20) {
                 Text(detailTitle)
-                    .font(.title2.weight(.semibold))
+                    .font(.title2.weight(.bold))
 
                 Spacer()
 
-                TextField("Search", text: $searchText)
-                    .frame(maxWidth: 320)
+                searchField
 
                 Menu {
                     Picker("Sort by", selection: $sort) {
@@ -260,10 +272,11 @@ struct TVLibraryView: View {
                         Text("System").tag(SortOption.system)
                     }
                 } label: {
-                    Label("Sort", systemImage: "arrow.up.arrow.down")
+                    Label(sort == .title ? "By Title" : "By System", systemImage: "arrow.up.arrow.down")
+                        .font(.callout)
                 }
             }
-            .padding(.horizontal, 40)
+            .padding(.horizontal, 48)
             .padding(.top, 28)
             .padding(.bottom, 8)
 
@@ -275,41 +288,69 @@ struct TVLibraryView: View {
         }
     }
 
+    /// The search box, drawn as one: on its own the TV draws a text field as
+    /// bare grey words that do not look like something to press.
+    private var searchField: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(.secondary)
+            TextField("Search Games", text: $searchText)
+                .font(.callout)
+        }
+        .padding(.leading, 22)
+        .frame(width: 440)
+        .background(.white.opacity(0.08), in: .capsule)
+    }
+
+    /// Whether All Games leads with the games played most recently.
+    private var showsContinueShelf: Bool {
+        selection == .all && searchText.isEmpty && !recent.isEmpty
+    }
+
     private var grid: some View {
         ScrollView {
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 280, maximum: 360), spacing: 36)], spacing: 44) {
-                ForEach(visibleGames) { game in
-                    Button {
-                        onPlay(game)
-                    } label: {
+            VStack(alignment: .leading, spacing: 34) {
+                if showsContinueShelf {
+                    shelfHeading("Continue Playing")
+                    ScrollView(.horizontal) {
+                        LazyHStack(alignment: .top, spacing: 40) {
+                            ForEach(recent.prefix(10)) { game in
+                                tile(game)
+                                    .frame(width: 300)
+                            }
+                        }
+                        .padding(.horizontal, 48)
+                        .padding(.vertical, 20)
+                    }
+                    .scrollClipDisabled()
+                    .scrollIndicators(.hidden)
+                    // Down from the row reaches the grid, whichever column
+                    // the focus is in.
+                    .focusSection()
+
+                    shelfHeading("\(visibleGames.count) Games")
+                }
+
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 280, maximum: 340), spacing: 40)],
+                          alignment: .leading,
+                          spacing: 56) {
+                    ForEach(visibleGames) { game in
                         tile(game)
                     }
-                    .buttonStyle(.card)
-                    .contextMenu {
-                        if game.isDownloaded, game.sourceDeviceID != nil {
-                            Button("Remove Download", role: .destructive) {
-                                store.removeDownload(game)
-                            }
-                        } else if !game.isDownloaded {
-                            Button("Download") {
-                                Task { await store.download(game) }
-                            }
-                        }
-                        if store.artwork[game.id] == nil {
-                            Button("Retry Cover Art") {
-                                store.retryArtwork(for: game)
-                            }
-                        }
-                        Button(game.favorite ? "Remove from Favorites" : "Add to Favorites") {
-                            store.toggleFavorite(game)
-                        }
-                    }
                 }
+                .padding(.horizontal, 48)
             }
-            .padding(.horizontal, 40)
-            .padding(.top, 16)
-            .padding(.bottom, 40)
+            .padding(.top, 24)
+            .padding(.bottom, 60)
         }
+        .scrollClipDisabled()
+    }
+
+    private func shelfHeading(_ title: String) -> some View {
+        Text(title)
+            .font(.title3.weight(.semibold))
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 48)
     }
 
     private var emptyState: some View {
@@ -335,114 +376,136 @@ struct TVLibraryView: View {
         }
     }
 
+    /// A poster, with its title underneath. Only the art is the button, the
+    /// way the TV's own apps do it: the focused poster lifts and tilts, and
+    /// the titles stay on one line across the row instead of riding along.
     private func tile(_ game: TVStore.LocalGame) -> some View {
-        VStack(alignment: .leading, spacing: 14) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(.quaternary)
-
-                // Art, or the system's icon when there is none: box art comes
-                // in every shape, and cropping it to the square keeps the grid
-                // even. The same rule as the phone's tiles.
-                if let image = store.artwork[game.id] {
-                    Image(uiImage: image)
-                        .resizable()
-                        .scaledToFill()
-                } else if let icon = coreCatalog.system(forIdentifier: game.systemIdentifier)?.icon {
-                    Image(uiImage: icon)
-                        .resizable()
-                        .scaledToFit()
-                        .padding(24)
-                } else {
-                    Image(systemName: "gamecontroller.fill")
-                        .font(.system(size: 64))
-                        .foregroundStyle(.secondary)
-                }
-
-                if store.hasLocalSaveState(for: game) || store.isFetchingArtwork(game.id) {
-                    VStack {
-                        HStack {
-                            Spacer()
-                            if store.hasLocalSaveState(for: game) {
-                                Image(systemName: "bookmark.fill")
-                                    .font(.caption)
-                                    .foregroundStyle(.white)
-                                    .padding(7)
-                                    .background(.black.opacity(0.45), in: .circle)
-                            }
-                        }
-                        Spacer()
-                        HStack {
-                            if store.isFetchingArtwork(game.id) {
-                                ProgressView()
-                                    .tint(.white)
-                                    .padding(6)
-                                    .background(.black.opacity(0.45), in: .circle)
-                            }
-                            Spacer()
-                        }
+        VStack(alignment: .leading, spacing: 22) {
+            Button {
+                onPlay(game)
+            } label: {
+                poster(game)
+                    .aspectRatio(1, contentMode: .fit)
+            }
+            .buttonStyle(.card)
+            .contextMenu {
+                if game.isDownloaded, game.sourceDeviceID != nil {
+                    Button("Remove Download", role: .destructive) {
+                        store.removeDownload(game)
                     }
-                    .padding(8)
-                }
-
-                if let progress = store.progress(for: game.id) {
-                    ZStack {
-                        Color.black.opacity(0.6)
-                        VStack(spacing: 10) {
-                            ProgressView(value: progress)
-                                .progressViewStyle(.linear)
-                                .frame(width: 160)
-                            Text("\(Int(progress * 100))%")
-                                .font(.headline)
-                        }
+                } else if !game.isDownloaded {
+                    Button("Download") {
+                        Task { await store.download(game) }
                     }
-                    .clipShape(.rect(cornerRadius: 18))
+                }
+                if store.artwork[game.id] == nil {
+                    Button("Retry Cover Art") {
+                        store.retryArtwork(for: game)
+                    }
+                }
+                Button(game.favorite ? "Remove from Favorites" : "Add to Favorites") {
+                    store.toggleFavorite(game)
                 }
             }
-            .aspectRatio(1, contentMode: .fit)
-            .clipShape(.rect(cornerRadius: 18))
 
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 6) {
                 Text(game.title)
-                    .font(.headline)
-                    .lineLimit(2)
-                HStack(spacing: 8) {
-                    Text(game.systemName)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    .font(.callout.weight(.semibold))
+                    .lineLimit(1)
+                caption(for: game)
+            }
+            .padding(.horizontal, 6)
+        }
+    }
 
-                    badge(for: game)
+    private func poster(_ game: TVStore.LocalGame) -> some View {
+        ZStack {
+            TVGameArtwork(art: store.artwork[game.id],
+                          system: coreCatalog.system(forIdentifier: game.systemIdentifier),
+                          systemIdentifier: game.systemIdentifier)
 
-                    if game.favorite {
-                        Image(systemName: "star.fill")
-                            .font(.caption2)
-                            .foregroundStyle(.yellow)
+            // Corners: what is not here yet on the left, a save state on the
+            // right. A game that is here and ready carries no badge at all.
+            VStack {
+                HStack {
+                    if !game.isDownloaded, store.progress(for: game.id) == nil {
+                        cornerBadge(store.isSourceAvailable(for: game) ? "arrow.down" : "wifi.slash")
+                    }
+                    Spacer()
+                    if store.hasLocalSaveState(for: game) {
+                        cornerBadge("bookmark.fill")
+                    }
+                }
+                Spacer()
+                HStack {
+                    if store.isFetchingArtwork(game.id) {
+                        ProgressView()
+                            .scaleEffect(0.6)
+                            .padding(6)
+                            .background(.black.opacity(0.5), in: .circle)
+                    }
+                    Spacer()
+                }
+            }
+            .padding(14)
+
+            if let progress = store.progress(for: game.id) {
+                ZStack {
+                    Color.black.opacity(0.6)
+                    VStack(spacing: 12) {
+                        ProgressView(value: progress)
+                            .progressViewStyle(.linear)
+                            .tint(.white)
+                            .frame(width: 170)
+                        Text("\(Int(progress * 100))%")
+                            .font(.headline.monospacedDigit())
                     }
                 }
             }
         }
     }
 
-    private func badge(for game: TVStore.LocalGame) -> some View {
-        Group {
-            if !store.hasCore(for: game) {
-                Label("No TV core", systemImage: "nosign")
-                    .foregroundStyle(.orange)
-            } else if game.isDownloaded {
-                Label("Ready", systemImage: "checkmark.circle.fill")
-                    .foregroundStyle(.green)
-            } else if store.progress(for: game.id) != nil {
-                Label("Downloading", systemImage: "arrow.down.circle")
-                    .foregroundStyle(.blue)
-            } else if store.isSourceAvailable(for: game) {
-                Label("On \(game.sourceName ?? "the source")", systemImage: "arrow.down.circle")
-                    .foregroundStyle(.secondary)
-            } else {
-                Label("\(game.sourceName ?? "Source") not connected", systemImage: "wifi.slash")
-                    .foregroundStyle(.secondary)
+    private func cornerBadge(_ systemImage: String) -> some View {
+        Image(systemName: systemImage)
+            .font(.system(size: 18, weight: .bold))
+            .foregroundStyle(.white)
+            .frame(width: 40, height: 40)
+            .background(.black.opacity(0.55), in: .circle)
+    }
+
+    /// The system, and a word on the game's state only when it needs one.
+    private func caption(for game: TVStore.LocalGame) -> some View {
+        HStack(spacing: 6) {
+            if game.favorite {
+                Image(systemName: "star.fill")
+                    .foregroundStyle(.yellow)
+            }
+            Text(game.systemName)
+            if let note = note(for: game) {
+                Text("·")
+                Text(note.text)
+                    .foregroundStyle(note.tint)
             }
         }
-        .font(.caption2)
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .lineLimit(1)
+    }
+
+    private func note(for game: TVStore.LocalGame) -> (text: String, tint: Color)? {
+        if !store.hasCore(for: game) {
+            return ("No core on this TV", .orange)
+        }
+        if let progress = store.progress(for: game.id) {
+            return ("Downloading \(Int(progress * 100))%", .blue)
+        }
+        if game.isDownloaded {
+            return nil
+        }
+        if store.isSourceAvailable(for: game) {
+            return ("Not downloaded", .secondary)
+        }
+        return ("\(game.sourceName ?? "Source") is away", .secondary)
     }
 
     // MARK: - Data

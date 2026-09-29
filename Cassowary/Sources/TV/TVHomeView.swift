@@ -62,6 +62,16 @@ struct TVHomeView: View {
     /// The game the test scripts' auto-play picked, while it is copied down.
     @State private var autoPlayTargetID: String?
 
+    private enum Tab: String {
+        case library, sources, settings
+    }
+
+    /// The open tab. `cassowary.tvTab` (library, sources or settings) opens
+    /// on another one, for screenshots without a remote; normal launches
+    /// start on the library.
+    @State private var tab: Tab = UserDefaults.standard.string(forKey: "cassowary.tvTab")
+        .flatMap(Tab.init(rawValue:)) ?? .library
+
     var body: some View {
         Group {
             if let playing, let url = store.playableURL(for: playing) {
@@ -73,23 +83,26 @@ struct TVHomeView: View {
                     self.playingCore = nil
                 }
             } else {
-                TabView {
+                TabView(selection: $tab) {
                     TVLibraryView { game in
                         play(game)
                     }
                     .tabItem {
                         Label("Library", systemImage: "square.grid.2x2")
                     }
+                    .tag(Tab.library)
 
                     TVSourcesView()
                         .tabItem {
                             Label("Sources", systemImage: "rectangle.2.swap")
                         }
+                        .tag(Tab.sources)
 
                     TVSettingsView()
                         .tabItem {
                             Label("Settings", systemImage: "gearshape")
                         }
+                        .tag(Tab.settings)
                 }
                 .sheet(item: $pickerRequest) { request in
                     TVCorePickerView(catalog: coreCatalog, game: request.game, system: request.system) { plugin in
