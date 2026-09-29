@@ -196,13 +196,17 @@ final class GameLibrary: ObservableObject {
 
         // A disc image that a .cue beside it points at is not a game of its
         // own: the .cue is the entry point, and listing the image too would
-        // offer the same disc twice.
-        let descriptorNames = Set(
-            found
-                .filter { $0.pathExtension.lowercased() == "cue" }
-                .map { $0.deletingPathExtension().lastPathComponent.lowercased() }
-        )
-        let discImageExtensions: Set<String> = ["bin", "img", "iso"]
+        // offer the same disc twice. A multi-track disc names each track
+        // ("Game (Track 01).bin", ...), so the .cue is read for the files it
+        // lists; an image named like the .cue is covered too.
+        let cues = found.filter { $0.pathExtension.lowercased() == "cue" }
+        var trackNames = Set(cues.flatMap(Self.filesReferenced(byCue:)))
+        for cue in cues {
+            let base = cue.deletingPathExtension().lastPathComponent.lowercased()
+            for ext in ["bin", "img", "iso"] {
+                trackNames.insert(base + "." + ext)
+            }
+        }
 
         games = found
             .compactMap { url -> Game? in
@@ -213,9 +217,8 @@ final class GameLibrary: ObservableObject {
                     byIdentifier: byIdentifier
                 ) else { return nil }
 
-                let fileExtension = url.pathExtension.lowercased()
-                if discImageExtensions.contains(fileExtension),
-                   descriptorNames.contains(url.deletingPathExtension().lastPathComponent.lowercased()) {
+                if url.pathExtension.lowercased() != "cue",
+                   trackNames.contains(url.lastPathComponent.lowercased()) {
                     return nil
                 }
 
@@ -265,7 +268,7 @@ final class GameLibrary: ObservableObject {
         let biosFolder = Self.biosDirectory
         let biosFiles = Self.biosSignatures()
 
-        let summary = await Task.detached(priority: .userInitiated) {
+        var summary = await Task.detached(priority: .userInitiated) {
             Self.copy(
                 urls,
                 into: documents,
@@ -275,6 +278,15 @@ final class GameLibrary: ObservableObject {
                 biosFiles: biosFiles
             )
         }.value
+
+        // The tracks a .cue lists are never games of their own (refresh hides
+        // them), so there is nothing to ask about them: only the .cue is.
+        let tracks = Set(summary.needsSystem
+            .filter { $0.pathExtension.lowercased() == "cue" }
+            .flatMap(Self.filesReferenced(byCue:)))
+        summary.needsSystem.removeAll { url in
+            url.pathExtension.lowercased() != "cue" && tracks.contains(url.lastPathComponent.lowercased())
+        }
 
         refresh()
         return summary
@@ -459,6 +471,38 @@ final class GameLibrary: ObservableObject {
         }
 
         return summary
+    }
+
+    /// The lowercase names of the files a .cue sheet lists, from its
+    /// `FILE "name" BINARY` lines. Cue sheets are a few lines of text; a file
+    /// too big to be one is skipped rather than read.
+    private nonisolated static func filesReferenced(byCue url: URL) -> [String] {
+        guard let size = fileSize(at: url), size < 64 * 1024,
+              let data = try? Data(contentsOf: url) else {
+            return []
+        }
+        let text = String(decoding: data, as: UTF8.self)
+
+        return text.split(whereSeparator: \.isNewline).compactMap { line in
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            guard trimmed.uppercased().hasPrefix("FILE ") else { return nil }
+            let rest = trimmed.dropFirst(5).trimmingCharacters(in: .whitespaces)
+
+            // Quoted names can hold spaces; an unquoted one runs to the next
+            // space, before the file type.
+            let name: Substring
+            if rest.hasPrefix("\""), let end = rest.dropFirst().firstIndex(of: "\"") {
+                name = rest[rest.index(after: rest.startIndex)..<end]
+            } else if let end = rest.firstIndex(of: " ") {
+                name = rest[..<end]
+            } else {
+                name = Substring(rest)
+            }
+
+            // Only the name: tracks sit beside the .cue in the flat library.
+            let fileName = (String(name) as NSString).lastPathComponent.lowercased()
+            return fileName.isEmpty ? nil : fileName
+        }
     }
 
     /// The size of a file, or nil when it cannot be read. Only used to match
