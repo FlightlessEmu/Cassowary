@@ -147,16 +147,27 @@ bool EnvironCallback(unsigned cmd, void* data)
 
     case RETRO_ENVIRONMENT_GET_VARIABLE:
     {
-      // The core asks which renderer to use before it boots the GPU. There is
-      // one that works here, and the app decides whether to use it. Every
-      // other option is left unanswered so the core keeps its own defaults.
+      // Every option not answered here keeps the core's own default.
       auto* variable = static_cast<retro_variable*>(data);
       if (!variable || !variable->key)
         return false;
 
+      // The core asks which renderer to use before it boots the GPU. There is
+      // one that works here, and the app decides whether to use it.
       if (s_metal_renderer_enabled && std::strcmp(variable->key, "swanstation_GPU_Renderer") == 0)
       {
         variable->value = "Metal";
+        return true;
+      }
+
+      // The default memory card is one the frontend saves for the core
+      // (libretro's save RAM), and nothing here does, so every in-game save
+      // was lost when the game closed. A card per game title is one the core
+      // writes itself, as "<title>_1.mcd" in the saves folder; it is the same
+      // format as the libretro card, and one card covers every disc of an m3u.
+      if (std::strcmp(variable->key, "swanstation_MemoryCards_Card1Type") == 0)
+      {
+        variable->value = "PerGameTitle";
         return true;
       }
 
