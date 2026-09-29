@@ -44,6 +44,12 @@ struct SettingsView: View {
 
     @Environment(\.dismiss) private var dismiss
 
+    /// A page opened straight away, for screenshots and UI checks: "bios", or
+    /// a system identifier for that system's page. Only set from the command
+    /// line (-cassowary.settingsPage).
+    @State private var openedPage: String?
+    @State private var didOpenLaunchPage = false
+
     private var selectedStyle: DPadStyle { DPadStyle(rawValue: styleRaw) ?? .buttons }
     private var selectedTheme: ButtonTheme { ButtonTheme(rawValue: themeRaw) ?? .glass }
 
@@ -190,10 +196,19 @@ struct SettingsView: View {
                     } label: {
                         Label("Cover Art", systemImage: "photo.on.rectangle.angled")
                     }
+                    NavigationLink {
+                        BIOSSettingsView(catalog: catalog)
+                    } label: {
+                        LabeledContent {
+                            Text(biosSummary)
+                        } label: {
+                            Label("BIOS Files", systemImage: "memorychip")
+                        }
+                    }
                 } header: {
                     Text("Library")
                 } footer: {
-                    Text("Cassowary can download cover art for your games from libretro-thumbnails and ScreenScraper.")
+                    Text("Cassowary can download cover art for your games from libretro-thumbnails and ScreenScraper. BIOS files dropped on the library are checked and filed where the cores look.")
                 }
 
                 Section {
@@ -249,7 +264,21 @@ struct SettingsView: View {
                     Button("Done") { dismiss() }
                 }
             }
-            .onAppear { catalog.refresh() }
+            .onAppear {
+                catalog.refresh()
+                // Once: coming back from the page must not open it again.
+                if !didOpenLaunchPage {
+                    didOpenLaunchPage = true
+                    openedPage = UserDefaults.standard.string(forKey: "cassowary.settingsPage")
+                }
+            }
+            .navigationDestination(item: $openedPage) { page in
+                if page == "bios" {
+                    BIOSSettingsView(catalog: catalog)
+                } else {
+                    SystemCoresView(catalog: catalog, shaderCatalog: shaderCatalog, upscalingOptions: upscalingOptions, systemID: page)
+                }
+            }
         }
     }
 
@@ -265,6 +294,14 @@ struct SettingsView: View {
             return system.cores[0].displayName
         }
         return "\(system.cores.count) cores · Automatic"
+    }
+
+    /// How many of the systems that need a BIOS have what they need.
+    private var biosSummary: String {
+        let requirements = catalog.systems.compactMap { BIOSCatalog.requirement(forSystemIdentifier: $0.id) }
+            .filter { !$0.required.isEmpty }
+        guard !requirements.isEmpty else { return "None needed" }
+        return "\(requirements.filter(\.isReady).count) of \(requirements.count) ready"
     }
 
     private var appVersion: String {
@@ -310,6 +347,27 @@ private struct SystemCoresView: View {
                         Text("Automatic uses the first installed core. This matches the macOS preference.")
                     }
 
+                    if let requirement = BIOSCatalog.requirement(forSystemIdentifier: system.id) {
+                        Section {
+                            ForEach(requirement.files) { file in
+                                BIOSFileRow(file: file)
+                            }
+                            NavigationLink("All BIOS Files") {
+                                BIOSSettingsView(catalog: catalog)
+                            }
+                        } header: {
+                            HStack {
+                                Text("BIOS")
+                                Spacer()
+                                BIOSStatusBadge(requirement: requirement)
+                            }
+                        } footer: {
+                            Text(requirement.isRegional
+                                 ? "One BIOS per region; any one runs games from its region. Drop BIOS files on the library, or add them from All BIOS Files."
+                                 : "Drop BIOS files on the library, or add them from All BIOS Files.")
+                        }
+                    }
+
                     Section {
                         Picker("Video Filter", selection: shaderChoiceBinding(for: system)) {
                             Text("Use Default").tag(ShaderCatalog.SystemChoice.automatic)
@@ -335,6 +393,10 @@ private struct SystemCoresView: View {
                             Text(shaderSummary(for: system))
                             Text(upscalingSummary(for: system))
                         }
+                    }
+
+                    if system.cores.contains(where: { $0.id == SwanStationSettings.coreIdentifier }) {
+                        SwanStationSettingsSection()
                     }
 
                     Section {

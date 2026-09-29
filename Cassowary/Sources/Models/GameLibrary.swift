@@ -24,7 +24,6 @@
 
 import Foundation
 import UIKit
-import CryptoKit
 import OpenEmuBase
 import OpenEmuSystem
 import OpenEmuKit
@@ -194,14 +193,15 @@ final class GameLibrary: ObservableObject {
             options: [.skipsHiddenFiles]
         )) ?? []
 
-        // A disc image that a .cue beside it points at is not a game of its
-        // own: the .cue is the entry point, and listing the image too would
+        // A file that a .cue or .m3u beside it points at is not a game of its
+        // own: the sheet is the entry point, and listing the file too would
         // offer the same disc twice. A multi-track disc names each track
-        // ("Game (Track 01).bin", ...), so the .cue is read for the files it
-        // lists; an image named like the .cue is covered too.
-        let cues = found.filter { $0.pathExtension.lowercased() == "cue" }
-        var trackNames = Set(cues.flatMap(Self.filesReferenced(byCue:)))
-        for cue in cues {
+        // ("Game (Track 01).bin", ...) and a multi-disc game lists a .cue per
+        // disc, so the sheets are read for the files they list; an image
+        // named like its .cue is covered too.
+        let sheets = found.filter { Self.sheetExtensions.contains($0.pathExtension.lowercased()) }
+        var trackNames = Set(sheets.flatMap(Self.filesReferenced(bySheet:)))
+        for cue in sheets where cue.pathExtension.lowercased() == "cue" {
             let base = cue.deletingPathExtension().lastPathComponent.lowercased()
             for ext in ["bin", "img", "iso"] {
                 trackNames.insert(base + "." + ext)
@@ -217,8 +217,7 @@ final class GameLibrary: ObservableObject {
                     byIdentifier: byIdentifier
                 ) else { return nil }
 
-                if url.pathExtension.lowercased() != "cue",
-                   trackNames.contains(url.lastPathComponent.lowercased()) {
+                if trackNames.contains(url.lastPathComponent.lowercased()) {
                     return nil
                 }
 
@@ -265,8 +264,8 @@ final class GameLibrary: ObservableObject {
         let automatic = Self.automaticExtensions()
         let assignedNames = Set(Self.assignedSystemIdentifiers().keys)
         let documents = Self.documentsDirectory
-        let biosFolder = Self.biosDirectory
-        let biosFiles = Self.biosSignatures()
+        let biosFolder = BIOSCatalog.directory
+        let biosFiles = BIOSCatalog.signatures()
 
         var summary = await Task.detached(priority: .userInitiated) {
             Self.copy(
@@ -279,13 +278,14 @@ final class GameLibrary: ObservableObject {
             )
         }.value
 
-        // The tracks a .cue lists are never games of their own (refresh hides
-        // them), so there is nothing to ask about them: only the .cue is.
+        // The files a .cue or .m3u lists are never games of their own
+        // (refresh hides them), so there is nothing to ask about them: only
+        // the sheet is.
         let tracks = Set(summary.needsSystem
-            .filter { $0.pathExtension.lowercased() == "cue" }
-            .flatMap(Self.filesReferenced(byCue:)))
+            .filter { Self.sheetExtensions.contains($0.pathExtension.lowercased()) }
+            .flatMap(Self.filesReferenced(bySheet:)))
         summary.needsSystem.removeAll { url in
-            url.pathExtension.lowercased() != "cue" && tracks.contains(url.lastPathComponent.lowercased())
+            tracks.contains(url.lastPathComponent.lowercased())
         }
 
         refresh()
@@ -311,69 +311,6 @@ final class GameLibrary: ObservableObject {
             try? FileManager.default.removeItem(at: url)
         }
         refresh()
-    }
-
-    /// The BIOS folder every core shares: Application Support/OpenEmu/BIOS,
-    /// the same folder the plugin controllers point their cores at.
-    static var biosDirectory: URL {
-        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
-            ?? FileManager.default.temporaryDirectory
-        return base.appendingPathComponent("OpenEmu", isDirectory: true).appendingPathComponent("BIOS", isDirectory: true)
-    }
-
-    /// Every BIOS file any installed core asks for, by lowercase file name:
-    /// the wanted MD5 and size. This is what OpenEmu checks a dropped file
-    /// against before deciding it is a game. Read straight off the core
-    /// plugins' Info.plists so it works even when a controller will not load.
-    nonisolated static func biosSignatures() -> [String: (md5: String, size: UInt64)] {
-        var signatures: [String: (md5: String, size: UInt64)] = [:]
-        for plugin in OECorePlugin.allPlugins {
-            for file in plugin.requiredFiles {
-                guard let name = (file["Name"] as? String)?.lowercased(),
-                      let md5 = (file["MD5"] as? String)?.lowercased() else {
-                    continue
-                }
-                let size = (file["Size"] as? NSNumber)?.uint64Value ?? 0
-                signatures[name] = (md5, size)
-            }
-        }
-        return signatures
-    }
-
-    /// The BIOS files a system needs, with whether each one is already in
-    /// the BIOS folder and valid. Used for the per-system BIOS banner.
-    static func biosStatus(forSystemIdentifier identifier: String) -> [(name: String, description: String, present: Bool)] {
-        var wanted: [[String: Any]] = []
-        for plugin in OECorePlugin.allPlugins {
-            guard plugin.systemIdentifiers.contains(identifier) else { continue }
-            for file in plugin.requiredFiles {
-                wanted.append(file)
-            }
-            // Also ask the controller per-system: some cores scope files by system.
-            if let controller = plugin.controller,
-               let files = controller.requiredFiles(forSystemIdentifier: identifier) as? [[String: Any]] {
-                for file in files where !(wanted.contains { ($0["Name"] as? String)?.lowercased() == (file["Name"] as? String)?.lowercased() }) {
-                    wanted.append(file)
-                }
-            }
-        }
-        let fm = FileManager.default
-        let folder = Self.biosDirectory
-        return wanted.map { file in
-            let name = (file["Name"] as? String) ?? "BIOS"
-            let description = (file["Description"] as? String) ?? name
-            let lower = name.lowercased()
-            let dest = folder.appendingPathComponent(lower)
-            var present = false
-            if fm.fileExists(atPath: dest.path),
-               let sigMD5 = (file["MD5"] as? String)?.lowercased() {
-                let size = (file["Size"] as? NSNumber)?.uint64Value ?? 0
-                present = Self.fileSize(at: dest) == size && Self.md5(of: dest) == sigMD5
-            } else if fm.fileExists(atPath: dest.path) {
-                present = true
-            }
-            return (name, description, present)
-        }
     }
 
     /// The file work behind `add(contentsOf:)`, off the main actor.
@@ -412,32 +349,18 @@ final class GameLibrary: ObservableObject {
                 continue
             }
 
-            // A BIOS file is filed into the BIOS folder, not the library.
-            // A name match alone makes it a BIOS attempt: a misnamed game
-            // must keep working as a game, but a file with a BIOS's name
-            // must never land in the grid — a bad BIOS as a game tile can
-            // only fail to launch. Only a hash-verified file lands where
-            // the cores look.
-            if let wanted = biosFiles[name.lowercased()] {
-                let size = Self.fileSize(at: url)
-                let hash = size == wanted.size ? Self.md5(of: url) : nil
-                if size == wanted.size, hash == wanted.md5 {
-                    do {
-                        try fm.createDirectory(at: biosFolder, withIntermediateDirectories: true)
-                        let destination = biosFolder.appendingPathComponent(name.lowercased())
-                        if fm.fileExists(atPath: destination.path) {
-                            try fm.removeItem(at: destination)
-                        }
-                        try fm.copyItem(at: url, to: destination)
-                        summary.bios.append(name)
-                    } catch {
-                        NSLog("[Cassowary] could not file BIOS \(name): \(error.localizedDescription)")
-                        summary.failed.append(name)
-                    }
-                } else {
-                    NSLog("[Cassowary] BIOS candidate \(name) failed check (size \(String(describing: size)) hash \(hash ?? "unreadable"))")
-                    summary.biosInvalid.append(name)
-                }
+            // A BIOS goes to the BIOS folder, never the game grid.
+            switch BIOSCatalog.file(url, signatures: biosFiles, into: biosFolder) {
+            case .notBIOS:
+                break
+            case .filed:
+                summary.bios.append(name)
+                continue
+            case .invalid:
+                summary.biosInvalid.append(name)
+                continue
+            case .failed:
+                summary.failed.append(name)
                 continue
             }
 
@@ -473,18 +396,29 @@ final class GameLibrary: ObservableObject {
         return summary
     }
 
-    /// The lowercase names of the files a .cue sheet lists, from its
-    /// `FILE "name" BINARY` lines. Cue sheets are a few lines of text; a file
+    /// Files that list other files: a .cue its tracks, an .m3u its discs.
+    private nonisolated static let sheetExtensions: Set<String> = ["cue", "m3u"]
+
+    /// The lowercase names of the files a .cue sheet or .m3u playlist lists.
+    /// A .cue names them on `FILE "name" BINARY` lines; an .m3u puts one per
+    /// line, with `#` starting a comment. Both are a few lines of text; a file
     /// too big to be one is skipped rather than read.
-    private nonisolated static func filesReferenced(byCue url: URL) -> [String] {
+    private nonisolated static func filesReferenced(bySheet url: URL) -> [String] {
         guard let size = fileSize(at: url), size < 64 * 1024,
               let data = try? Data(contentsOf: url) else {
             return []
         }
         let text = String(decoding: data, as: UTF8.self)
+        let isPlaylist = url.pathExtension.lowercased() == "m3u"
 
         return text.split(whereSeparator: \.isNewline).compactMap { line in
             let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if isPlaylist {
+                guard !trimmed.isEmpty, !trimmed.hasPrefix("#") else { return nil }
+                let fileName = (trimmed as NSString).lastPathComponent.lowercased()
+                return fileName.isEmpty ? nil : fileName
+            }
+
             guard trimmed.uppercased().hasPrefix("FILE ") else { return nil }
             let rest = trimmed.dropFirst(5).trimmingCharacters(in: .whitespaces)
 
@@ -505,17 +439,8 @@ final class GameLibrary: ObservableObject {
         }
     }
 
-    /// The size of a file, or nil when it cannot be read. Only used to match
-    /// a dropped file against the BIOS list before hashing it.
+    /// The size of a file, or nil when it cannot be read.
     private nonisolated static func fileSize(at url: URL) -> UInt64? {
         (try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? NSNumber)?.uint64Value
-    }
-
-    /// The lowercase MD5 hex of a file's contents, or nil when it cannot be
-    /// read. BIOS files are small; this only runs after a name-and-size
-    /// match, never on a whole disc image.
-    private nonisolated static func md5(of url: URL) -> String? {
-        guard let data = try? Data(contentsOf: url) else { return nil }
-        return Insecure.MD5.hash(data: data).map { String(format: "%02x", $0) }.joined()
     }
 }

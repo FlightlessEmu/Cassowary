@@ -556,41 +556,55 @@ struct LibraryView: View {
         }
     }
 
-    /// The BIOS banner for a system that needs BIOS files: what is present,
-    /// what is missing, and a button that takes a BIOS drop or file pick.
-    /// BIOS files dropped anywhere are recognized by name and contents, so
-    /// this button is a shortcut for the same path, not a second one.
+    /// The BIOS banner for a system whose cores ask for BIOS files: ready,
+    /// or what to add, with a button that takes a BIOS file pick. BIOS files
+    /// dropped anywhere are recognized by name and contents, so the button
+    /// is a shortcut for the same path, not a second one.
     @ViewBuilder
     private func biosBanner(for target: LibrarySelection) -> some View {
-        if case .system(let id) = target {
-            let status = GameLibrary.biosStatus(forSystemIdentifier: id)
-            if !status.isEmpty {
-                let missing = status.filter { !$0.present }
-                HStack(spacing: 10) {
-                    Image(systemName: missing.isEmpty ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
-                        .foregroundStyle(missing.isEmpty ? Color.green : Color.orange)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(missing.isEmpty ? "BIOS ready" : "BIOS needed to play \(detailTitle(for: target))")
-                            .font(.subheadline).bold()
-                        Text(missing.isEmpty
-                             ? status.map(\.name).joined(separator: ", ")
-                             : "Missing: \(missing.map(\.name).joined(separator: ", ")). Drop the file here or use Add BIOS.")
-                            .font(.caption)
-                            .foregroundStyle(Color.secondary)
-                    }
-                    Spacer()
-                    if !missing.isEmpty {
-                        Button("Add BIOS…") { showFileImporter = true }
-                            .buttonStyle(.borderedProminent)
-                            .controlSize(.small)
-                    }
+        if case .system(let id) = target,
+           let requirement = BIOSCatalog.requirement(forSystemIdentifier: id),
+           !requirement.required.isEmpty {
+            HStack(spacing: 10) {
+                Image(systemName: requirement.isReady ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
+                    .foregroundStyle(requirement.isReady ? Color.green : Color.orange)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(requirement.isReady ? "BIOS ready" : "BIOS needed to play \(detailTitle(for: target))")
+                        .font(.subheadline).bold()
+                    Text(Self.biosDetail(for: requirement))
+                        .font(.caption)
+                        .foregroundStyle(Color.secondary)
                 }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
-                .background(.thinMaterial)
-                Divider()
+                Spacer()
+                if !requirement.isReady {
+                    Button("Add BIOS…") { showFileImporter = true }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+                }
             }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .background(.thinMaterial)
+            Divider()
         }
+    }
+
+    /// The banner's second line: which files are in, or what to add.
+    private static func biosDetail(for requirement: BIOSRequirement) -> String {
+        let present = requirement.present.map(\.name).joined(separator: ", ")
+        if requirement.isReady {
+            // A regional set with a region missing still plays everything
+            // else; say which files are in, and what else would help.
+            if requirement.isRegional, !requirement.missing.isEmpty {
+                return "\(present). Other regions' games need their own: \(requirement.missing.map(\.name).joined(separator: ", "))."
+            }
+            return present
+        }
+        let missing = requirement.missing.map(\.name).joined(separator: ", ")
+        if requirement.isRegional {
+            return "Add one for your games' region: \(missing). Drop it here or use Add BIOS."
+        }
+        return "Missing: \(missing). Drop the file here or use Add BIOS."
     }
 
     /// Shown over the library while a file is held above it.
