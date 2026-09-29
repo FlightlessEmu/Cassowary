@@ -24,6 +24,7 @@
 // THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #import <Foundation/Foundation.h>
+#import <TargetConditionals.h>
 #import <string.h>
 #import <limits.h>
 #import <mach-o/dyld.h>
@@ -277,12 +278,27 @@ void oeRetroAchievementsServerCall(const rc_api_request_t *request,
     }
 
     // RA expects an identifying User-Agent so they can correlate traffic to the host app.
-    // Format: OpenEmu-Silicon/<host-version> (macOS <os-version>) rcheevos/<...> <Core>/<ver>
+    // Format: <product>/<host-version> (<os-name> <os-version>) rcheevos/<...> <Core>/<ver>
+    // Cassowary names itself rather than borrowing OpenEmu-Silicon's
+    // approval: RA decides per client whether hardcore unlocks count.
     NSString *hostVersion = OEHostAppVersion();
     NSOperatingSystemVersion osv = [[NSProcessInfo processInfo] operatingSystemVersion];
     NSString *osVersion = [NSString stringWithFormat:@"%ld.%ld.%ld", (long)osv.majorVersion, (long)osv.minorVersion, (long)osv.patchVersion];
-    NSString *userAgent = [NSString stringWithFormat:@"OpenEmu-Silicon/%@ (macOS %@) %@%@",
-                            hostVersion, osVersion, [NSString stringWithUTF8String:rcClause], coreSuffix];
+#if TARGET_OS_MACCATALYST
+    NSString *product = @"Cassowary";
+    NSString *osName = @"macOS";
+#elif TARGET_OS_TV
+    NSString *product = @"Cassowary";
+    NSString *osName = @"tvOS";
+#elif TARGET_OS_IPHONE
+    NSString *product = @"Cassowary";
+    NSString *osName = @"iOS";
+#else
+    NSString *product = @"OpenEmu-Silicon";
+    NSString *osName = @"macOS";
+#endif
+    NSString *userAgent = [NSString stringWithFormat:@"%@/%@ (%@ %@) %@%@",
+                            product, hostVersion, osName, osVersion, [NSString stringWithUTF8String:rcClause], coreSuffix];
     [urlRequest setValue:userAgent forHTTPHeaderField:@"User-Agent"];
 
     if (request->post_data) {

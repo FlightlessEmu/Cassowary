@@ -174,20 +174,24 @@ struct TVPlayerView: View {
                 .focused($menuFocus, equals: .resume)
 
             if let session {
-                Button("Save State") {
-                    session.saveState { result in
-                        report(result, success: "Saved")
-                    }
-                }
-                .focused($menuFocus, equals: .saveState)
-
-                if session.hasSaveState {
-                    Button("Load State") {
-                        session.loadState { result in
-                            report(result, success: "Loaded")
+                // Hardcore turns save states off. The TV has no sign-in
+                // screen, so this only matters if it ever gains one.
+                if !session.raHardcoreActive {
+                    Button("Save State") {
+                        session.saveState { result in
+                            report(result, success: "Saved")
                         }
                     }
-                    .focused($menuFocus, equals: .loadState)
+                    .focused($menuFocus, equals: .saveState)
+
+                    if session.hasSaveState {
+                        Button("Load State") {
+                            session.loadState { result in
+                                report(result, success: "Loaded")
+                            }
+                        }
+                        .focused($menuFocus, equals: .loadState)
+                    }
                 }
 
                 Button("Reset") {

@@ -72,6 +72,18 @@ final class GameSession: NSObject {
     /// The display name of the core running this game, for the UI.
     let coreDisplayName: String
 
+    /// The live RetroAchievements state of this game: unlocks, the game's
+    /// achievement list, and challenge/leaderboard indicators. Fed by the
+    /// owner callbacks below on the main thread.
+    let raState = RetroAchievementsSessionState()
+
+    /// Whether this session is playing hardcore: signed in with the toggle
+    /// on. Save states, rewind, and cheats stay off while this is true.
+    var raHardcoreActive: Bool { raCredentials.isSignedIn && raHardcoreOn }
+
+    private var raCredentials = RetroAchievementsCredentials()
+    private var raHardcoreOn = true
+
     /// The system's on-screen controls, once they have been read.
     var layout: ControllerLayout?
 
@@ -230,11 +242,18 @@ final class GameSession: NSObject {
         // knows on both.
         OEiOSGameControllerManager.shared.start()
 
-        // The macOS app drives this from its RetroAchievements preferences. The
-        // iOS app has no such screen yet, so hardcore mode is off: without it
-        // the core refuses to load save states, which is surprising when there
-        // is no achievement UI to explain why.
-        helper.setHardcoreEnabled(false)
+        // RetroAchievements plays when the player is signed in: hand the
+        // helper the saved token (or nothing) and the hardcore pick. Signed
+        // out, hardcore stays off — without it the core would refuse save
+        // states with no achievement UI to explain why.
+        raCredentials = RetroAchievementsCredentialStore.load()
+        raHardcoreOn = RetroAchievementsCredentialStore.hardcoreEnabled
+        if raCredentials.isSignedIn {
+            helper.setRetroAchievementsToken(raCredentials.token, username: raCredentials.username)
+        } else {
+            helper.setRetroAchievementsToken(nil, username: nil)
+        }
+        helper.setHardcoreEnabled(raHardcoreActive)
 
         helper.setupEmulation { [weak self] _, _ in
             // The view can ask to stop before the core has finished coming up.
@@ -290,6 +309,7 @@ final class GameSession: NSObject {
         OEiOSGameControllerManager.shared.stop()
         rumble.stop()
         detachBindings()
+        raState.reset()
 
         stopCompletions.append(completionHandler)
 
@@ -304,6 +324,26 @@ final class GameSession: NSObject {
                 self.stopCompletions.removeAll()
                 completions.forEach { $0() }
             }
+        }
+    }
+
+    // MARK: - RetroAchievements
+
+    /// Ask RetroAchievements whether the game may pause right now.
+    ///
+    /// Outside hardcore this always allows. In hardcore, pausing too often
+    /// can be a slow-motion cheat, so the server gets a say; when it says
+    /// no, the game keeps running, and the handler gets roughly how many
+    /// seconds until a pause is allowed (0 when the server didn't say).
+    func canPauseHardcore(completionHandler: @escaping (_ allowed: Bool, _ secondsToWait: Int) -> Void) {
+        guard raHardcoreActive else {
+            completionHandler(true, 0)
+            return
+        }
+        helper.canPauseRetroAchievementsHardcore { allowed, framesRemaining in
+            // The server counts in frames; most systems run near 60 a second.
+            let seconds = Int((Double(framesRemaining) / 60).rounded(.up))
+            completionHandler(allowed, seconds)
         }
     }
 

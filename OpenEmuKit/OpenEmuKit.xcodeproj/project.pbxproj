@@ -30,6 +30,10 @@
 		05E6BA5524CCD9A000ACFB35 /* OpenEmuShaders.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 05E6BA5424CCD9A000ACFB35 /* OpenEmuShaders.framework */; settings = {ATTRIBUTES = (Weak, ); }; };
 		DD75EE5D298976C60056B3BA /* MTL3DGameRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD75EE5C298976C60056B3BA /* MTL3DGameRenderer.swift */; };
 		OE0RA0KITBUILDFILE000000001 /* OERetroAchievementsConstants.swift in Sources */ = {isa = PBXBuildFile; fileRef = OE0RA0KITFILEREF000000001 /* OERetroAchievementsConstants.swift */; };
+		OE0RA0KITBUILDFILE000000002 /* OERetroAchievementsTransport.m in Sources */ = {isa = PBXBuildFile; fileRef = OE0RA0KITFILEREF000000002 /* OERetroAchievementsTransport.m */; };
+		OE0RA0KITBUILDFILE000000003 /* OERetroAchievementsLoginClient.m in Sources */ = {isa = PBXBuildFile; fileRef = OE0RA0KITFILEREF000000003 /* OERetroAchievementsLoginClient.m */; };
+		OE0RA0KITBUILDFILE000000004 /* rcheevos_build.c in Sources */ = {isa = PBXBuildFile; fileRef = OE0RA0KITFILEREF000000004 /* rcheevos_build.c */; settings = {COMPILER_FLAGS = "-DRC_NO_THREADS=1 -DRC_CLIENT_SUPPORTS_HASH=1"; }; };
+		OE0RA0KITBUILDFILE000000005 /* OERetroAchievementsLoginClient.h in Headers */ = {isa = PBXBuildFile; fileRef = OE0RA0KITFILEREF000000005 /* OERetroAchievementsLoginClient.h */; settings = {ATTRIBUTES = (Public, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -78,6 +82,11 @@
 		05EEF1032707CA7A008A03DC /* XCTest.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = XCTest.framework; path = Platforms/MacOSX.platform/Developer/Library/Frameworks/XCTest.framework; sourceTree = DEVELOPER_DIR; };
 		DD75EE5C298976C60056B3BA /* MTL3DGameRenderer.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MTL3DGameRenderer.swift; sourceTree = "<group>"; };
 		OE0RA0KITFILEREF000000001 /* OERetroAchievementsConstants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OERetroAchievementsConstants.swift; sourceTree = "<group>"; };
+		OE0RA0KITFILEREF000000002 /* OERetroAchievementsTransport.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = OERetroAchievementsTransport.m; sourceTree = "<group>"; };
+		OE0RA0KITFILEREF000000003 /* OERetroAchievementsLoginClient.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = OERetroAchievementsLoginClient.m; sourceTree = "<group>"; };
+		OE0RA0KITFILEREF000000004 /* rcheevos_build.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = rcheevos_build.c; path = ../Vendor/rcheevos/rcheevos_build.c; sourceTree = SOURCE_ROOT; };
+		OE0RA0KITFILEREF000000005 /* OERetroAchievementsLoginClient.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = OERetroAchievementsLoginClient.h; sourceTree = "<group>"; };
+		OE0RA0KITFILEREF000000006 /* OERetroAchievementsTransport.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = OERetroAchievementsTransport.h; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -200,6 +209,11 @@
 				0572A427287BAF9300AC32F8 /* OEGameCoreHelper.swift */,
 				0572A425287B969500AC32F8 /* OEGameCoreOwner.swift */,
 				OE0RA0KITFILEREF000000001 /* OERetroAchievementsConstants.swift */,
+				OE0RA0KITFILEREF000000002 /* OERetroAchievementsTransport.m */,
+				OE0RA0KITFILEREF000000003 /* OERetroAchievementsLoginClient.m */,
+				OE0RA0KITFILEREF000000004 /* rcheevos_build.c */,
+				OE0RA0KITFILEREF000000005 /* OERetroAchievementsLoginClient.h */,
+				OE0RA0KITFILEREF000000006 /* OERetroAchievementsTransport.h */,
 			);
 			name = "Game Core Helper Protocols";
 			sourceTree = "<group>";
@@ -270,6 +284,7 @@
 			isa = PBXHeadersBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				OE0RA0KITBUILDFILE000000005 /* OERetroAchievementsLoginClient.h in Headers */,
 				05E6958424CA5D4200ACFB35 /* OpenEmuKit.h in Headers */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -401,6 +416,9 @@
 				0572A4132878D76C00AC32F8 /* GameRenderer.swift in Sources */,
 				05BC69C729590DC400D2C38F /* GameAudio2.swift in Sources */,
 				OE0RA0KITBUILDFILE000000001 /* OERetroAchievementsConstants.swift in Sources */,
+				OE0RA0KITBUILDFILE000000002 /* OERetroAchievementsTransport.m in Sources */,
+				OE0RA0KITBUILDFILE000000003 /* OERetroAchievementsLoginClient.m in Sources */,
+				OE0RA0KITBUILDFILE000000004 /* rcheevos_build.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -464,6 +482,10 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
+				HEADER_SEARCH_PATHS = (
+					"$(SRCROOT)/../Vendor/rcheevos/include",
+					"$(SRCROOT)/../Vendor/rcheevos/src",
+				);
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MACOSX_DEPLOYMENT_TARGET = 12.0;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
@@ -531,6 +553,10 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
+				HEADER_SEARCH_PATHS = (
+					"$(SRCROOT)/../Vendor/rcheevos/include",
+					"$(SRCROOT)/../Vendor/rcheevos/src",
+				);
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MACOSX_DEPLOYMENT_TARGET = 12.0;
 				MTL_ENABLE_DEBUG_INFO = NO;

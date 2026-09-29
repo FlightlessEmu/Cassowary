@@ -105,4 +105,39 @@ extension GameSession: OEGameCoreOwner {
 
     func nextDisplayMode() { }
     func lastDisplayMode() { }
+
+    // MARK: - RetroAchievements
+
+    /// An achievement was earned. The helper calls this on whatever thread
+    /// the emulator posts on, so hop to the main actor before touching
+    /// the session state the views read.
+    nonisolated func achievementUnlocked(id: UInt32, title: String, description: String, badgeURL: String, points: UInt32) {
+        Task { @MainActor [weak self] in
+            self?.raState.unlocked(id: id, title: title, description: description, badgeURL: badgeURL, points: points)
+        }
+    }
+
+    /// The loaded game's achievement metadata changed: first identification
+    /// and after each unlock.
+    nonisolated func retroAchievementsSessionUpdated(_ info: [String: Any]) {
+        Task { @MainActor [weak self] in
+            self?.raState.sessionUpdated(info)
+        }
+    }
+
+    /// A gameplay event: challenge or progress indicator, leaderboard
+    /// tracker or scoreboard, mastery, or a server connection change.
+    nonisolated func retroAchievementsEvent(_ info: [String: Any]) {
+        Task { @MainActor [weak self] in
+            self?.raState.event(info)
+        }
+    }
+
+    /// RetroAchievements does not recognize this client yet, so hardcore
+    /// unlocks land as softcore. One notice per game.
+    nonisolated func retroAchievementsEmulatorUnrecognized() {
+        Task { @MainActor [weak self] in
+            self?.raState.emulatorUnrecognized = true
+        }
+    }
 }

@@ -209,6 +209,18 @@ struct SettingsView: View {
                 }
 
                 Section {
+                    NavigationLink {
+                        RetroAchievementsSettingsView()
+                    } label: {
+                        Label("Achievements", systemImage: "trophy")
+                    }
+                } header: {
+                    Text("RetroAchievements")
+                } footer: {
+                    Text("Sign in with a free retroachievements.org account to earn achievements and leaderboards in supported cores.")
+                }
+
+                Section {
                     ForEach(catalog.systems) { system in
                         NavigationLink {
                             SystemCoresView(catalog: catalog, shaderCatalog: shaderCatalog, upscalingOptions: upscalingOptions, systemID: system.id)
@@ -534,6 +546,19 @@ struct AboutView: View {
                 .padding(.vertical, 2)
             } header: {
                 Text("Artwork")
+            }
+
+            Section {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("RetroAchievements")
+                        .font(.headline)
+                    Text("Achievements, leaderboards, and rich presence come from RetroAchievements (retroachievements.org) through its rcheevos client library. Progress earned while signed in is reported to their servers under their terms.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.vertical, 2)
+            } header: {
+                Text("Achievements")
             }
 
             Section {
