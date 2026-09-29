@@ -343,13 +343,15 @@ bool LoadGame(const char* path)
   retro_get_system_av_info(&s_av_info);
   s_have_av_info = true;
 
-  // The core boots whatever pad the frontend asks for. Analog is the safe
-  // default: every PlayStation game understands an analog pad, and the sticks
-  // only matter to games that ask for them. (The core's own name for this
-  // device is RETRO_DEVICE_PS_DUALSHOCK, which is this same value with
-  // subclass 0.)
-  SetControllerPortDevice(0, RETRO_DEVICE_ANALOG);
-  SetControllerPortDevice(1, RETRO_DEVICE_ANALOG);
+  // The core boots whatever pad the frontend asks for. A DualShock is the safe
+  // default: it starts in digital mode, which every game understands, and the
+  // sticks only matter to games that ask for them. The core only knows its
+  // own device ids, so it has to be asked for by the subclass value
+  // (RETRO_DEVICE_PS_DUALSHOCK). Plain RETRO_DEVICE_ANALOG is not one of them,
+  // and the core plugs in no controller at all for it.
+  const unsigned dualshock = RETRO_DEVICE_SUBCLASS(RETRO_DEVICE_ANALOG, 0);
+  SetControllerPortDevice(0, dualshock);
+  SetControllerPortDevice(1, dualshock);
 
   return true;
 }
