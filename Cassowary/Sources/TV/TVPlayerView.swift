@@ -52,6 +52,10 @@ struct TVPlayerView: View {
     let onClose: () -> Void
 
     @State private var session: GameSession?
+    @StateObject private var controllerMenuInput = ControllerMenuInput()
+    @State private var buttonTap: Task<Void, Never>?
+    @State private var tappedButton: String?
+    @State private var menuButtonHorizontalPadding: CGFloat = 0
     @State private var leftActive = false
     @State private var errorMessage: String?
     @State private var notice: String?
@@ -94,7 +98,7 @@ struct TVPlayerView: View {
     @FocusState private var stateFocus: StateFocus?
 
     private enum MenuFocus: Hashable {
-        case resume, saveState, states, reset, filter, video, close
+        case resume, start, select, saveState, states, reset, filter, video, close
     }
 
     private enum FilterFocus: Hashable {
@@ -180,6 +184,7 @@ struct TVPlayerView: View {
             stopGame()
         }
         .onExitCommand {
+            guard !controllerMenuInput.shouldIgnoreExit else { return }
             // Back walks one level at a time: out of the filter or video list
             // to the menu, out of the menu to the game. Closing the game stays
             // a button on the menu, so a stray press can never throw a
@@ -240,13 +245,34 @@ struct TVPlayerView: View {
         .defaultFocus($menuFocus, .resume)
     }
 
-    /// The menu's buttons, one above the other: resume, save, save states,
-    /// reset, filter, video, close. A column fits the remote's up and down
-    /// and never runs off the edge of the screen the way a row of seven did.
+    /// The menu's buttons, one above the other. A column fits the remote's
+    /// up and down; Start and Select appear only when the system has them.
     private var menuButtons: some View {
         VStack(spacing: 14) {
             menuButton("Resume", systemImage: "play.fill") { closeMenu() }
                 .focused($menuFocus, equals: .resume)
+                .onGeometryChange(for: CGFloat.self) { geometry in
+                    max(0, geometry.size.width - 520)
+                } action: { menuButtonHorizontalPadding = $0 }
+
+            if menuButtonID(containing: "Start") != nil || menuButtonID(containing: "Select") != nil {
+                // Account for each button's tvOS padding so this row matches Resume.
+                HStack(spacing: 14) {
+                    if let button = menuButtonID(containing: "Start") {
+                        menuButton("Press Start", systemImage: nil, width: (520 - menuButtonHorizontalPadding - 14) / 2) {
+                            tapButton(named: button)
+                        }
+                        .focused($menuFocus, equals: .start)
+                    }
+                    if let button = menuButtonID(containing: "Select") {
+                        menuButton("Press Select", systemImage: nil, width: (520 - menuButtonHorizontalPadding - 14) / 2) {
+                            tapButton(named: button)
+                        }
+                        .focused($menuFocus, equals: .select)
+                    }
+                }
+                .frame(width: 520 + menuButtonHorizontalPadding, alignment: .leading)
+            }
 
             if let session {
                 // Hardcore turns save states off. The TV has no sign-in
@@ -289,18 +315,23 @@ struct TVPlayerView: View {
 
     private func menuButton(_ title: String,
                             detail: String? = nil,
-                            systemImage: String,
+                            systemImage: String?,
                             tint: Color? = nil,
+                            width: CGFloat = 520,
                             action: @escaping () -> Void) -> some View {
         // Red text rather than a destructive role: tvOS fills a destructive
         // button red and draws its title red too, which cannot be read.
         Button(action: action) {
             HStack(spacing: 18) {
-                Image(systemName: systemImage)
-                    .font(.system(size: 26, weight: .semibold))
-                    .frame(width: 36)
+                if let systemImage {
+                    Image(systemName: systemImage)
+                        .font(.system(size: 26, weight: .semibold))
+                        .frame(width: 36)
+                }
                 Text(title)
                     .font(.headline)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
                 Spacer(minLength: 20)
                 if let detail {
                     Text(detail)
@@ -310,7 +341,7 @@ struct TVPlayerView: View {
                 }
             }
             .foregroundStyle(tint ?? .primary)
-            .frame(width: 520, alignment: .leading)
+            .frame(width: width, alignment: .leading)
             .padding(.vertical, 6)
         }
     }
@@ -525,7 +556,9 @@ struct TVPlayerView: View {
     private var hintBanner: some View {
         Group {
             if showsHint, !isMenuOpen, errorMessage == nil {
-                Text("Press Back for options")
+                Text(controllerMenuInput.hasGamepad
+                     ? "Hold Menu or press Back on the remote for options"
+                     : "Click to press A · Play/Pause is B · Back for the menu")
                     .font(.callout)
                     .padding(.horizontal, 20)
                     .padding(.vertical, 10)
@@ -602,6 +635,7 @@ struct TVPlayerView: View {
                     }
                 }
             }
+            controllerMenuInput.start(session: session) { openMenu() }
             // The filter and upscaling switches remembered for this system.
             // Shared with the phone player: see `VideoSettings`.
             shaderName = shaderCatalog.resolvedShaderName(forSystem: systemID)
@@ -704,6 +738,8 @@ struct TVPlayerView: View {
     /// finished stopping, so nothing can start a second core on top of the one
     /// that is still winding down.
     private func stopGame() {
+        controllerMenuInput.stop()
+        cancelButtonTap()
         guard let session else { return }
         session.stop {
             self.session = nil
@@ -717,6 +753,9 @@ struct TVPlayerView: View {
     /// chosen, which is what made the old control row look selected but do
     /// nothing.
     private func openMenu() {
+        guard !isMenuOpen, !didClose, session != nil else { return }
+        controllerMenuInput.menuDidOpen()
+        cancelButtonTap()
         hideHint?.cancel()
         showsHint = false
         session?.setPaused(true)
@@ -747,6 +786,33 @@ struct TVPlayerView: View {
         withAnimation(.easeInOut(duration: 0.2)) { isMenuOpen = false }
         session?.setPaused(false)
         ControllerCapture.setInterfaceActive(false)
+        controllerMenuInput.setGameplayActive(true)
+    }
+
+    private func menuButtonID(containing name: String) -> String? {
+        session?.layout?.allButtons.first { $0.id.contains(name) }?.id
+    }
+
+    private func tapButton(named name: String) {
+        guard let session else { return }
+        cancelButtonTap()
+        closeMenu()
+        tappedButton = name
+        session.pressButton(named: name)
+        buttonTap = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(150))
+            guard !Task.isCancelled else { return }
+            session.releaseButton(named: name)
+            tappedButton = nil
+            buttonTap = nil
+        }
+    }
+
+    private func cancelButtonTap() {
+        buttonTap?.cancel()
+        buttonTap = nil
+        if let tappedButton { session?.releaseButton(named: tappedButton) }
+        tappedButton = nil
     }
 
     /// Shows the filter list in place of the menu's buttons. The current
@@ -925,6 +991,7 @@ struct TVPlayerView: View {
     private func saveBeforeLeaving() {
         guard !didClose, let session, session.isRunning else { return }
         leftActive = true
+        controllerMenuInput.setGameplayActive(false)
         session.setPaused(true)
         if session.raHardcoreActive {
             fileSavesAndRecordPlay()
@@ -948,6 +1015,8 @@ struct TVPlayerView: View {
         // finishes the close, and only the first one counts.
         guard !didClose else { return }
         didClose = true
+        controllerMenuInput.stop()
+        cancelButtonTap()
         // Nothing ran, nothing to save: closing before the core started goes
         // straight out. Hardcore refuses save states, so it does too.
         if let session, session.isRunning, !session.raHardcoreActive {

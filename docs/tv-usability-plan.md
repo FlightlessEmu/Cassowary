@@ -24,7 +24,7 @@ the surrounding code: comments explain *why*, one short paragraph at most.
 
 ---
 
-## WP1 — A game left with the TV button is saved and synced
+## WP1 — Done. A game left with the TV button is saved and synced
 
 **The bug.** Everything that protects a session lives in the Close Game
 button (`TVPlayerView.close()` → `finishClose()` → `TVStore.finishPlaying`).
@@ -71,7 +71,7 @@ If tvOS then ends the app, the session is lost.
 
 ---
 
-## WP2 — The Siri Remote plays simple games, and Back always escapes
+## WP2 — Done. The Siri Remote plays simple games, and Back always escapes
 
 **Today.** The engine ignores the Siri Remote: `OEiOSGameControllerManager`
 only bridges extended gamepads ("not an extended gamepad; ignored"). That is
@@ -84,16 +84,18 @@ have a way to reach the menu without the remote.
 
 **What to build.**
 
-1. `OpenEmu-SDK/OpenEmuSystem/OEiOSGameControllerManager.m`, tvOS only
-   (`#if TARGET_OS_TV`): bridge a controller that has a `microGamepad` and no
-   `extendedGamepad` (the Siri Remote) as a device of its own:
-   - `dpad` up/down/left/right → the DPad controls (set
-     `reportsAbsoluteDpadValues = NO` and `allowsRotation = YES`, so the
-     remote works held sideways);
-   - `buttonA` (clicking the touch surface) → ButtonA;
-   - `buttonX` (Play/Pause) → ButtonB;
-   - `buttonMenu` is **not** bound. Leave it to the app.
-   Unbind it on disconnect the same way extended pads are unbound.
+1. The remote drives the game from the TV app, the way the phone's
+   on-screen buttons do, so it and a gamepad are **both player 1** (decided
+   by the maintainer; the engine is not changed). While a game plays and
+   the menu is closed, the Siri Remote's `microGamepad` presses the game's
+   buttons through `GameSession.press/release`, using the keys a gamepad's
+   controls map to in `session.layout.gamepadControls`:
+   - `dpad` up/down/left/right → the d-pad (`reportsAbsoluteDpadValues = NO`
+     and `allowsRotation = YES`, so the remote works held sideways);
+   - `buttonA` (clicking the touch surface) → what gamepad A presses;
+   - `buttonX` (Play/Pause) → what gamepad B presses;
+   - `buttonMenu` is left to the app.
+   Held keys are released when the menu opens or the game stops.
 2. Opening the menu while a game has the controller (`TVPlayerView`, and a
    small helper next to `ControllerCapture` if that is cleaner):
    - Siri Remote: `microGamepad.buttonMenu.pressedChangedHandler` opens the
@@ -106,8 +108,8 @@ have a way to reach the menu without the remote.
      it opens the menu too.
    - Attach these while a game plays and remove them when it stops. Handle
      controllers that connect mid-game (`GCControllerDidConnect`).
-3. The game menu gets two rows under Resume, shown only for systems whose
-   layout has them: **Press Start** and **Press Select**. Each closes the
+3. The game menu gets a row under Resume, shown only for systems whose
+   layout has them: **Press Start** and **Press Select**, side by side. Each closes the
    menu, then taps that button (press, ~150 ms, release) through the same
    path `GameSession.pressButton(named:)` uses. Find the buttons in
    `session.layout` by id containing "Start" / "Select".
