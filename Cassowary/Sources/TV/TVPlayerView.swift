@@ -23,6 +23,7 @@
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import SwiftUI
+import UIKit
 import Metal
 import OpenEmuBase
 import OpenEmuSystem
@@ -51,6 +52,7 @@ struct TVPlayerView: View {
     let onClose: () -> Void
 
     @State private var session: GameSession?
+    @State private var leftActive = false
     @State private var errorMessage: String?
     @State private var notice: String?
     /// The game's menu is open. Back opens it and closes it again.
@@ -164,6 +166,15 @@ struct TVPlayerView: View {
         .overlay(alignment: .bottom) { hintBanner }
         .overlay(alignment: .bottom) { noticeBanner }
         .task { startGame() }
+        // UIKit hosts this view, so its notifications tell us when the app leaves.
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)) { _ in
+            saveBeforeLeaving()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
+            guard leftActive else { return }
+            leftActive = false
+            openMenu()
+        }
         .onDisappear {
             hideHint?.cancel()
             stopGame()
@@ -745,7 +756,7 @@ struct TVPlayerView: View {
         menuFocus = nil
         withAnimation(.easeInOut(duration: 0.2)) { showingFilters = true }
         Task { @MainActor in
-            filterFocus = shaderName.map(FilterFocus.shader) ?? .none
+            filterFocus = shaderName.map(FilterFocus.shader) ?? FilterFocus.none
         }
     }
 
@@ -909,6 +920,26 @@ struct TVPlayerView: View {
             }
         }
         closeFilters()
+    }
+
+    private func saveBeforeLeaving() {
+        guard !didClose, let session, session.isRunning else { return }
+        leftActive = true
+        session.setPaused(true)
+        if session.raHardcoreActive {
+            fileSavesAndRecordPlay()
+        } else {
+            session.saveState(in: SaveKind.autosave) { _ in
+                self.fileSavesAndRecordPlay()
+            }
+        }
+    }
+
+    private func fileSavesAndRecordPlay() {
+        let store = TVStore.shared
+        store.fileSessionSaves(game)
+        store.recordPlay(game)
+        Task { await store.syncNow() }
     }
 
     private func close() {

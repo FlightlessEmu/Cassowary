@@ -297,6 +297,21 @@ if [[ "$MODE" != host ]]; then
     fi
   fi
 
+  # Only a fresh autosave counts: an earlier run may have left one here.
+  touch "$SHOTS/tv-background"
+  if xcrun simctl launch "$TV_UDID" com.apple.TVSettings >/dev/null; then
+    sleep 5
+    AUTOSAVES=$(find "$TV_CONTAINER/Library/Application Support/Sharing/Saves" \
+      -type f -name '*.autosave.oesavestate' -newer "$SHOTS/tv-background" 2>/dev/null || true)
+    if [[ -n "$AUTOSAVES" ]]; then
+      pass "backgrounding the Apple TV filed an autosave in its save vault"
+    else
+      fail "backgrounding the Apple TV left no fresh autosave in its save vault"
+    fi
+  else
+    fail "could not launch TV Settings to check background autosaving"
+  fi
+
   print -- ""
   print -- "screenshots in $SHOTS"
 fi

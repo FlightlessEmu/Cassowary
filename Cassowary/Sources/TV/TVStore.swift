@@ -117,6 +117,8 @@ final class TVStore: ObservableObject {
     private var host: MediaHost?
     private var syncTask: Task<Void, Never>?
     private var reconnectTask: Task<Void, Never>?
+    private var playingGameID: String?
+    private var recordedPlay = false
     /// Set when the person disconnects or forgets a source on purpose, so the
     /// reconnect loop does not drag them straight back in.
     private var autoReconnectPaused = false
@@ -140,6 +142,13 @@ final class TVStore: ObservableObject {
     func start() {
         browser.start()
         importBundledDemos()
+        // A killed app may have left newer saves in the disposable cache.
+        // One scan after filing them all: a scan per game is slow with a big
+        // library.
+        for game in games where game.isDownloaded {
+            fileSessionSaves(game, scan: false)
+        }
+        _ = SaveStore.scan(games: locations)
         startReconnectLoop()
 
         // Reconnect to the last phone by itself when it shows up again.
@@ -642,6 +651,8 @@ final class TVStore: ObservableObject {
     /// game opens with.
     func prepareForPlay(_ game: LocalGame) {
         guard let rom = playableURL(for: game) else { return }
+        playingGameID = game.id
+        recordedPlay = false
         for kind in SaveKind.allStateKinds {
             stageVaultFile(stateURL(gameID: game.id, kind: kind),
                            to: SaveStore.saveStateURL(for: rom, kind: kind))
@@ -664,6 +675,15 @@ final class TVStore: ObservableObject {
     /// Takes the save states back to the vault, records the session, and
     /// hands everything to the phone.
     func finishPlaying(_ game: LocalGame) {
+        fileSessionSaves(game)
+        recordPlay(game)
+        Task { await syncNow() }
+    }
+
+    /// Copies this session's save states from beside the ROM into the vault.
+    /// Safe to call more than once: a vault copy newer than the one beside
+    /// the ROM (one the phone sent) is kept.
+    func fileSessionSaves(_ game: LocalGame, scan: Bool = true) {
         if let rom = playableURL(for: game) {
             for kind in SaveKind.allStateKinds {
                 fileVaultFile(SaveStore.saveStateURL(for: rom, kind: kind),
@@ -672,12 +692,22 @@ final class TVStore: ObservableObject {
             // Filing the vault copies changed what is on disk. Scan again so
             // the versions remember the new files and mark them for upload —
             // without it a session played here would never reach the phone.
-            _ = SaveStore.scan(games: locations)
+            if scan {
+                _ = SaveStore.scan(games: locations)
+            }
         }
+    }
 
+    /// Notes that the game was played, for Continue Playing and the phone.
+    /// Counts the session once however often it is called.
+    func recordPlay(_ game: LocalGame) {
+        guard playingGameID == game.id else { return }
         var info = SaveStore.loadPlayInfo(gameID: game.id)
         info.lastPlayedAt = Date()
-        info.playCount += 1
+        if !recordedPlay {
+            info.playCount += 1
+            recordedPlay = true
+        }
         SaveStore.savePlayInfo(info, gameID: game.id)
 
         if var updated = state.games[game.id] {
@@ -686,8 +716,6 @@ final class TVStore: ObservableObject {
             state.games[game.id] = updated
             saveState()
         }
-
-        Task { await syncNow() }
     }
 
     func toggleFavorite(_ game: LocalGame) {
@@ -747,6 +775,10 @@ final class TVStore: ObservableObject {
 
     private func fileVaultFile(_ beside: URL, to vault: URL) {
         guard FileManager.default.fileExists(atPath: beside.path) else { return }
+        // Repeated filing must keep a newer copy received from the phone.
+        let besideDate = try? beside.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate
+        let vaultDate = try? vault.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate
+        if let vaultDate, let besideDate, besideDate <= vaultDate { return }
         try? FileManager.default.createDirectory(at: vault.deletingLastPathComponent(),
                                                  withIntermediateDirectories: true)
         try? FileManager.default.removeItem(at: vault)
