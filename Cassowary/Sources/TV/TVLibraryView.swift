@@ -130,7 +130,8 @@ struct TVLibraryView: View {
 
             Spacer()
         }
-        .padding(.horizontal, 60)
+        // Lined up with the sidebar rows below.
+        .padding(.horizontal, 24)
         .padding(.top, 20)
     }
 
@@ -291,15 +292,12 @@ struct TVLibraryView: View {
     /// The search box, drawn as one: on its own the TV draws a text field as
     /// bare grey words that do not look like something to press.
     private var searchField: some View {
-        HStack(spacing: 12) {
-            Image(systemName: "magnifyingglass")
-                .foregroundStyle(.secondary)
-            TextField("Search Games", text: $searchText)
-                .font(.callout)
+        TextField(text: $searchText,
+                  prompt: Text(Image(systemName: "magnifyingglass")) + Text("  Search Games")) {
+            Text("Search Games")
         }
-        .padding(.leading, 22)
+        .font(.callout)
         .frame(width: 440)
-        .background(.white.opacity(0.08), in: .capsule)
     }
 
     /// Whether All Games leads with the games played most recently.

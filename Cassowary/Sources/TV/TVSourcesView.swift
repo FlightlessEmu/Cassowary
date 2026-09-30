@@ -72,6 +72,7 @@ struct TVSourcesView: View {
                             hostCard(name: host.name,
                                      detail: host.platformName == "tvos" ? "Apple TV" : "iPhone, iPad, or Mac",
                                      symbol: "checkmark.circle.fill",
+                                     symbolTint: .green,
                                      subtitle: nil)
                         }
                     }
@@ -117,7 +118,7 @@ struct TVSourcesView: View {
                         .padding(.vertical, 8)
                     }
 
-                    Text("Sharing has to be switched on in the phone's settings, and the phone has to stay open while the Apple TV uses it. The demo game that ships with the app is already in the library. A network share on your home server can be another source later.")
+                    Text("Turn on Sharing in Cassowary on your iPhone, iPad or Mac, and keep the app open while the Apple TV is using it. Games you have downloaded play here even when it is away.")
                         .font(.callout)
                         .foregroundStyle(.secondary)
                         .frame(maxWidth: 1100, alignment: .leading)
@@ -147,28 +148,33 @@ struct TVSourcesView: View {
     private func hostCard(name: String,
                           detail: String,
                           symbol: String,
+                          symbolTint: Color = .secondary,
                           subtitle: String?,
                           action: (() -> Void)? = nil) -> some View {
         let card = VStack(alignment: .leading, spacing: 14) {
             Image(systemName: symbol)
                 .font(.system(size: 44))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(symbolTint)
                 .frame(height: 56)
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(name)
                     .font(.title3.weight(.semibold))
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
                 Text(detail)
                     .font(.callout)
                     .foregroundStyle(.secondary)
                 if let subtitle {
                     Text(subtitle)
                         .font(.caption)
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(symbolTint == .green ? .green : .orange)
+                        .lineLimit(2)
                 }
             }
         }
-        .frame(width: 300, height: 200, alignment: .leading)
+        .frame(width: 420, alignment: .leading)
+        .frame(minHeight: 220, alignment: .topLeading)
         .padding(24)
         .background(.quaternary, in: .rect(cornerRadius: 24))
 

@@ -195,12 +195,21 @@ struct TVPlayerView: View {
     /// the picture.
     private var gameMenu: some View {
         ZStack {
-            Color.black.opacity(0.75).ignoresSafeArea()
+            Color.black.opacity(0.6).ignoresSafeArea()
 
-            VStack(spacing: 34) {
-                Text(game.title)
-                    .font(.title2.weight(.semibold))
-                    .foregroundStyle(.white)
+            // One panel over the picture, whatever it shows: the buttons, or
+            // the filter, video or save-state list in their place.
+            VStack(spacing: 30) {
+                VStack(spacing: 6) {
+                    Text(game.title)
+                        .font(.title2.weight(.bold))
+                        .lineLimit(1)
+                    if !game.systemName.isEmpty {
+                        Text(game.systemName)
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                    }
+                }
 
                 if showingFilters {
                     filterList
@@ -212,54 +221,86 @@ struct TVPlayerView: View {
                     menuButtons
                 }
             }
-            .padding(60)
+            .padding(.horizontal, 56)
+            .padding(.vertical, 48)
+            .background(.regularMaterial, in: .rect(cornerRadius: 44, style: .continuous))
+            .shadow(color: .black.opacity(0.5), radius: 40, y: 20)
         }
         .defaultFocus($menuFocus, .resume)
     }
 
-    /// The menu's buttons: resume, save, save states, reset, filter, video,
-    /// close.
+    /// The menu's buttons, one above the other: resume, save, save states,
+    /// reset, filter, video, close. A column fits the remote's up and down
+    /// and never runs off the edge of the screen the way a row of seven did.
     private var menuButtons: some View {
-        HStack(spacing: 24) {
-            Button("Resume") { closeMenu() }
+        VStack(spacing: 14) {
+            menuButton("Resume", systemImage: "play.fill") { closeMenu() }
                 .focused($menuFocus, equals: .resume)
 
             if let session {
                 // Hardcore turns save states off. The TV has no sign-in
                 // screen, so this only matters if it ever gains one.
                 if !session.raHardcoreActive {
-                    Button("Save State") {
+                    menuButton("Save State", systemImage: "square.and.arrow.down") {
                         session.saveState { result in
                             report(result, success: "Saved")
                         }
                     }
                     .focused($menuFocus, equals: .saveState)
 
-                    Button("Save States…") {
+                    menuButton("Save States…", systemImage: "square.stack") {
                         openStates()
                     }
                     .focused($menuFocus, equals: .states)
                 }
 
-                Button("Reset") {
+                menuButton("Reset", systemImage: "arrow.counterclockwise") {
                     session.resetEmulation()
                     show(notice: "Reset")
                 }
                 .focused($menuFocus, equals: .reset)
 
-                Button("Filter: \(shaderName ?? "None")") {
+                menuButton("Filter", detail: shaderName ?? "None", systemImage: "camera.filters") {
                     openFilters()
                 }
                 .focused($menuFocus, equals: .filter)
 
-                Button("Video…") {
+                menuButton("Video…", systemImage: "tv") {
                     openVideo()
                 }
                 .focused($menuFocus, equals: .video)
             }
 
-            Button("Close") { close() }
+            menuButton("Close Game", systemImage: "xmark", tint: .red) { close() }
                 .focused($menuFocus, equals: .close)
+        }
+    }
+
+    private func menuButton(_ title: String,
+                            detail: String? = nil,
+                            systemImage: String,
+                            tint: Color? = nil,
+                            action: @escaping () -> Void) -> some View {
+        // Red text rather than a destructive role: tvOS fills a destructive
+        // button red and draws its title red too, which cannot be read.
+        Button(action: action) {
+            HStack(spacing: 18) {
+                Image(systemName: systemImage)
+                    .font(.system(size: 26, weight: .semibold))
+                    .frame(width: 36)
+                Text(title)
+                    .font(.headline)
+                Spacer(minLength: 20)
+                if let detail {
+                    Text(detail)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            }
+            .foregroundStyle(tint ?? .primary)
+            .frame(width: 520, alignment: .leading)
+            .padding(.vertical, 6)
         }
     }
 
@@ -346,16 +387,28 @@ struct TVPlayerView: View {
             }
             .frame(width: 520, alignment: .leading)
 
-            if slot != nil {
-                Button("Load") { loadSlot(kind) }
-                    .focused($stateFocus, equals: .load(kind))
+            // Fixed columns, so every Save Here lines up whether or not the
+            // slot beside it has something to load.
+            Group {
+                if slot != nil {
+                    Button("Load") { loadSlot(kind) }
+                        .focused($stateFocus, equals: .load(kind))
+                } else {
+                    Color.clear
+                }
             }
-            if kind != SaveKind.autosave {
-                Button("Save Here") { saveSlot(kind) }
-                    .focused($stateFocus, equals: .save(kind))
+            .frame(width: 190)
+            Group {
+                if kind != SaveKind.autosave {
+                    Button("Save Here") { saveSlot(kind) }
+                        .focused($stateFocus, equals: .save(kind))
+                } else {
+                    Color.clear
+                }
             }
+            .frame(width: 250)
         }
-        .frame(width: 1000, alignment: .leading)
+        .frame(width: 1000, height: 96, alignment: .leading)
     }
 
     private func slotDetail(kind: String, slot: SaveSlotInfo?) -> String {
