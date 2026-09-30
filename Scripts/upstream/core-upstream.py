@@ -11,6 +11,7 @@ import subprocess
 import sys
 import tempfile
 import urllib.error
+import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
 
@@ -74,7 +75,7 @@ def checkout(url, revision, cache, submodules=False):
             if git(repo, 'rev-parse', 'HEAD').stdout.decode().strip() != revision:
                 raise ValueError('fetched revision did not match pin')
             if submodules:
-                git(repo, '-c', 'protocol.file.allow=never', 'submodule', 'update', '--init', '--recursive')
+                git(repo, '-c', 'protocol.file.allow=never', 'submodule', 'update', '--init', '--recursive', '--depth=1')
             repo.rename(destination)
     if git(destination, 'rev-parse', 'HEAD').stdout.decode().strip() != revision:
         raise ValueError(f'cache has a different revision: {destination}')
@@ -221,28 +222,41 @@ def fetch_dependency(name, entry):
 
 
 def remote_status(data):
-    """Report activity and release metadata, without choosing or importing updates."""
+    """Report tracked source and related engine activity without mixing their pins."""
     print(f'Checked: {datetime.now(timezone.utc).isoformat()}')
     failures = 0
     for name, entry in {**data['cores'], **data['dependencies']}.items():
-        url = entry.get('engine_url', entry['url']).removesuffix('.git')
-        match = re.fullmatch(r'https://github.com/([^/]+/[^/]+)', url)
-        if not match:
-            print(f'{name}: check {url} manually; pin {entry.get("revision") or "UNKNOWN"}')
-            continue
-        headers = {'User-Agent': 'Cassowary-core-maintenance', 'Accept': 'application/vnd.github+json'}
-        token = os.environ.get('GH_TOKEN') or os.environ.get('GITHUB_TOKEN')
-        if token:
-            headers['Authorization'] = f'Bearer {token}'
-        try:
-            request = urllib.request.Request(f'https://api.github.com/repos/{match[1]}/commits?per_page=1', headers=headers)
-            with urllib.request.urlopen(request, timeout=30) as response:
-                latest = json.load(response)[0]
-            date = latest['commit']['committer']['date']
-            print(f'{name}: latest commit {latest["sha"]} ({date}); pin {entry.get("revision") or "UNKNOWN"}; {url}')
-        except (urllib.error.URLError, KeyError, IndexError) as error:
-            print(f'{name}: could not check upstream ({error}); {url}')
-            failures += 1
+        source = entry['url'].removesuffix('.git')
+        targets = [('tracked source', source, entry.get('revision'))]
+        engine = entry.get('engine_url', source).removesuffix('.git')
+        if engine != source:
+            targets.append(('related engine', engine, None))
+        for label, url, pin in targets:
+            suffix = f'; pin {pin or "UNKNOWN"}' if label == 'tracked source' else '; separate integration review required'
+            github = re.fullmatch(r'https://github.com/([^/]+/[^/]+)', url)
+            gitlab = re.fullmatch(r'https://gitlab.com/([^/]+/[^/]+)', url)
+            headers = {'User-Agent': 'Cassowary-core-maintenance', 'Accept': 'application/json'}
+            if github:
+                endpoint = f'https://api.github.com/repos/{github[1]}/commits?per_page=1'
+                token = os.environ.get('GH_TOKEN') or os.environ.get('GITHUB_TOKEN')
+                if token:
+                    headers['Authorization'] = f'Bearer {token}'
+            elif gitlab:
+                project = urllib.parse.quote(gitlab[1], safe='')
+                endpoint = f'https://gitlab.com/api/v4/projects/{project}/repository/commits?per_page=1'
+            else:
+                print(f'{name} ({label}): check {url} manually{suffix}')
+                continue
+            try:
+                request = urllib.request.Request(endpoint, headers=headers)
+                with urllib.request.urlopen(request, timeout=30) as response:
+                    latest = json.load(response)[0]
+                revision = latest['sha'] if github else latest['id']
+                date = latest['commit']['committer']['date'] if github else latest['committed_date']
+                print(f'{name} ({label}): latest commit {revision} ({date}){suffix}; {url}')
+            except (urllib.error.URLError, KeyError, IndexError) as error:
+                print(f'{name} ({label}): could not check upstream ({error}); {url}')
+                failures += 1
     return 1 if failures else 0
 
 

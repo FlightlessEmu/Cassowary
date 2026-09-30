@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 spec = importlib.util.spec_from_file_location('core_upstream', Path(__file__).parents[1] / 'core-upstream.py')
 module = importlib.util.module_from_spec(spec)
@@ -99,12 +100,47 @@ class UpdatePreservationTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'review already exists'):
             self.prepare(self.base)
 
+    def test_separate_database_mapping_preserves_local_changes(self):
+        self.write(self.remote, 'database.txt', 'old upstream database\n')
+        self.base = module.commit(self.remote, 'Separate upstream database')
+        self.write(self.root, 'cores/Test/engine/database/data.txt', 'local database\n')
+        module.commit(self.root, 'Local database adaptation')
+        self.entry['revision'] = self.base
+        self.entry['mappings'][0]['exclude'] = ['database']
+        self.entry['mappings'].append({'upstream': 'database.txt', 'local': 'engine/database/data.txt'})
+        self.write(self.remote, 'engine/new.txt', 'upstream source fix\n')
+        new = module.commit(self.remote, 'Upstream code change')
+        result, review = self.prepare(new)
+        self.assertEqual(result, 0)
+        self.assertEqual((review / 'candidate/engine/database/data.txt').read_text(), 'local database\n')
+        self.assertTrue((review / 'candidate/engine/new.txt').exists())
+
     def test_dirty_dependency_cache_is_not_reset(self):
         cached = module.checkout(str(self.remote), self.base, self.root / 'build/cache')
         self.write(cached, 'engine/pixels.txt', 'keep this edit\n')
         with self.assertRaisesRegex(ValueError, 'local changes'):
             module.checkout(str(self.remote), self.base, self.root / 'build/cache')
         self.assertEqual((cached / 'engine/pixels.txt').read_text(), 'keep this edit\n')
+
+
+class ActivityReportTests(unittest.TestCase):
+    def test_wrapper_pin_is_not_attached_to_related_engine_commit(self):
+        data = {'cores': {'Test': {'url': 'https://github.com/OpenEmu/Test.git',
+                                 'engine_url': 'https://gitlab.com/jgemu/test', 'revision': 'a' * 40}},
+                'dependencies': {}}
+        github = [{'sha': 'wrapper-head', 'commit': {'committer': {'date': '2026-01-01'}}}]
+        gitlab = [{'id': 'engine-head', 'committed_date': '2026-02-01'}]
+        responses = [io.StringIO(json.dumps(github)), io.StringIO(json.dumps(gitlab))]
+        output = io.StringIO()
+        with patch.object(module.urllib.request, 'urlopen', side_effect=responses) as fetch:
+            with contextlib.redirect_stdout(output):
+                self.assertEqual(module.remote_status(data), 0)
+        lines = output.getvalue().splitlines()
+        self.assertIn('tracked source', lines[1])
+        self.assertIn('pin ' + 'a' * 40, lines[1])
+        self.assertIn('related engine', lines[2])
+        self.assertNotIn('pin ', lines[2])
+        self.assertIn('jgemu%2Ftest', fetch.call_args_list[1].args[0].full_url)
 
 
 if __name__ == '__main__':

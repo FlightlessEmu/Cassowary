@@ -5,9 +5,10 @@ maintenance advice for Cassowary. The repository has **30 core directories**;
 the app build currently stages **26**. Source presence does not mean a core
 ships, and a successful compile does not prove that games run correctly.
 
-The maintenance machinery is now in place, but source history recovery is
-not finished for every older core. Do not describe the whole inventory as
-ready for automatic updates.
+All 30 cores now have pinned comparison baselines. Some older imports are
+verified against an OpenEmu wrapper snapshot rather than an exact original
+engine checkout. Updates remain reviewed merges, with platform and game checks;
+the inventory does not promise automatic compatibility.
 
 ## What the review found
 
@@ -29,7 +30,7 @@ ready for automatic updates.
 | melonDS / `MelonDS/` | Local Metal compositor plus an optional local Metal 3D rasterizer. Software 3D remains the default; `MELONDS_3D=metal` and `cmp` select experimental paths. | Keep the local renderer, shader sources, texture-cache adapter, host layer, and CMake settings outside imported source. Inside upstream source, preserve `GPU2D_Soft.cpp` capture support for accelerated renderers and the `ARMJIT.cpp` Catalyst adaptation. |
 | Mupen64Plus / `parallel/` | paraLLEl-RDP uses Vulkan through MoltenVK; the presentation replacement hands completed pixels to the shared Metal bitmap renderer. | Track the emulator, video/RSP plugin sources, MoltenVK, and local presentation code separately. Preserve Simulator external-host-memory fallback, interpreter defaults, speed limiter, clock units, and generated ARM64 assembly definitions. |
 | Dolphin / `DolphinGameCore.mm`, `DolHost.mm`, `dolphin/Source/Core/VideoBackends/Metal/MTLGfx.mm` | Dolphin already has an upstream native Metal renderer. The local patch supplies an external texture and bypasses Dolphin's drawable presentation. | Preserve texture ownership and handoff, layer sizing, command submission, and ARC/non-ARC boundaries. The upstream renderer remains upstream's work; Cassowary maintains the integration changes. |
-| VecXGL / `VecXGLGameCore.*` | Local Metal rendering of the Vectrex output. | Keep the wrapper's Metal output and SDK protocol hooks. Its exact upstream baseline still needs recovery. |
+| VecXGL / `VecXGL/VectrexGameCore.*` | Local Metal rendering of the Vectrex output. | Keep the wrapper's Metal output and SDK protocol hooks. The full wrapper comparison captures the local Metal replacement; preserve command completion before returning the texture. |
 | Flycast and PPSSPP | The wrappers in this checkout select desktop OpenGL. | Upstream Vulkan/Apple support does not automatically make these wrappers ready for Cassowary. Updating the source and building an iOS renderer integration are separate jobs. |
 
 ### Rendering review items still requiring runtime evidence
@@ -65,11 +66,13 @@ ready for automatic updates.
   interpreter default. Inspect binary platform/slice and signatures for every
   device/TV build.
 
-## Pinned baselines and source-history gaps
+## Pinned baselines and their evidence
 
 These are baselines for comparing and preserving local changes, not a request
 to upgrade any emulator during this review. No emulator version was upgraded.
-Full commit IDs and mappings live in `cores/upstream.json`.
+Full commit IDs and mappings live in `cores/upstream.json`. Comparison
+baselines recovered from releases or content matches are qualified below;
+they are not interchangeable with exact recorded import commits.
 
 | Core | Baseline | Evidence / qualification |
 |---|---|---|
@@ -87,40 +90,75 @@ Full commit IDs and mappings live in `cores/upstream.json`.
 | Stella | 3.9.3, `8ab9090451a8` | Release reference recovered from `Core/src/common/Version.hxx`; this is a very old engine compared with active upstream. |
 | MAME | headless fork `fac13e827b7b` | Downloaded source, not vendored. The preparation script reads this central pin and applies its tracked Apple/Clang patch. |
 
-Seventeen cores still lack a recovered baseline: **4DO, Bliss, blueMSX,
-CrabEmu, DeSmuME, Gambatte, GenesisPlus, JollyCV, Mednafen, Nestopia, O2EM,
-picodrive, PokeMini, Potator-Core, ProSystem, VecXGL, and VirtualJaguar**.
-The tool intentionally refuses to prepare an update for an unknown baseline.
-Recover the imported release/commit and verify source blobs before enabling it.
-Do not use today's upstream HEAD as the old baseline: that can mistake missing
-upstream improvements for intentional local deletions.
+The remaining baselines were recovered by comparing Git file hashes at the
+same paths across OpenEmu's wrapper history, then reviewing the full local
+difference. These are comparison references, not claims that the flattened
+import recorded those exact checkout IDs. The catalog records matching-file
+counts and distinguishes wrapper snapshots from direct engine references.
 
-For a new mapping, keep the emulator source separate from the wrapper whenever
-the layout permits. Map only paths actually used by the build, include required
-licenses and dependency sources, and list intentional exclusions explicitly.
-Review generated definitions and build settings outside the source mapping too.
-Mednafen's release archives need separate checksum-backed provenance; the tool
-currently supports Git sources, not tarball imports.
+| Core | Baseline | Evidence / qualification |
+|---|---|---|
+| GenesisPlus | engine `a2931d161f01` | Wrapper `8956640b8025` explicitly names this engine commit; 244/246 engine files match. The two changed cartridge files carry the local Sonic & Knuckles lock-on fix. |
+| Nestopia | Nestopia JG 1.52.0, `1888ad55f78c` | Wrapper `42d038942205` records the JG 1.52 update. Track **JG**, not the separate UE frontend. Preserve compilation/achievement changes, the mapped database, and the NTSC filter. |
+| DeSmuME | engine `4591158b4444` | 1,862/1,870 source files match the April 2026 engine snapshot preceding the May import. Differences are Cocoa/OpenEmu integration, generated revision data, and omitted desktop artifacts. Source-only. |
+| 4DO | wrapper `0756b4de1a5a` | 90/98 local files match; eight changed files in the local delta. |
+| Bliss | wrapper `efdd9f803b15` | 111/115 match; five changed/deleted files in the local delta. |
+| blueMSX | wrapper `a52d859eb4d7` | 579/602 match; 23 changed files in the local delta. |
+| CrabEmu | wrapper `3fe5b1a41de6` | 125/137 match; 12 changed files in the local delta. |
+| Gambatte | wrapper `ef91ce464c45` | 113/120 match; seven changed files in the local delta. |
+| JollyCV | wrapper `2408c9f8665c` | 30/34 match; four changed files in the local delta. |
+| Mednafen | wrapper `61f49bcdf9f1` | 1,510/1,528 match; 18 files contain platform, memory/achievement, audio, and wrapper changes. This includes the 1.26.1 engine. |
+| O2EM | wrapper `e92cf384b9ca` | 102/106 match; four changed files in the local delta. |
+| picodrive | wrapper `290b39da6fa8` | 308/312 match. Optional, unpopulated ARM32 Cyclone and desktop libpicofe gitlinks are excluded; the local delta also records deliberately omitted files. |
+| PokeMini | wrapper `36d31b40324c` | 676/680 match; four changed files in the local delta. |
+| Potator-Core | wrapper `c0d920164409` | 59/63 match; six changed/deleted files in the local delta. |
+| ProSystem | wrapper `9a3eeff43986` | 40/44 match; four changed files in the local delta. |
+| VecXGL | wrapper `bdeb8b132245` | 14/22 match; eight changed files include the local Metal renderer and iOS/Catalyst adaptations. |
+| VirtualJaguar | wrapper `3789eb77ad31` | 85/89 match; four changed files in the local delta. |
+
+For wrapper baselines, `prepare` merges the complete core directory, so local
+Metal, platform, build, and achievement changes are included in `local.patch`.
+For direct engine baselines, the wrapper usually stays outside the mapped
+source paths. DeSmuME's upstream OpenEmu frontend lives inside its source tree
+and is consequently included in that core's patch. Review the boundaries for
+each core instead of assuming every wrapper is outside the merge.
+
+Mednafen can now follow OpenEmu's compatible source updates through a pinned
+Git merge. Importing an official release archive directly would be a separate
+source-route change: establish its checksum and compare it against this
+wrapper baseline first. The generic tool accepts Git sources, not tarballs.
+The [official releases page](https://mednafen.github.io/releases/) currently
+lists 1.32.1; this review does not upgrade the vendored 1.26.1 engine.
+
+For future unknown imports, recover the declared release/commit and verify
+source files before enabling updates. Never invent an old pin from today's
+upstream HEAD: missing improvements could then look like local deletions.
+Keep required licenses and dependencies, and explicitly exclude unused trees.
+Review generated definitions and build settings outside the source mappings.
 
 ## Which upstreams need ongoing attention
 
 The online activity check on 29 September found 2026 commits in the primary
 repositories for Atari800, BSNES, DeSmuME, Dolphin, FCEUX, Flycast, Genesis Plus
 GX, melonDS, mGBA, Mupen64Plus, Nestopia, PPSSPP, SNES9x, Stella, VirtualC64,
-and MAME. Commit activity is evidence of development, not proof that a specific
+and MAME. Nestopia engine updates come from
+[the JG repository](https://gitlab.com/jgemu/nestopia), as confirmed by the
+OpenEmu import history and [the UE frontend README](https://github.com/0ldsk00l/nestopia). Commit activity is evidence of development, not proof that a specific
 release should be imported.
 
 Some older OpenEmu imports also have active **related Libretro forks**: blueMSX,
-Gambatte, PokeMini, Potator, ProSystem, and VirtualJaguar. The inventory links
-those as projects to evaluate; it does not claim that they are the source of
-our current imports. Switching forks requires a separate API, behavior, and
+Gambatte, PokeMini, Potator, ProSystem, and VirtualJaguar. The inventory tracks verified OpenEmu wrapper baselines and links
+those related engines as projects to evaluate; it does not claim that they
+are the source of our current imports. `remote-status` reports tracked-source
+activity and related-engine activity separately, attaching the pin only to
+the repository it belongs to. Switching forks requires a separate API, behavior, and
 license review. JollyCV's wrapper last changed in 2023, VecXGL's in 2025, and
 picodrive's primary repo last changed in 2025 in this check. SourceForge-based
 cores and Mednafen need manual checks.
 
-Recommended order: recover GenesisPlus, Nestopia, and Mednafen provenance;
-review the large version gaps in Stella/Atari800; then handle the remaining
-active imports and related forks. Keep absent iOS cores on a separate track
+Recommended order: review the large version gaps in Mednafen,
+Stella, and Atari800; then prepare focused GenesisPlus/Nestopia updates and
+evaluate the related forks where OpenEmu wrappers have stopped receiving fixes. Keep absent iOS cores on a separate track
 from maintaining the 26 staged ones. Check active upstreams monthly and before
 releases; import fixes deliberately, with one core update per branch.
 
@@ -138,7 +176,8 @@ Primary source references: [melonDS](https://github.com/melonDS-emu/melonDS),
 ## Updating a core without losing local changes
 
 The source in `cores/` stays flattened. Git clones and initialized dependency
-submodules exist only in ignored build caches. No command below makes the
+submodules exist only in ignored build caches; fetches request shallow
+dependency histories while retaining exact commit pins. No command below makes the
 vendored core directories into submodules.
 
 ```bash
@@ -167,11 +206,12 @@ Resolve conflicts in `candidate/`, stage them, and commit the candidate merge.
 Its generated `README.txt` gives the exact command to export `update.patch`
 against the recorded local commit. Inspect that patch, then apply it from the
 Cassowary root with `git apply --check --directory=cores/<core>` followed by
-`git apply --directory=cores/<core>`. This preserves wrapper code outside the
-mapping and represents upstream deletions correctly. Existing review folders
+`git apply --directory=cores/<core>`. This preserves existing local changes within the mappings and represents
+upstream deletions correctly; wrappers outside the mappings stay untouched. Existing review folders
 and edited caches are never reset or overwritten.
 
-Update the manifest's full revision and version in the same change. Record why
+Update the manifest's full revision and version in the same change. Refresh
+its baseline evidence/notes when the reference changes. Record why
 each conflict resolution or remaining local patch is needed. Compare relevant
 licenses, rebuild generated source lists if upstream adds files, and regenerate
 XcodeGen projects through their spec. Do not hand-edit Cassowary.xcodeproj.
@@ -215,9 +255,12 @@ whether they fit that project's public API and platform policy.
 The offline Git tests cover a preserved Metal-like edit, new upstream code,
 local deletions, binary updates, executable modes, conflict exposure, dirty
 source/cache rejection, repeat-review protection, and applying the exported
-patch under a core directory. Same-revision comparisons were prepared for
-melonDS, VirtualC64, Mupen64Plus, mGBA, SNES9x, BSNES, FCEU, Atari800, and
-Stella. These verify the machinery and expose local differences; they do not
+patch under a core directory. Same-revision comparisons were prepared for all 29 vendored cores,
+including the four source-only imports; MAME uses its separate downloaded-source
+recipe. The unchanged candidate diffs confirm that
+a comparison against the recorded baseline retains the complete local tree.
+Tests also cover separate database/file mappings and distinguish GitHub wrapper
+pins from related GitLab engine activity. These checks expose differences; they do not
 establish runtime correctness of every core.
 
 A forward comparison of melonDS 1.1 with upstream `906e9ebb27da` exposed one
@@ -225,6 +268,11 @@ conflict in `src/GPU2D_Soft.cpp`, exactly where the local capture patch lives.
 That candidate remains in ignored review output; no upstream version was
 applied to the app. This illustrates the intended workflow: the conflict is
 visible, and the existing Metal capture behavior survives until it is reviewed.
+
+A forward GenesisPlus comparison against engine `939ce4f045f9` likewise
+exposed a cartridge-mapper conflict. The local Sonic & Knuckles fix is visible
+in the baseline patch and cannot silently disappear into a copied source tree.
+That candidate is review output only; no engine update was applied.
 
 The full iOS Simulator app build passed after rebuilding N64, melonDS, and
 VirtualC64. The existing Game Boy end-to-end test passed for video and touch,
