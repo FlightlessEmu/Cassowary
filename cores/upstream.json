@@ -1,0 +1,412 @@
+{
+  "schema": 1,
+  "reviewed": "2026-09-29",
+  "cores": {
+    "4DO": {
+      "shipped": true,
+      "product": "4DO",
+      "wrapper_url": "https://github.com/OpenEmu/4DO-Core",
+      "url": "https://github.com/OpenEmu/4DO-Core.git",
+      "revision": null,
+      "mappings": [],
+      "notes": "Flattened import has no reliable upstream pin recorded. Recover and review the baseline before preparing updates; wrapper and emulator versions can differ.",
+      "engine_url": "https://sourceforge.net/projects/fourdo/"
+    },
+    "Atari800": {
+      "shipped": true,
+      "product": "Atari800",
+      "wrapper_url": "https://github.com/OpenEmu/Atari800-Core",
+      "url": "https://github.com/atari800/atari800.git",
+      "revision": "27aaa95d2a4bda0058ffc96f1288c3a60fdb4fb2",
+      "mappings": [
+        {
+          "upstream": "src",
+          "local": "atari800-src"
+        }
+      ],
+      "notes": "Baseline release recovered from the version declared in the vendored source and upstream release ref. Review the full local delta; import did not record an exact upstream revision.",
+      "engine_url": "https://github.com/atari800/atari800",
+      "version": "ATARI800_3_1_0"
+    },
+    "Bliss": {
+      "shipped": true,
+      "product": "Bliss",
+      "wrapper_url": "https://github.com/OpenEmu/Bliss-Core",
+      "url": "https://github.com/OpenEmu/Bliss-Core.git",
+      "revision": null,
+      "mappings": [],
+      "notes": "Flattened import has no reliable upstream pin recorded. Recover and review the baseline before preparing updates; wrapper and emulator versions can differ.",
+      "engine_url": "https://sourceforge.net/projects/bliss/"
+    },
+    "blueMSX": {
+      "shipped": true,
+      "product": "blueMSX",
+      "wrapper_url": "https://github.com/OpenEmu/blueMSX-Core",
+      "url": "https://github.com/OpenEmu/blueMSX-Core.git",
+      "revision": null,
+      "mappings": [],
+      "notes": "Flattened import has no reliable upstream pin recorded. Recover and review the baseline before preparing updates; wrapper and emulator versions can differ. engine_url is an actively maintained related Libretro fork to evaluate, not proof of the imported source origin.",
+      "engine_url": "https://github.com/libretro/blueMSX-libretro"
+    },
+    "BSNES": {
+      "shipped": true,
+      "product": "BSNES",
+      "wrapper_url": "https://github.com/OpenEmu/BSNES-Core",
+      "url": "https://github.com/bsnes-emu/bsnes.git",
+      "revision": "8e80d2f8a43e34a82931e25143b279e5fbcfaedc",
+      "mappings": [
+        {
+          "upstream": ".",
+          "local": "bsnes"
+        }
+      ],
+      "notes": "Import a6a284f68 records v115 / 8e80d2f. Wrapper lives outside bsnes/.",
+      "engine_url": "https://github.com/bsnes-emu/bsnes",
+      "version": "v115"
+    },
+    "CrabEmu": {
+      "shipped": true,
+      "product": "CrabEmu",
+      "wrapper_url": "https://github.com/OpenEmu/CrabEmu-Core",
+      "url": "https://github.com/OpenEmu/CrabEmu-Core.git",
+      "revision": null,
+      "mappings": [],
+      "notes": "Flattened import has no reliable upstream pin recorded. Recover and review the baseline before preparing updates; wrapper and emulator versions can differ.",
+      "engine_url": "https://sourceforge.net/projects/crabemu/"
+    },
+    "DeSmuME": {
+      "shipped": false,
+      "product": null,
+      "wrapper_url": "https://github.com/OpenEmu/DeSmuME-Core",
+      "url": "https://github.com/OpenEmu/DeSmuME-Core.git",
+      "revision": null,
+      "mappings": [],
+      "notes": "Flattened import has no reliable upstream pin recorded. Recover and review the baseline before preparing updates; wrapper and emulator versions can differ.",
+      "engine_url": "https://github.com/TASEmulators/desmume"
+    },
+    "Dolphin": {
+      "shipped": false,
+      "product": null,
+      "wrapper_url": "https://github.com/OpenEmu/Dolphin-Core",
+      "url": "https://github.com/dolphin-emu/dolphin.git",
+      "revision": "5b33289c04f4fe7b0c64021440ec6da8ab04cda4",
+      "mappings": [
+        {
+          "upstream": ".",
+          "local": "dolphin"
+        }
+      ],
+      "notes": "Exact gitlink before c4b8d3c25. Local Metal patches and deliberately pruned externals remain in the baseline diff; do not assume credits version 2603 is this pin.",
+      "engine_url": "https://github.com/dolphin-emu/dolphin",
+      "version": "pre-flattening gitlink",
+      "submodules": true
+    },
+    "FCEU": {
+      "shipped": true,
+      "product": "FCEU",
+      "wrapper_url": "https://github.com/OpenEmu/FCEU-Core",
+      "url": "https://github.com/TASEmulators/fceux.git",
+      "revision": "34eb7601c415b81901fd02afbd5cfdc84b5047ac",
+      "mappings": [
+        {
+          "upstream": "src",
+          "local": "src"
+        }
+      ],
+      "notes": "Baseline release recovered from the version declared in the vendored source and upstream release ref. Review the full local delta; import did not record an exact upstream revision.",
+      "engine_url": "https://github.com/TASEmulators/fceux",
+      "version": "v2.6.6"
+    },
+    "Flycast": {
+      "shipped": false,
+      "product": null,
+      "wrapper_url": "https://github.com/OpenEmu/Flycast-Core",
+      "url": "https://github.com/flyinghead/flycast.git",
+      "revision": "05b270f05cecfcd675bb0530cf18d0a9b81269a1",
+      "mappings": [
+        {
+          "upstream": ".",
+          "local": "flycast"
+        }
+      ],
+      "notes": "Import commit df91dcc6d records 05b270f. OpenGL wrapper is not staged in the app.",
+      "engine_url": "https://github.com/flyinghead/flycast",
+      "version": "import snapshot",
+      "submodules": true
+    },
+    "Gambatte": {
+      "shipped": true,
+      "product": "Gambatte",
+      "wrapper_url": "https://github.com/OpenEmu/Gambatte-Core",
+      "url": "https://github.com/OpenEmu/Gambatte-Core.git",
+      "revision": null,
+      "mappings": [],
+      "notes": "Flattened import has no reliable upstream pin recorded. Recover and review the baseline before preparing updates; wrapper and emulator versions can differ. engine_url is an actively maintained related Libretro fork to evaluate, not proof of the imported source origin.",
+      "engine_url": "https://github.com/libretro/gambatte-libretro"
+    },
+    "GenesisPlus": {
+      "shipped": true,
+      "product": "GenesisPlus",
+      "wrapper_url": "https://github.com/OpenEmu/GenesisPlus-Core",
+      "url": "https://github.com/OpenEmu/GenesisPlus-Core.git",
+      "revision": null,
+      "mappings": [],
+      "notes": "Flattened import has no reliable upstream pin recorded. Recover and review the baseline before preparing updates; wrapper and emulator versions can differ.",
+      "engine_url": "https://github.com/ekeeke/Genesis-Plus-GX"
+    },
+    "JollyCV": {
+      "shipped": true,
+      "product": "JollyCV",
+      "wrapper_url": "https://github.com/OpenEmu/JollyCV-Core",
+      "url": "https://github.com/OpenEmu/JollyCV-Core.git",
+      "revision": null,
+      "mappings": [],
+      "notes": "Flattened import has no reliable upstream pin recorded. Recover and review the baseline before preparing updates; wrapper and emulator versions can differ.",
+      "engine_url": "https://github.com/OpenEmu/JollyCV-Core"
+    },
+    "MAME": {
+      "shipped": true,
+      "product": "MAME",
+      "wrapper_url": null,
+      "url": "https://github.com/OpenEmu-Silicon/mame.git",
+      "revision": "fac13e827b7b8cfa4ee4f5760198d31241e2a544",
+      "mappings": [],
+      "notes": "Headless fork, downloaded by prepare-mame-core.sh; not vendored. Keep the fork pin and local Apple patch together. Direct mamedev updates require maintaining the headless port.",
+      "engine_url": "https://github.com/mamedev/mame"
+    },
+    "Mednafen": {
+      "shipped": true,
+      "product": "Mednafen",
+      "wrapper_url": "https://github.com/OpenEmu/Mednafen-Core",
+      "url": "https://github.com/OpenEmu/Mednafen-Core.git",
+      "revision": null,
+      "mappings": [],
+      "notes": "Flattened import has no reliable upstream pin recorded. Recover and review the baseline before preparing updates; wrapper and emulator versions can differ.",
+      "engine_url": "https://mednafen.github.io/releases/"
+    },
+    "melonDS": {
+      "shipped": true,
+      "product": "melonDS",
+      "wrapper_url": null,
+      "url": "https://github.com/melonDS-emu/melonDS.git",
+      "revision": "b86390e4428bf38ce4c1ce0e9ca446d6d25955e8",
+      "mappings": [
+        {
+          "upstream": "src",
+          "local": "src"
+        },
+        {
+          "upstream": "cmake",
+          "local": "cmake"
+        }
+      ],
+      "notes": "Import commit de4954abb; renderer and host integration are in MelonDS/.",
+      "engine_url": "https://github.com/melonDS-emu/melonDS",
+      "version": "1.1",
+      "submodules": false
+    },
+    "mGBA": {
+      "shipped": true,
+      "product": "mGBA",
+      "wrapper_url": "https://github.com/OpenEmu/mGBA-Core",
+      "url": "https://github.com/mgba-emu/mgba.git",
+      "revision": "26b7884bc25a5933960f3cdcd98bac1ae14d42e2",
+      "mappings": [
+        {
+          "upstream": "src",
+          "local": "src"
+        },
+        {
+          "upstream": "include",
+          "local": "include"
+        }
+      ],
+      "notes": "Import commit 2ff1be178; wrapper and build settings remain outside the mapped source.",
+      "engine_url": "https://github.com/mgba-emu/mgba",
+      "version": "0.10.5",
+      "submodules": false
+    },
+    "Mupen64Plus": {
+      "shipped": true,
+      "product": "Mupen64Plus",
+      "wrapper_url": "https://github.com/OpenEmu/Mupen64Plus-Core",
+      "url": "https://github.com/mupen64plus/mupen64plus-core.git",
+      "revision": "b20b27ebf9e5b099a978e86dba609111dc98c837",
+      "mappings": [
+        {
+          "upstream": ".",
+          "local": "mupen64plus-core"
+        }
+      ],
+      "notes": "Recovered from import date and source blob comparison; baseline diff must be reviewed. Plugins and Compatibility/ have separate origins.",
+      "engine_url": "https://github.com/mupen64plus/mupen64plus-core",
+      "version": "master snapshot, September 2026",
+      "submodules": false
+    },
+    "Nestopia": {
+      "shipped": true,
+      "product": "Nestopia",
+      "wrapper_url": "https://github.com/OpenEmu/Nestopia-Core",
+      "url": "https://github.com/OpenEmu/Nestopia-Core.git",
+      "revision": null,
+      "mappings": [],
+      "notes": "Flattened import has no reliable upstream pin recorded. Recover and review the baseline before preparing updates; wrapper and emulator versions can differ.",
+      "engine_url": "https://github.com/0ldsk00l/nestopia"
+    },
+    "O2EM": {
+      "shipped": true,
+      "product": "O2EM",
+      "wrapper_url": "https://github.com/OpenEmu/O2EM-Core",
+      "url": "https://github.com/OpenEmu/O2EM-Core.git",
+      "revision": null,
+      "mappings": [],
+      "notes": "Flattened import has no reliable upstream pin recorded. Recover and review the baseline before preparing updates; wrapper and emulator versions can differ.",
+      "engine_url": "https://sourceforge.net/projects/o2em/"
+    },
+    "picodrive": {
+      "shipped": true,
+      "product": "Picodrive",
+      "wrapper_url": "https://github.com/OpenEmu/picodrive",
+      "url": "https://github.com/OpenEmu/picodrive.git",
+      "revision": null,
+      "mappings": [],
+      "notes": "Flattened import has no reliable upstream pin recorded. Recover and review the baseline before preparing updates; wrapper and emulator versions can differ.",
+      "engine_url": "https://github.com/notaz/picodrive"
+    },
+    "PokeMini": {
+      "shipped": true,
+      "product": "PokeMini",
+      "wrapper_url": "https://github.com/OpenEmu/PokeMini-Core",
+      "url": "https://github.com/OpenEmu/PokeMini-Core.git",
+      "revision": null,
+      "mappings": [],
+      "notes": "Flattened import has no reliable upstream pin recorded. Recover and review the baseline before preparing updates; wrapper and emulator versions can differ. engine_url is an actively maintained related Libretro fork to evaluate, not proof of the imported source origin.",
+      "engine_url": "https://github.com/libretro/PokeMini"
+    },
+    "Potator-Core": {
+      "shipped": true,
+      "product": "Potator",
+      "wrapper_url": "https://github.com/OpenEmu/Potator-Core",
+      "url": "https://github.com/OpenEmu/Potator-Core.git",
+      "revision": null,
+      "mappings": [],
+      "notes": "Flattened import has no reliable upstream pin recorded. Recover and review the baseline before preparing updates; wrapper and emulator versions can differ. engine_url is an actively maintained related Libretro fork to evaluate, not proof of the imported source origin.",
+      "engine_url": "https://github.com/libretro/potator"
+    },
+    "PPSSPP": {
+      "shipped": false,
+      "product": null,
+      "wrapper_url": "https://github.com/OpenEmu/PPSSPP-Core",
+      "url": "https://github.com/hrydgard/ppsspp.git",
+      "revision": "cd535263c1ad65fd03869591a8bd706680cbf04b",
+      "mappings": [
+        {
+          "upstream": ".",
+          "local": "PPSSPP-Core/ppsspp"
+        }
+      ],
+      "notes": "Import commit df799e569. External libraries were imported separately; their changes must be reviewed as local deltas.",
+      "engine_url": "https://github.com/hrydgard/ppsspp",
+      "version": "v1.14.4",
+      "submodules": true
+    },
+    "ProSystem": {
+      "shipped": true,
+      "product": "ProSystem",
+      "wrapper_url": "https://github.com/OpenEmu/ProSystem-Core",
+      "url": "https://github.com/OpenEmu/ProSystem-Core.git",
+      "revision": null,
+      "mappings": [],
+      "notes": "Flattened import has no reliable upstream pin recorded. Recover and review the baseline before preparing updates; wrapper and emulator versions can differ. engine_url is an actively maintained related Libretro fork to evaluate, not proof of the imported source origin.",
+      "engine_url": "https://github.com/libretro/prosystem-libretro"
+    },
+    "SNES9x": {
+      "shipped": true,
+      "product": "SNES9x",
+      "wrapper_url": "https://github.com/OpenEmu/SNES9x-Core",
+      "url": "https://github.com/snes9xgit/snes9x.git",
+      "revision": "921f9f7b83660eb44ad263022a57a4a029057c37",
+      "mappings": [
+        {
+          "upstream": ".",
+          "local": "src",
+          "exclude": [
+            "external",
+            "win32"
+          ]
+        }
+      ],
+      "notes": "Import commit e3fb29904; wrapper remains outside src/. Review intentionally omitted upstream files in local.patch. external/ and win32/ contain optional desktop dependencies, is not vendored in this core, and is explicitly excluded from this mapping.",
+      "engine_url": "https://github.com/snes9xgit/snes9x",
+      "version": "1.63",
+      "submodules": false
+    },
+    "Stella": {
+      "shipped": true,
+      "product": "Stella",
+      "wrapper_url": "https://github.com/OpenEmu/Stella-Core",
+      "url": "https://github.com/stella-emu/stella.git",
+      "revision": "8ab9090451a850b001bc102306ced492ee41c1ac",
+      "mappings": [
+        {
+          "upstream": "src",
+          "local": "Core/src"
+        }
+      ],
+      "notes": "Baseline release recovered from the version declared in the vendored source and upstream release ref. Review the full local delta; import did not record an exact upstream revision.",
+      "engine_url": "https://github.com/stella-emu/stella",
+      "version": "release-3.9.3"
+    },
+    "VecXGL": {
+      "shipped": true,
+      "product": "VecXGL",
+      "wrapper_url": "https://github.com/OpenEmu/VecXGL-Core",
+      "url": "https://github.com/OpenEmu/VecXGL-Core.git",
+      "revision": null,
+      "mappings": [],
+      "notes": "Flattened import has no reliable upstream pin recorded. Recover and review the baseline before preparing updates; wrapper and emulator versions can differ.",
+      "engine_url": "https://github.com/OpenEmu/VecXGL-Core"
+    },
+    "VirtualC64": {
+      "shipped": true,
+      "product": "VirtualC64",
+      "wrapper_url": null,
+      "url": "https://github.com/dirkwhoffmann/virtualc64.git",
+      "revision": "38b7ce342ec1476385c13915f6c93ddf3dfe1063",
+      "mappings": [
+        {
+          "upstream": "VCCore",
+          "local": "VCCore"
+        }
+      ],
+      "notes": "Exact source commit recorded in the core README; not the v6.1 tag.",
+      "engine_url": "https://github.com/dirkwhoffmann/virtualc64",
+      "version": "v6.1",
+      "submodules": false
+    },
+    "VirtualJaguar": {
+      "shipped": true,
+      "product": "VirtualJaguar",
+      "wrapper_url": "https://github.com/OpenEmu/VirtualJaguar-Core",
+      "url": "https://github.com/OpenEmu/VirtualJaguar-Core.git",
+      "revision": null,
+      "mappings": [],
+      "notes": "Flattened import has no reliable upstream pin recorded. Recover and review the baseline before preparing updates; wrapper and emulator versions can differ. engine_url is an actively maintained related Libretro fork to evaluate, not proof of the imported source origin.",
+      "engine_url": "https://github.com/libretro/virtualjaguar-libretro"
+    }
+  },
+  "dependencies": {
+    "parallel-rdp": {
+      "url": "https://github.com/highscore-emu/parallel-rdp.git",
+      "revision": "2cdcce76c3cbdf76997f7dc5e5d0e0a98993f5fa",
+      "patches": [
+        "cores/Mupen64Plus/parallel/patches/loader-diagnostics.patch"
+      ]
+    },
+    "MoltenVK": {
+      "url": "https://github.com/KhronosGroup/MoltenVK.git",
+      "revision": "4aaf714aa1b3e78e26ecfcefa9c75e9a576c500b",
+      "patches": []
+    }
+  }
+}

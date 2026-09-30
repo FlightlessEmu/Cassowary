@@ -216,17 +216,14 @@ case "$CORE" in
     ;;
   VirtualC64)
     # The emulator is VirtualC64's VCCore, a CMake project, so it is built
-    # separately as a set of static libraries. Build it here if it is missing
-    # so that a single build-core-ios.sh run is enough.
+    # separately as a set of static libraries. Check its incremental build
+    # each time so source changes reach the plugin.
     case "$PLATFORM" in
       simulator) VC64_FLAG="" ;;
       *)         VC64_FLAG="--$PLATFORM" ;;
     esac
     VIRTUALC64_LIB_DIR="$PWD/build/cassowary-virtualc64-$PLATFORM/lib"
-    if [[ ! -f "$VIRTUALC64_LIB_DIR/libVCCore.a" ]]; then
-      print -- "building the VirtualC64 emulator library first..."
-      ./Scripts/cassowary/build-virtualc64-ios.sh $VC64_FLAG
-    fi
+    ./Scripts/cassowary/build-virtualc64-ios.sh $VC64_FLAG
     # Static archives do not carry their dependencies. The order below is the
     # dependency order (VCCore → reSID/rvlib/utlib, rvlib → xdms/utlib), so a
     # single pass resolves everything. -lz is for VCCore's zlib support
@@ -242,17 +239,15 @@ case "$CORE" in
     ;;
   melonDS)
     # The emulator is a CMake project, so it is built separately as static
-    # archives. Build it here if it is missing, so that a single
-    # build-core-ios.sh run is enough.
+    # archives. Check its incremental build each time a plugin is rebuilt.
     case "$PLATFORM" in
       simulator) MELONDS_FLAG="" ;;
       *)         MELONDS_FLAG="--$PLATFORM" ;;
     esac
     MELONDS_LIB_DIR="$PWD/build/cassowary-melonds-$PLATFORM/lib"
-    if [[ ! -f "$MELONDS_LIB_DIR/libcore.a" ]]; then
-      print -- "building the melonDS emulator library first..."
-      ./Scripts/cassowary/build-melonds-ios.sh $MELONDS_FLAG
-    fi
+    # CMake rebuilds only changed sources. An existing archive may be older
+    # than an upstream update, so always let CMake check it.
+    ./Scripts/cassowary/build-melonds-ios.sh $MELONDS_FLAG
     # Static archives do not carry their dependencies, so the plugin link
     # needs the core and the DSP emulator it links against, in that order.
     EXTRA_LINK_FLAGS=(
@@ -271,8 +266,7 @@ case "$CORE" in
     # The emulator itself is a separate dylib built by MAME's own makefile
     # (Scripts/cassowary/build-mame-ios.sh), not by the Xcode project's
     # sources. It is named without a lib prefix, so it is linked by path, not
-    # with -l. Build it here if missing, so that a single build-core-ios.sh
-    # run is enough — the same pattern as melonDS and VirtualC64.
+    # with -l. Check its incremental build before linking the wrapper.
     case "$PLATFORM" in
       simulator) MAME_DYLIB_NAME=mamearcade_headless.dylib ;;
       device)    MAME_DYLIB_NAME=mamearcade_headless-device.dylib ;;
@@ -281,17 +275,17 @@ case "$CORE" in
       tvos-sim)  MAME_DYLIB_NAME=mamearcade_headless-tvos-sim.dylib ;;
     esac
     MAME_DYLIB="$PWD/cores/MAME/deps/mame/$MAME_DYLIB_NAME"
-    if [[ ! -f "$MAME_DYLIB" ]]; then
-      print -- "building the MAME emulator library first..."
-      MAME_BUILD_FLAGS=()
-      case "$PLATFORM" in
-        device)   MAME_BUILD_FLAGS=(--device) ;;
-        catalyst) MAME_BUILD_FLAGS=(--catalyst) ;;
-        tvos)     MAME_BUILD_FLAGS=(--tvos) ;;
-        tvos-sim) MAME_BUILD_FLAGS=(--tvos-sim) ;;
-      esac
-      ./Scripts/cassowary/build-mame-ios.sh "${MAME_BUILD_FLAGS[@]}"
-    fi
+    # The make build is incremental; an existing dylib may predate a new pin
+    # or a changed local patch, so always check the emulator too.
+    print -- "building the MAME emulator library first..."
+    MAME_BUILD_FLAGS=()
+    case "$PLATFORM" in
+      device)   MAME_BUILD_FLAGS=(--device) ;;
+      catalyst) MAME_BUILD_FLAGS=(--catalyst) ;;
+      tvos)     MAME_BUILD_FLAGS=(--tvos) ;;
+      tvos-sim) MAME_BUILD_FLAGS=(--tvos-sim) ;;
+    esac
+    ./Scripts/cassowary/build-mame-ios.sh "${MAME_BUILD_FLAGS[@]}"
     EXTRA_LINK_FLAGS=("$MAME_DYLIB")
     EMBED_LIBS=("$MAME_DYLIB")
     ;;
@@ -601,7 +595,7 @@ done
 # Mupen64Plus renders through the paraLLEl-RDP video plugin, which the core
 # loads from its own PlugIns directory at runtime. The plugin is built
 # separately (it needs MoltenVK and the parallel-rdp sources): see
-# build/spike/parallel-plugin/build.sh. Override the directory with
+# Scripts/cassowary/build-n64-plugins.sh. Override the directory with
 # MUPEN_PARALLEL_PLUGIN_DIR when the plugin lives somewhere else.
 if [[ "$CORE" == Mupen64Plus ]]; then
   case "$PLATFORM" in
@@ -609,9 +603,12 @@ if [[ "$CORE" == Mupen64Plus ]]; then
     catalyst)  MUPEN_PLUGIN_PLATFORM="catalyst" ;;
     tvos)      MUPEN_PLUGIN_PLATFORM="tvos" ;;
     tvos-sim)  MUPEN_PLUGIN_PLATFORM="tvos-sim" ;;
-    *)         MUPEN_PLUGIN_PLATFORM="macos" ;;
+    *)         MUPEN_PLUGIN_PLATFORM="device" ;;
   esac
-  MUPEN_PLUGIN_SRC="${MUPEN_PARALLEL_PLUGIN_DIR:-$PWD/build/spike/parallel-plugin/build-$MUPEN_PLUGIN_PLATFORM}"
+  MUPEN_PLUGIN_SRC="${MUPEN_PARALLEL_PLUGIN_DIR:-$PWD/build/cassowary-n64-plugins-$MUPEN_PLUGIN_PLATFORM}"
+  if [[ -z "${MUPEN_PARALLEL_PLUGIN_DIR:-}" ]]; then
+    ./Scripts/cassowary/build-n64-plugins.sh "--$MUPEN_PLUGIN_PLATFORM"
+  fi
   if [[ -f "$MUPEN_PLUGIN_SRC/mupen64plus-video-parallel.dylib" ]]; then
     mkdir -p "$PLUGIN_DIR/PlugIns"
     cp -f "$MUPEN_PLUGIN_SRC/mupen64plus-video-parallel.dylib" "$PLUGIN_DIR/PlugIns/"
@@ -629,7 +626,8 @@ if [[ "$CORE" == Mupen64Plus ]]; then
     fi
     print -- "staged the paraLLEl-RDP video and RSP plugins"
   else
-    print -u2 -- "warning: no paraLLEl-RDP plugins at $MUPEN_PLUGIN_SRC"
+    print -u2 -- "error: no paraLLEl-RDP plugins at $MUPEN_PLUGIN_SRC"
+    exit 1
   fi
 fi
 

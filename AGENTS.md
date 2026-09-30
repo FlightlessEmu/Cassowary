@@ -141,15 +141,28 @@ are not included.
 | PC Engine / PC-FX / Sega Saturn / PlayStation / WonderSwan / Virtual Boy / Atari Lynx / Neo Geo Pocket | Mednafen |
 | Pokémon Mini | PokeMini |
 | Sega 32X / Genesis / Sega CD / Master System / Game Gear | Genesis Plus GX |
-| Sega Dreamcast | Flycast |
 | Sega 32X (alt) | picodrive |
-| Sony PSP | PPSSPP |
 | SNES | SNES9x, BSNES |
 | Supervision | Potator |
 | Vectrex | VecXGL |
 
 Which systems appear in the app is data-driven: every staged system plugin
 becomes a row, and every staged core appears in that system's core picker.
+
+The app and CI read the shipped-core list from `cores/upstream.json`.
+Dolphin, Flycast, PPSSPP, and DeSmuME are source-only here; they are not staged
+by the current app build.
+
+### Maintaining upstream cores
+
+Read [`docs/core-audit/upstream-maintenance.md`](docs/core-audit/upstream-maintenance.md)
+before updating emulator source. Keep upstream pins and source changes together.
+Use `Scripts/upstream/core-upstream.py prepare` to review an isolated merge that
+preserves local patches. Recover unknown baselines before attempting an update.
+After changing a core, run `build-cassowary.sh --rebuild-core <CoreName>` for each
+affected platform so the app contains the newly built plugin. Repeat the option
+for several cores; `--app-only` cannot rebuild cores. A compile is still not a
+runtime test.
 
 ---
 

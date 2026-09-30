@@ -1,0 +1,46 @@
+diff --git a/parallel_imp.cpp b/parallel_imp.cpp
+index f8f10e7..9224e97 100644
+--- a/parallel_imp.cpp
++++ b/parallel_imp.cpp
+@@ -4,6 +4,7 @@
+ #include "rdp_device.hpp"
+ #include "context.hpp"
+ #include "device.hpp"
++#include "util/logging.hpp"
+ 
+ using namespace Vulkan;
+ using namespace std;
+@@ -212,9 +213,17 @@ bool vk_init()
+ 	frontend.reset();
+ 
+ 	if (!::Vulkan::Context::init_loader(nullptr))
++	{
++		LOGE("Could not load the Vulkan loader (MoltenVK).\n");
++		fprintf(stderr, "parallel: could not load the Vulkan loader (MoltenVK)\n");
+ 		return false;
++	}
+ 	if (!context->init_instance_and_device(nullptr, 0, nullptr, 0, 0))
++	{
++		LOGE("Could not create the Vulkan instance and device.\n");
++		fprintf(stderr, "parallel: could not create the Vulkan instance and device\n");
+ 		return false;
++	}
+ 
+ 	uintptr_t aligned_rdram = reinterpret_cast<uintptr_t>(gfx.RDRAM);
+ 	uintptr_t offset = 0;
+@@ -227,6 +236,7 @@ bool vk_init()
+ 
+ 		if (offset)
+ 		{
++			fprintf(stderr, "parallel: RDRAM pointer is not aligned (offset %zu, alignment %zu)\n", (size_t)offset, align);
+ 			return false;
+ 		}
+ 		aligned_rdram -= offset;
+@@ -262,6 +272,7 @@ bool vk_init()
+ 											 offset, rdram_size, rdram_size / 2, flags));
+ 	if (!frontend->device_is_supported())
+ 	{
++		fprintf(stderr, "parallel: the RDP device is not supported (init_renderer failed)\n");
+ 		frontend.reset();
+ 		return false;
+ 	}

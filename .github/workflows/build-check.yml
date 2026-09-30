@@ -2,6 +2,8 @@ name: Build Check
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
   pull_request:
     branches: [main]
 
@@ -19,6 +21,11 @@ jobs:
 
       - name: Check vendored core externals are populated
         run: ./Scripts/check-core-sources.sh
+
+      - name: Check upstream inventory and update preservation
+        run: |
+          python3 Scripts/upstream/core-upstream.py check
+          python3 -m unittest discover -s Scripts/upstream/tests -v
 
   sdk-tests:
     name: OpenEmuBase tests
@@ -56,40 +63,25 @@ jobs:
       - name: Determine which cores to build
         id: detect
         run: |
-          # Only these cores have been ported to iOS; the rest need OpenGL or
-          # their own platform work. Keep this list in step with the CORES
-          # array in Scripts/cassowary/build-cassowary.sh.
-          all_cores='["4DO","Atari800","Bliss","blueMSX","BSNES","CrabEmu","FCEU","Gambatte","GenesisPlus","JollyCV","MAME","Mednafen","mGBA","Nestopia","O2EM","picodrive","PokeMini","Potator-Core","ProSystem","SNES9x","Stella","VirtualJaguar"]'
+          # The app and CI read the same inventory.
+          all_cores=$(python3 Scripts/upstream/core-upstream.py shipped)
 
-          if [ "${{ github.event_name }}" != "pull_request" ]; then
+          if [ "$EVENT_NAME" = "workflow_dispatch" ] || [ "$BASE_SHA" = "0000000000000000000000000000000000000000" ]; then
             # Manual workflow_dispatch run has no PR base to diff against — build everything.
-            echo "Not a pull_request event — building all cores"
+            echo "No previous revision to compare — building all cores"
             cores="$all_cores"
           else
-            changed=$(git diff --name-only "${{ github.event.pull_request.base.sha }}" "${{ github.sha }}")
-            echo "Changed files:"
-            echo "$changed"
-
-            # A change to shared framework code, the workspace, or the build
-            # scripts can affect every core's build — fall back to all of them.
-            # OpenEmuKit/ is included because several cores compile .m files
-            # directly out of OpenEmuKit/Source/ into their own plugin targets.
-            if echo "$changed" | grep -qE '^(OpenEmu-SDK/|OpenEmu-metal\.xcworkspace/|OpenEmuKit/|OpenEmu-Shaders/|Scripts/cassowary/)'; then
-              echo "Shared code changed — building all cores"
-              cores="$all_cores"
-            else
-              cores=$(CHANGED_FILES="$changed" ALL_CORES="$all_cores" python3 -c "
-          import json, os
-          all_cores = json.loads(os.environ['ALL_CORES'])
-          changed = os.environ['CHANGED_FILES'].splitlines()
-          selected = [c for c in all_cores if any(f.startswith('cores/' + c + '/') for f in changed)]
-          print(json.dumps(selected))
-          ")
-            fi
+            # Read filenames through stdin: large upstream imports can exceed
+            # the system's environment-variable size limit.
+            cores=$(git diff --name-only "$BASE_SHA" "$HEAD_SHA" | python3 Scripts/upstream/core-upstream.py changed)
           fi
 
           echo "Cores to build: $cores"
           echo "cores=$cores" >> "$GITHUB_OUTPUT"
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.sha }}
 
   build-cores:
     name: Build core (${{ matrix.core }})
