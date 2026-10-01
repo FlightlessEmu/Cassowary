@@ -63,7 +63,7 @@ struct ShareSettingsView: View {
                     ))
                     .autocorrectionDisabled()
 
-                    Text("The name the Apple TV shows when it finds your library. iOS keeps the phone's own name private from apps, so this starts out as \"iPhone\" — type whatever you want the TV to call it.")
+                    Text("The name the Apple TV shows when it finds your library. Enter the name you want the TV to use for this device.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -78,7 +78,7 @@ struct ShareSettingsView: View {
 
                 Section {
                     if trust.peers.isEmpty {
-                        Text("No devices yet. On the Apple TV, open Cassowary and pick this iPhone.")
+                        Text("No devices yet. On the Apple TV, open Cassowary and select this device.")
                             .foregroundStyle(.secondary)
                     }
                     ForEach(trust.peers) { peer in

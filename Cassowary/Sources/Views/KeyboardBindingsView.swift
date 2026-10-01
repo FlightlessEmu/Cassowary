@@ -68,7 +68,11 @@ struct KeyboardBindingsView: View {
                         Button("Restore Defaults") { reset() }
                             .disabled(!isCustomized)
                     } footer: {
+#if targetEnvironment(macCatalyst)
+                        Text("Click a button and press a key to record it. Right-click a button to clear its key. \"—\" means the button has no key.")
+#else
                         Text("Tap a button and press a key to record it. Swipe left on a button to clear its key. \"—\" means the button has no key.")
+#endif
                     }
                 }
                 .id(revision)
@@ -80,7 +84,7 @@ struct KeyboardBindingsView: View {
                 }
             }
         }
-        .navigationTitle(systemName)
+        .navigationTitle("Keyboard Bindings")
         .navigationBarTitleDisplayMode(.inline)
         .background {
             // The UIKit half of the keyboard: GameController can miss keys on
@@ -117,6 +121,12 @@ struct KeyboardBindingsView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+#if targetEnvironment(macCatalyst)
+        .contextMenu {
+            Button("Clear Key") { clear(button) }
+                .disabled(keyCode(for: button) == nil)
+        }
+#endif
         .swipeActions(edge: .trailing) {
             Button("Clear") { clear(button) }
                 .tint(.gray)

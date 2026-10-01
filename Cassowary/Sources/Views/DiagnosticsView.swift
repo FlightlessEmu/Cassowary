@@ -53,7 +53,7 @@ struct DiagnosticsView: View {
                     ContentUnavailableView {
                         Label("No Reports", systemImage: "checkmark.seal")
                     } description: {
-                        Text("Nothing has crashed or hung since the app began keeping reports.")
+                        Text("No crash or hang reports have been received.")
                     }
                 } else {
                     ForEach(store.reports) { report in
@@ -70,7 +70,11 @@ struct DiagnosticsView: View {
             } header: {
                 Text("Crash & Hang Reports")
             } footer: {
+#if targetEnvironment(macCatalyst)
+                Text("Reports are supplied by macOS. Nothing here is sent anywhere. The system may not produce a report for every incident; check Console on your Mac if a report is missing.")
+#else
                 Text("The phone hands these over on a later launch, and only when it is set to share analytics (Settings → Privacy & Security → Analytics & Improvements). Nothing here is sent anywhere. On a build installed from Xcode the system may not collect them at all; then use Xcode's Devices window, or Settings → Privacy & Security → Analytics & Improvements → Analytics Data on the phone.")
+#endif
             }
         }
         .navigationTitle("Diagnostics")

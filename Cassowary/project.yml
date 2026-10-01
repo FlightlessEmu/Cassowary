@@ -77,7 +77,16 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: org.cassowary.Cassowary
         PRODUCT_NAME: Cassowary
+        MARKETING_VERSION: "1.3.0"
+        CURRENT_PROJECT_VERSION: "1"
         INFOPLIST_FILE: Resources/Info.plist
+        TARGETED_DEVICE_FAMILY: "1,2"
+        # Use Mac control sizes and spacing for Catalyst, keeping the phone
+        # and iPad builds in their own interface idioms.
+        "TARGETED_DEVICE_FAMILY[sdk=macosx*]": "6"
+        "GENERATE_INFOPLIST_FILE[sdk=macosx*]": "YES"
+        "INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=macosx*]": "YES"
+        "INFOPLIST_KEY_UIApplicationSupportsMultipleScenes[sdk=macosx*]": "YES"
         # Mac Catalyst builds the same app for the Mac. The destination picks
         # it; this only declares that the target can be built that way.
         SUPPORTS_MACCATALYST: "YES"

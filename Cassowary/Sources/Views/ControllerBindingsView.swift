@@ -132,11 +132,11 @@ struct ControllerBindingsView: View {
                 ContentUnavailableView {
                     Label("No Controller", systemImage: "gamecontroller")
                 } description: {
-                    Text("Connect a controller over Bluetooth or the charging port. The controls it drives for \(systemName) show up here.")
+                    Text("Connect a controller over Bluetooth or USB. Its controls for \(systemName) appear here.")
                 }
             }
         }
-        .navigationTitle(systemName)
+        .navigationTitle("Controller Bindings")
         #if !os(tvOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif
@@ -162,6 +162,8 @@ struct ControllerBindingsView: View {
 
     #if os(tvOS)
     private static let howTo = "Choose a button, then press the control on the controller you want for it. Press and hold a button to clear its control. \"—\" means the button has no control."
+    #elseif targetEnvironment(macCatalyst)
+    private static let howTo = "Click a button and press a control on the controller to record it. Right-click a button to clear its control. \"—\" means the button has no control."
     #else
     private static let howTo = "Tap a button and press a control on the controller to record it. Swipe left on a button to clear its control. \"—\" means the button has no control."
     #endif
@@ -188,6 +190,12 @@ struct ControllerBindingsView: View {
         }
         #else
         .buttonStyle(.plain)
+#if targetEnvironment(macCatalyst)
+        .contextMenu {
+            Button("Clear Control") { clear(button) }
+                .disabled(player?.bindingDescriptions[button.id] == nil)
+        }
+#endif
         .swipeActions(edge: .trailing) {
             Button("Clear") { clear(button) }
                 .tint(.gray)

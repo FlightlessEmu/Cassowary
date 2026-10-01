@@ -37,6 +37,8 @@ The shipped cores are listed in [`Scripts/cassowary/cores.txt`](../Scripts/casso
 |---|---|
 | [apple-tv-library-host-plan.md](apple-tv-library-host-plan.md) | Plan for the Apple TV build and the phone-hosted library. |
 | [retro-achievements/retroachievements-implementation-guide.md](retro-achievements/retroachievements-implementation-guide.md) | How to wire a core into RetroAchievements, and the pitfalls already hit. |
+| [catalyst-ui-review.md](catalyst-ui-review.md) | Mac UI findings, changes, and verification status. |
+| [mobile-ui-review.md](mobile-ui-review.md) | iPhone and iPad UI findings and verification coverage. |
 
 ## Other
 

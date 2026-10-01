@@ -82,7 +82,11 @@ struct CoverArtSettingsView: View {
             } header: {
                 Text("Library")
             } footer: {
+#if targetEnvironment(macCatalyst)
+                Text("A game that is not found is left alone for a week before it is looked up again. Right-click a game to download its artwork again.")
+#else
                 Text("A game that is not found is left alone for a week before it is looked up again. Long-press a game for a single re-download.")
+#endif
             }
 
             screenScraperSection

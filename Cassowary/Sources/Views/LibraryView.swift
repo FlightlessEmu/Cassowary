@@ -96,6 +96,8 @@ struct LibraryView: View {
     @StateObject private var catalog = CoreCatalog()
     @StateObject private var coverArt = CoverArtStore.shared
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     @State private var selection: LibrarySelection? = .all
     @State private var path = NavigationPath()
     @State private var searchText = ""
@@ -113,6 +115,7 @@ struct LibraryView: View {
     /// Whether the systems list is showing beside the games in a wide compact
     /// window, such as a phone in landscape.
     @State private var showCompactSidebar = true
+    @State private var columnVisibility: NavigationSplitViewVisibility = .all
 
     @AppStorage(CoverArtSetting.automaticKey) private var downloadCoverArt = true
 
@@ -131,7 +134,7 @@ struct LibraryView: View {
                     // off selection state, which means tapping the
                     // already-selected row is a no-op and the library appears
                     // to not open.
-                    NavigationStack {
+                    NavigationStack(path: $path) {
                         compactSidebar
                             .navigationDestination(for: LibrarySelection.self) { target in
                                 detail(for: target)
@@ -146,18 +149,40 @@ struct LibraryView: View {
                 case .split:
                     // iPad, Mac, and any window wide enough for the system's
                     // own two-column navigation.
-                    NavigationSplitView {
+                    NavigationSplitView(columnVisibility: $columnVisibility) {
                         sidebar
                     } detail: {
                         detail(for: selection ?? .all)
                     }
                     .navigationSplitViewStyle(.balanced)
+#if targetEnvironment(macCatalyst)
+                    .toolbar(.hidden, for: .navigationBar)
+#endif
                 }
             }
             .onChange(of: layout) { old, new in
                 layoutChanged(from: old, to: new)
             }
         }
+#if targetEnvironment(macCatalyst)
+        .background {
+            CatalystLibraryToolbar(
+                title: detailTitle(for: selection ?? .all),
+                isPlaying: playing != nil,
+                searchText: $searchText,
+                sortOptions: SortOption.allCases.map { ($0.rawValue, $0.label) },
+                selectedSort: sort.rawValue,
+                onSort: { if let option = SortOption(rawValue: $0) { sort = option } },
+                onAdd: { showFileImporter = true },
+                onRefresh: refreshAll,
+                onToggleSidebar: {
+                    withAnimation {
+                        columnVisibility = columnVisibility == .detailOnly ? .all : .detailOnly
+                    }
+                }
+            )
+        }
+#endif
         .fullScreenCover(item: $playing) { active in
             GameView(game: active.game, core: active.core, resumeSlot: active.slot) {
                 // The game just closed: its autosave is on disk, and it
@@ -274,6 +299,16 @@ struct LibraryView: View {
         .onReceive(NotificationCenter.default.publisher(for: .refreshLibrary)) { _ in
             refreshAll()
         }
+#if targetEnvironment(macCatalyst)
+        .onReceive(NotificationCenter.default.publisher(for: .addGames)) { _ in
+            showFileImporter = true
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .sortGames)) { notification in
+            if let value = notification.object as? String, let option = SortOption(rawValue: value) {
+                sort = option
+            }
+        }
+#endif
         .onChange(of: scenePhase) { _, phase in
             // Games can turn up while the app is away: copied in from Finder,
             // or dropped in over file sharing. Coming back is the moment to
@@ -307,12 +342,19 @@ struct LibraryView: View {
     /// compact window — a phone in landscape — from throwing the extra room
     /// away.
     private func layout(for width: CGFloat) -> LibraryLayout {
+#if targetEnvironment(macCatalyst)
+        // Keep the window toolbar and sidebar when a Mac window gets narrow.
+        return .split
+#else
+        // Larger accessibility text needs the full width for readable rows.
+        if dynamicTypeSize.isAccessibilitySize { return .stacked }
         if sizeClass == .regular {
             return .split
         }
         guard width >= Self.sideBySideMinimumWidth else { return .stacked }
         // A list wide enough to read, never more than a third of the window.
         return .sideBySide(sidebarWidth: min(300, max(240, width * 0.33)))
+#endif
     }
 
     /// Enough room for a systems list and a useful games grid side by side.
@@ -328,7 +370,7 @@ struct LibraryView: View {
         if new == .stacked {
             // The stack opens on the systems list. If a system was showing,
             // open it again so the same thing stays on screen.
-            if path.isEmpty, let selection, case .system = selection {
+            if path.isEmpty, let selection {
                 path.append(selection)
             }
         } else {
@@ -357,6 +399,10 @@ struct LibraryView: View {
             sidebarRow(for: .favorites, linked: linked) {
                 Label("Favorites", systemImage: "heart")
             }
+        } header: {
+#if targetEnvironment(macCatalyst)
+            Text("Library")
+#endif
         }
 
         Section("Systems") {
@@ -398,6 +444,18 @@ struct LibraryView: View {
     ) -> some View {
         if linked {
             NavigationLink(value: target, label: label)
+                .tag(target)
+#if targetEnvironment(macCatalyst)
+                .foregroundStyle(selection == target ? Color.white : Color.primary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.vertical, 6)
+                .padding(.horizontal, 8)
+                .background(
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(selection == target ? Color.accentColor : Color.clear)
+                )
+                .accessibilityAddTraits(selection == target ? .isSelected : [])
+#endif
         } else {
             label().tag(target)
         }
@@ -442,7 +500,9 @@ struct LibraryView: View {
         // an iPad in portrait — the system's default sidebar would leave the
         // games a very small column. Keeping it near 240 leaves room for both.
         .navigationSplitViewColumnWidth(min: 200, ideal: 240, max: 300)
+#if !targetEnvironment(macCatalyst)
         .navigationTitle("Library")
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button {
@@ -452,6 +512,9 @@ struct LibraryView: View {
                 }
             }
         }
+#else
+        .toolbar(.hidden, for: .navigationBar)
+#endif
     }
 
     /// The systems list beside the games on a phone in landscape.
@@ -460,6 +523,7 @@ struct LibraryView: View {
             sidebarRows(linked: false)
         }
         .navigationTitle("Library")
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button {
@@ -518,14 +582,21 @@ struct LibraryView: View {
             biosBanner(for: target)
             Group {
                 if visibleGames(for: target).isEmpty {
-                    emptyState(for: target)
+                    if !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        ContentUnavailableView.search(text: searchText)
+                    } else {
+                        emptyState(for: target)
+                    }
                 } else {
                     grid(for: target)
                 }
             }
         }
+#if !targetEnvironment(macCatalyst)
         .navigationTitle(detailTitle(for: target))
+        .navigationBarTitleDisplayMode(.inline)
         .searchable(text: $searchText, prompt: "Search games")
+#endif
         // Games are added by dropping files onto the games themselves. The
         // sidebar is deliberately not a target, so on the Mac and iPad the
         // highlight covers the library and nothing else.
@@ -536,6 +607,7 @@ struct LibraryView: View {
                 dropHighlight
             }
         }
+#if !targetEnvironment(macCatalyst)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button {
@@ -565,6 +637,9 @@ struct LibraryView: View {
                 .keyboardShortcut("r", modifiers: .command)
             }
         }
+#else
+        .toolbar(.hidden, for: .navigationBar)
+#endif
     }
 
     /// The BIOS banner for a system whose cores ask for BIOS files: ready,
@@ -637,9 +712,16 @@ struct LibraryView: View {
             .allowsHitTesting(false)
     }
 
+    private var gridColumns: [GridItem] {
+        if dynamicTypeSize.isAccessibilitySize {
+            return [GridItem(.flexible())]
+        }
+        return [GridItem(.adaptive(minimum: columnWidth, maximum: 220), spacing: 20)]
+    }
+
     private func grid(for target: LibrarySelection) -> some View {
         ScrollView {
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: columnWidth, maximum: 220), spacing: 20)], spacing: 20) {
+            LazyVGrid(columns: gridColumns, spacing: 20) {
                 ForEach(visibleGames(for: target)) { game in
                     Button {
                         play(game)
@@ -1193,6 +1275,8 @@ private struct SystemPickerSheet: View {
 /// One game in the library grid.
 private struct GameTile: View {
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     let game: Game
     let system: SystemEntry?
 
@@ -1258,12 +1342,13 @@ private struct GameTile: View {
                     }
                 }
                 .aspectRatio(1, contentMode: .fit)
+                .frame(maxWidth: dynamicTypeSize.isAccessibilitySize ? 220 : nil)
                 .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
 
             VStack(spacing: 2) {
                 Text(game.title)
                     .font(.subheadline.weight(.medium))
-                    .lineLimit(2)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
                     .multilineTextAlignment(.center)
                     .foregroundStyle(.primary)
 

@@ -28,6 +28,9 @@ import OpenEmuKit
 
 @main
 struct CassowaryApp: App {
+#if targetEnvironment(macCatalyst)
+    @Environment(\.openWindow) private var openWindow
+#endif
 
     init() {
         // Plugins are discovered by scanning the app bundle and Application
@@ -74,20 +77,53 @@ struct CassowaryApp: App {
         }
         .commands {
             SidebarCommands()
-            // The Settings scene does not exist on iOS (not even Catalyst),
-            // so Settings lives in-app and Cmd+, is wired to it by hand.
+#if targetEnvironment(macCatalyst)
+            CommandGroup(after: .newItem) {
+                Button("Add Games…") {
+                    NotificationCenter.default.post(name: .addGames, object: nil)
+                }
+                .keyboardShortcut("o", modifiers: .command)
+            }
+#endif
             CommandGroup(replacing: .appSettings) {
                 Button("Settings…") {
+#if targetEnvironment(macCatalyst)
+                    openWindow(id: "settings", value: "settings")
+#else
                     NotificationCenter.default.post(name: .showSettings, object: nil)
+#endif
                 }
                 .keyboardShortcut(",", modifiers: .command)
             }
             CommandMenu("Library") {
+#if targetEnvironment(macCatalyst)
+                Button("Search Games") {
+                    NotificationCenter.default.post(name: .searchGames, object: nil)
+                }
+                .keyboardShortcut("f", modifiers: .command)
+                Menu("Sort Games By") {
+                    Button("Title") {
+                        NotificationCenter.default.post(name: .sortGames, object: "title")
+                    }
+                    Button("System") {
+                        NotificationCenter.default.post(name: .sortGames, object: "system")
+                    }
+                }
+                Divider()
+#endif
                 Button("Refresh Library") {
                     NotificationCenter.default.post(name: .refreshLibrary, object: nil)
                 }
                 .keyboardShortcut("r", modifiers: .command)
             }
         }
+#if targetEnvironment(macCatalyst)
+        WindowGroup("Settings", id: "settings", for: String.self) { _ in
+            SettingsView()
+        } defaultValue: {
+            "settings"
+        }
+        .defaultSize(width: 760, height: 600)
+#endif
     }
 }

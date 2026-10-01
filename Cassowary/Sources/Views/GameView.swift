@@ -127,6 +127,9 @@ struct GameView: View {
                 errorState(errorMessage)
             }
         }
+        // The game controls use white labels over dark backgrounds. Keep their
+        // contrast when the library follows the Mac's light appearance.
+        .preferredColorScheme(.dark)
         .statusBarHidden()
         .persistentSystemOverlays(.hidden)
         .background {
@@ -192,7 +195,7 @@ struct GameView: View {
     // MARK: - Top bar
 
     /// Translucent control cluster: close, title chip, pause, save, more.
-    /// Glass materials keep it readable over any game, in both idioms.
+    /// A dark backing keeps labels readable even over a bright game frame.
     private var topBar: some View {
         HStack(spacing: 8) {
             glassButton("xmark") { closeGame() }
@@ -315,9 +318,10 @@ struct GameView: View {
                     Image(systemName: "ellipsis.circle.fill")
                         .font(.body.weight(.semibold))
                         .foregroundStyle(.white)
-                        .frame(width: 40, height: 40)
-                        .background(.ultraThinMaterial, in: .circle)
+                        .frame(width: 44, height: 44)
+                        .background(.black.opacity(0.72), in: .circle)
                 }
+                .buttonStyle(.plain)
                 .accessibilityLabel("More actions")
             }
         }
@@ -345,7 +349,7 @@ struct GameView: View {
         .foregroundStyle(.white)
         .padding(.horizontal, 12)
         .padding(.vertical, 7)
-        .background(.ultraThinMaterial, in: .capsule)
+        .background(.black.opacity(0.72), in: .capsule)
     }
 
     private var coreSubtitle: String? {
@@ -538,9 +542,10 @@ struct GameView: View {
             Image(systemName: symbol)
                 .font(.body.weight(.semibold))
                 .foregroundStyle(.white)
-                .frame(width: 40, height: 40)
-                .background(.ultraThinMaterial, in: .circle)
+                .frame(width: 44, height: 44)
+                .background(.black.opacity(0.72), in: .circle)
         }
+        .buttonStyle(.plain)
     }
 
     private func report(_ result: Result<Void, Error>, success: String) {
@@ -623,7 +628,7 @@ struct GameView: View {
             .foregroundStyle(.white)
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
-            .background(.ultraThinMaterial, in: .capsule)
+            .background(.black.opacity(0.72), in: .capsule)
             .transition(.move(edge: .top).combined(with: .opacity))
     }
 

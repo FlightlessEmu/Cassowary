@@ -76,6 +76,12 @@ fi
 
 SDK=$(xcrun --sdk "$SDK_NAME" --show-sdk-path)
 IOS_FLAGS="-target $TARGET -isysroot $SDK"
+if [[ "$PLATFORM" == catalyst ]]; then
+  # Catalyst's UIKit headers live in iOSSupport. BGFX must select Metal:
+  # its automatic iOS selection also enables unavailable OpenGL ES headers.
+  # SQLite's Mac locking extensions use gethostuuid, unavailable in Catalyst.
+  IOS_FLAGS+=" -iframework $SDK/System/iOSSupport/System/Library/Frameworks -DBGFX_CONFIG_RENDERER_METAL=1 -DSQLITE_ENABLE_LOCKING_STYLE=0"
+fi
 
 # MAME's makefile keys its object tree on the target OS name, not on the SDK
 # flags, and the build above reuses whatever objects are already there. Every
@@ -84,6 +90,8 @@ IOS_FLAGS="-target $TARGET -isysroot $SDK"
 # fails with "building for 'tvOS', but linking in object file ... built for
 # 'iOS'".
 case "$PLATFORM" in
+  device)   BUILDDIR=build-device ;;
+  catalyst) BUILDDIR=build-catalyst ;;
   tvos)     BUILDDIR=build-tvos ;;
   tvos-sim) BUILDDIR=build-tvos-sim ;;
   *)        BUILDDIR=build ;;

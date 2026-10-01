@@ -53,7 +53,7 @@ enum ButtonTheme: String, CaseIterable, Identifiable {
     /// Unpressed directional fill (d-pad arms, stick base, cross).
     func padBase() -> Color {
         switch self {
-        case .glass: return .white.opacity(0.16)
+        case .glass: return Color(white: 0.12).opacity(0.82)
         case .neon: return .black.opacity(0.55)
         case .retro: return Color(red: 0.24, green: 0.24, blue: 0.28)
         }
@@ -62,7 +62,7 @@ enum ButtonTheme: String, CaseIterable, Identifiable {
     /// Pressed directional fill.
     func padActive() -> Color {
         switch self {
-        case .glass: return .white.opacity(0.35)
+        case .glass: return Color(white: 0.25).opacity(0.92)
         case .neon: return .cyan.opacity(0.5)
         case .retro: return Color(red: 0.36, green: 0.36, blue: 0.42)
         }
@@ -71,7 +71,7 @@ enum ButtonTheme: String, CaseIterable, Identifiable {
     /// Unpressed face-button fill.
     func faceBase() -> Color {
         switch self {
-        case .glass: return .white.opacity(0.22)
+        case .glass: return Color(white: 0.12).opacity(0.82)
         case .neon: return .black.opacity(0.55)
         case .retro: return Color(red: 0.62, green: 0.16, blue: 0.22)
         }
@@ -80,7 +80,7 @@ enum ButtonTheme: String, CaseIterable, Identifiable {
     /// Pressed face-button fill.
     func faceActive() -> Color {
         switch self {
-        case .glass: return .white.opacity(0.45)
+        case .glass: return Color(white: 0.25).opacity(0.92)
         case .neon: return .pink.opacity(0.55)
         case .retro: return Color(red: 0.78, green: 0.24, blue: 0.30)
         }
@@ -91,7 +91,7 @@ enum ButtonTheme: String, CaseIterable, Identifiable {
     /// without needing an outline of their own.
     func padCap() -> Color {
         switch self {
-        case .glass: return .white.opacity(0.26)
+        case .glass: return Color(white: 0.16).opacity(0.82)
         case .neon: return .black.opacity(0.4)
         case .retro: return Color(red: 0.34, green: 0.34, blue: 0.40)
         }
@@ -100,7 +100,7 @@ enum ButtonTheme: String, CaseIterable, Identifiable {
     /// Edge stroke drawn on pads and buttons. Clear when the theme has none.
     func edge() -> Color {
         switch self {
-        case .glass: return .clear
+        case .glass: return .white.opacity(0.18)
         case .neon: return .cyan.opacity(0.35)
         case .retro: return .black.opacity(0.35)
         }

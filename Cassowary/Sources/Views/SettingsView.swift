@@ -23,6 +23,24 @@
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import SwiftUI
+import CoreHaptics
+
+private enum SettingsPane: String, CaseIterable, Identifiable {
+    case controls, video, library, sharing, systems, about, diagnostics
+    var id: String { rawValue }
+    var title: String { rawValue.capitalized }
+    var symbol: String {
+        switch self {
+        case .controls: return "gamecontroller"
+        case .video: return "display"
+        case .library: return "square.grid.2x2"
+        case .sharing: return "appletv"
+        case .systems: return "cpu"
+        case .about: return "info.circle"
+        case .diagnostics: return "stethoscope"
+        }
+    }
+}
 
 /// App settings: default core per system, and what is installed.
 ///
@@ -41,6 +59,11 @@ struct SettingsView: View {
     @AppStorage(DirectionRepeat.rateKey) private var repeatRate = DirectionRepeat.defaultRate
     @AppStorage(ButtonHaptics.enabledKey) private var hapticsEnabled = true
     @AppStorage(ButtonHaptics.styleKey) private var hapticStyle = "light"
+
+#if targetEnvironment(macCatalyst)
+    @AppStorage("cassowary.settingsPane") private var paneRaw = SettingsPane.video.rawValue
+    private var pane: SettingsPane { SettingsPane(rawValue: paneRaw) ?? .video }
+#endif
 
     @Environment(\.dismiss) private var dismiss
 
@@ -82,8 +105,43 @@ struct SettingsView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            List {
+#if targetEnvironment(macCatalyst)
+        HStack(spacing: 0) {
+            ScrollView {
+                VStack(spacing: 4) {
+                    ForEach(SettingsPane.allCases) { item in
+                        Button {
+                            paneRaw = item.rawValue
+                        } label: {
+                            Label(item.title, systemImage: item.symbol)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 8)
+                                .foregroundStyle(pane == item ? Color.white : Color.primary)
+                                .background(pane == item ? Color.accentColor : Color.clear,
+                                            in: RoundedRectangle(cornerRadius: 6))
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityAddTraits(pane == item ? .isSelected : [])
+                    }
+                }
+                .padding(10)
+            }
+            .frame(width: 170)
+            Divider()
+            NavigationStack { settingsContent }
+                .id(pane)
+        }
+        .background { CatalystSettingsWindow() }
+#else
+        NavigationStack { settingsContent }
+#endif
+    }
+
+    private var settingsContent: some View {
+        List {
+            if showsPane(.controls) {
                 Section {
                     Picker("D-Pad Style", selection: styleBinding) {
                         ForEach(DPadStyle.allCases) { style in
@@ -130,20 +188,24 @@ struct SettingsView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
-                    Toggle("Button Haptics", isOn: $hapticsEnabled)
+#if !targetEnvironment(macCatalyst)
+                    if CHHapticEngine.capabilitiesForHardware().supportsHaptics {
+                        Toggle("Button Haptics", isOn: $hapticsEnabled)
 
-                    if hapticsEnabled {
-                        Picker("Haptic Strength", selection: $hapticStyle) {
-                            Text("Light").tag("light")
-                            Text("Medium").tag("medium")
-                            Text("Heavy").tag("heavy")
+                        if hapticsEnabled {
+                            Picker("Haptic Strength", selection: $hapticStyle) {
+                                Text("Light").tag("light")
+                                Text("Medium").tag("medium")
+                                Text("Heavy").tag("heavy")
+                            }
+                            .pickerStyle(.segmented)
                         }
-                        .pickerStyle(.segmented)
-                    }
 
-                    Text("Buzzes the phone when an on-screen button is pressed. Try it on the pad below.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        Text("Buzzes the phone when an on-screen button is pressed. Try it on the pad below.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+#endif
 
                     // Dark stage, like a running game: Glass is white-on-dark
                     // and would wash out against the white Settings row.
@@ -152,6 +214,7 @@ struct SettingsView: View {
                             .fill(.black)
                         VStack(spacing: 10) {
                             ControlPreview(style: selectedStyle, theme: selectedTheme, handler: tester)
+                                .environment(\.colorScheme, .dark)
                             Text("Last: \(tester.lastLabel) · Presses: \(tester.pressCount)")
                                 .font(.caption)
                                 .foregroundStyle(.white.opacity(0.6))
@@ -165,9 +228,11 @@ struct SettingsView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 } header: {
-                    Text("Controls")
+                    Text("On-Screen Controls")
                 }
 
+            }
+            if showsPane(.video) {
                 Section {
                     Picker("Video Filter", selection: globalShaderBinding) {
                         Text("None").tag(nil as String?)
@@ -190,6 +255,8 @@ struct SettingsView: View {
                     Text("Video")
                 }
 
+            }
+            if showsPane(.library) {
                 Section {
                     NavigationLink {
                         CoverArtSettingsView()
@@ -211,6 +278,8 @@ struct SettingsView: View {
                     Text("Cassowary can download cover art for your games from libretro-thumbnails and ScreenScraper. BIOS files dropped on the library are checked and filed where the cores look.")
                 }
 
+            }
+            if showsPane(.sharing) {
                 Section {
                     NavigationLink {
                         ShareSettingsView()
@@ -223,6 +292,8 @@ struct SettingsView: View {
                     Text("Serve your games to an Apple TV on the same network. The TV copies a game before playing it and sends saves back. Keep this app open while you play.")
                 }
 
+            }
+            if showsPane(.systems) {
                 Section {
                     NavigationLink {
                         RetroAchievementsSettingsView()
@@ -255,9 +326,15 @@ struct SettingsView: View {
                 } header: {
                     Text("Systems")
                 } footer: {
+#if targetEnvironment(macCatalyst)
+                    Text("The default core is used when you open a game. Right-click a game for Play With… to pick a different core once.")
+#else
                     Text("The default core is used when you tap a game. Long-press a game for Play With… to pick a different core once.")
+#endif
                 }
 
+            }
+            if showsPane(.about) {
                 Section("About") {
                     NavigationLink {
                         AboutView(catalog: catalog)
@@ -269,6 +346,8 @@ struct SettingsView: View {
                     LabeledContent("Version", value: appVersion)
                 }
 
+            }
+            if showsPane(.diagnostics) {
                 Section {
                     NavigationLink {
                         DiagnosticsView(store: .shared)
@@ -281,29 +360,41 @@ struct SettingsView: View {
                     Text("See what the system has handed back about crashes and hangs, and the last game that did not close cleanly. Nothing leaves the device unless you share it.")
                 }
             }
-            .navigationTitle("Settings")
-            .toolbar {
-                // Settings is a sheet, so it needs its own way out.
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
-                }
-            }
-            .onAppear {
-                catalog.refresh()
-                // Once: coming back from the page must not open it again.
-                if !didOpenLaunchPage {
-                    didOpenLaunchPage = true
-                    openedPage = UserDefaults.standard.string(forKey: "cassowary.settingsPage")
-                }
-            }
-            .navigationDestination(item: $openedPage) { page in
-                if page == "bios" {
-                    BIOSSettingsView(catalog: catalog)
-                } else {
-                    SystemCoresView(catalog: catalog, shaderCatalog: shaderCatalog, upscalingOptions: upscalingOptions, systemID: page)
-                }
+        }
+#if targetEnvironment(macCatalyst)
+        .navigationTitle(pane.title)
+        .navigationBarTitleDisplayMode(.inline)
+#else
+        .navigationTitle("Settings")
+        .toolbar {
+            // Settings is a sheet, so it needs its own way out.
+            ToolbarItem(placement: .confirmationAction) {
+                Button("Done") { dismiss() }
             }
         }
+#endif
+        .onAppear {
+            catalog.refresh()
+            if !didOpenLaunchPage {
+                didOpenLaunchPage = true
+                openedPage = UserDefaults.standard.string(forKey: "cassowary.settingsPage")
+            }
+        }
+        .navigationDestination(item: $openedPage) { page in
+            if page == "bios" {
+                BIOSSettingsView(catalog: catalog)
+            } else {
+                SystemCoresView(catalog: catalog, shaderCatalog: shaderCatalog, upscalingOptions: upscalingOptions, systemID: page)
+            }
+        }
+    }
+
+    private func showsPane(_ candidate: SettingsPane) -> Bool {
+#if targetEnvironment(macCatalyst)
+        return pane == candidate
+#else
+        return true
+#endif
     }
 
     private func coreSummary(for system: SystemEntry) -> String {
@@ -368,7 +459,7 @@ private struct SystemCoresView: View {
                         }
                         .disabled(system.cores.isEmpty)
                     } footer: {
-                        Text("Automatic uses the first installed core. This matches the macOS preference.")
+                        Text("Automatic uses the first installed core. Choose a core here to use it by default for this system.")
                     }
 
                     if let requirement = BIOSCatalog.requirement(forSystemIdentifier: system.id) {
@@ -529,7 +620,7 @@ struct AboutView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Cassowary")
                         .font(.title2.weight(.bold))
-                    Text("An independent iOS emulator frontend. Not affiliated with, sponsored, or endorsed by the OpenEmu Team.")
+                    Text("An independent emulator frontend for iPhone, iPad, and Mac. Not affiliated with, sponsored, or endorsed by the OpenEmu Team.")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
