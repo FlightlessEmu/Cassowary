@@ -36,6 +36,7 @@ struct TVSettingsView: View {
     #if DEBUG
     /// The system `TVScreenshotHooks.systemToOpen` asks for, pushed once.
     @State private var screenshotSystemID: String?
+    @State private var screenshotBindingsID: String?
     #endif
 
     private let budgets: [(String, Int64)] = [
@@ -202,7 +203,14 @@ struct TVSettingsView: View {
                 TVSystemView(catalog: catalog, shaderCatalog: shaderCatalog,
                              upscalingOptions: upscalingOptions, systemID: id)
             }
-            .task { screenshotSystemID = TVScreenshotHooks.systemToOpen }
+            .navigationDestination(item: $screenshotBindingsID) { id in
+                ControllerBindingsView(systemID: id,
+                                       systemName: catalog.system(forIdentifier: id)?.name ?? id)
+            }
+            .task {
+                screenshotSystemID = TVScreenshotHooks.systemToOpen
+                screenshotBindingsID = TVScreenshotHooks.bindingsToOpen
+            }
             #endif
         }
     }

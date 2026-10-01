@@ -190,6 +190,10 @@ targets:
       - path: Sources/Views/GameLayerView.swift
       - path: Sources/Controls/ControllerLayout.swift
       - path: Sources/Controls/InputBindings.swift
+      # Remapping a controller's buttons: the same screen and capture code as
+      # the phone, so a remap works the same way on both.
+      - path: Sources/Controls/InputMonitors.swift
+      - path: Sources/Views/ControllerBindingsView.swift
       - path: Sources/Controls/KeyboardKey.swift
       - path: Sources/Controls/RumbleHaptics.swift
       # The transfer layer. The server and the host-side index are the

@@ -7,11 +7,6 @@ deleting it once it is done.
 
 ## Still to build
 
-- **Controller button remapping on the TV** (WP5 of the TV plan). The phone
-  has a bindings screen; the TV has none, so a gamepad uses the defaults.
-  Use the same bindings store, so a remap on one device could follow to the
-  other later.
-
 - **Microphone input for the Nintendo DS.** Some DS games need it (blowing
   out candles, talking to Nintendogs). The melonDS engine already asks for
   it: `Mic_Start`, `Mic_Stop` and `Mic_ReadInput` in
@@ -47,6 +42,10 @@ press, and no real RetroAchievements account was used.
   menu. If that is annoying, hold Menu to open the menu and do not pass that
   press to the game.
 - **Home on a gamepad** opens the menu, if tvOS delivers it at all.
+- **Remapping a controller's buttons** (Settings → a system → Controller
+  Buttons): choose a button, press a control, and check it sticks in a game.
+  While "Press a Button" is up the controller goes to the engine, so Back on
+  the Siri Remote, or ten seconds, is the way out; check both.
 - **Leaving with the TV button** writes the autosave and syncs before tvOS
   suspends the app (it now asks for background time to finish).
 - **RetroAchievements with a real account**: turn on Share With Apple TV on

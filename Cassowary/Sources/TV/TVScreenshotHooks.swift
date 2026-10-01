@@ -44,6 +44,10 @@ enum TVScreenshotHooks {
     /// `cassowary.tvOpenSystem <systemIdentifier>`: that system's settings.
     static var systemToOpen: String? { defaults.string(forKey: "cassowary.tvOpenSystem") }
 
+    /// `cassowary.tvOpenBindings <systemIdentifier>`: that system's
+    /// Controller Buttons screen.
+    static var bindingsToOpen: String? { defaults.string(forKey: "cassowary.tvOpenBindings") }
+
     /// `cassowary.tvOpenCorePicker <systemIdentifier>`: the core picker, for
     /// that system's first game or a stand-in when it has none.
     static var corePickerSystem: String? { defaults.string(forKey: "cassowary.tvOpenCorePicker") }
@@ -59,7 +63,7 @@ enum TVScreenshotHooks {
     /// True when a flag above asks for a screen, so real prompts such as a
     /// waiting save conflict stay out of the way of the screenshot.
     static var asksForScreen: Bool {
-        systemToOpen != nil || corePickerSystem != nil || showsSampleConflict || opensVideo
+        systemToOpen != nil || bindingsToOpen != nil || corePickerSystem != nil || showsSampleConflict || opensVideo
     }
 }
 

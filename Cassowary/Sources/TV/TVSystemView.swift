@@ -57,6 +57,21 @@ struct TVSystemView: View {
                     }
 
                     Section {
+                        NavigationLink {
+                            ControllerBindingsView(systemID: system.id, systemName: system.name)
+                        } label: {
+                            // A Label here draws its icon over the text on tvOS.
+                            HStack(spacing: 18) {
+                                Image(systemName: "gamecontroller")
+                                    .frame(width: 40)
+                                Text("Controller Buttons")
+                            }
+                        }
+                    } footer: {
+                        Text("Which controller button presses which \(system.name) button. Shared with the phone.")
+                    }
+
+                    Section {
                         Picker("Default Core", selection: defaultBinding(for: system)) {
                             Text("Automatic").tag(nil as String?)
                             ForEach(system.cores) { core in

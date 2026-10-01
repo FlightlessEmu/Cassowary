@@ -23,6 +23,9 @@
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import SwiftUI
+#if os(tvOS)
+import GameController
+#endif
 import OpenEmuSystem
 import OpenEmuKit
 
@@ -115,7 +118,7 @@ struct ControllerBindingsView: View {
                         Button("Restore Defaults") { reset() }
                             .disabled(!isCustomized)
                     } footer: {
-                        Text("Tap a button and press a control on the controller to record it. Swipe left on a button to clear its control. \"—\" means the button has no control.")
+                        Text(Self.howTo)
                     }
                 }
                 .id(revision)
@@ -134,7 +137,9 @@ struct ControllerBindingsView: View {
             }
         }
         .navigationTitle(systemName)
+        #if !os(tvOS)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
         .task {
             startWatching()
             load()
@@ -155,6 +160,12 @@ struct ControllerBindingsView: View {
         }
     }
 
+    #if os(tvOS)
+    private static let howTo = "Choose a button, then press the control on the controller you want for it. Press and hold a button to clear its control. \"—\" means the button has no control."
+    #else
+    private static let howTo = "Tap a button and press a control on the controller to record it. Swipe left on a button to clear its control. \"—\" means the button has no control."
+    #endif
+
     // MARK: - Rows
 
     private func row(_ button: ControllerButton) -> some View {
@@ -168,12 +179,21 @@ struct ControllerBindingsView: View {
             }
             .contentShape(Rectangle())
         }
+        #if os(tvOS)
+        // A TV cannot swipe, and a plain row there shows no focus: the
+        // standard row style, and press-and-hold to clear.
+        .contextMenu {
+            Button("Clear") { clear(button) }
+                .disabled(player?.bindingDescriptions[button.id] == nil)
+        }
+        #else
         .buttonStyle(.plain)
         .swipeActions(edge: .trailing) {
             Button("Clear") { clear(button) }
                 .tint(.gray)
                 .disabled(player?.bindingDescriptions[button.id] == nil)
         }
+        #endif
     }
 
     /// The bound control as a badge. It fills in while the control is held.
@@ -185,9 +205,15 @@ struct ControllerBindingsView: View {
             .foregroundStyle(pressed ? Color.white : Color.secondary)
             .padding(.horizontal, 8)
             .padding(.vertical, 3)
-            .background(pressed ? Color.accentColor : Color(uiColor: .secondarySystemFill), in: Capsule())
+            .background(pressed ? Color.accentColor : Self.badgeFill, in: Capsule())
             .animation(.easeOut(duration: 0.09), value: pressed)
     }
+
+    #if os(tvOS)
+    private static let badgeFill = Color.white.opacity(0.12)
+    #else
+    private static let badgeFill = Color(uiColor: .secondarySystemFill)
+    #endif
 
     /// The one connected pad: its name and the player the bindings stack gave it.
     private func padHeader(_ pad: ControllerPad) -> some View {
@@ -520,8 +546,46 @@ private struct ControllerCaptureSheet: View {
                 captured = true
                 onEvent(event)
             }
+            #if os(tvOS)
+            startTVCapture()
+            #endif
         }
-        .onDisappear { input.onEvent = nil }
+        .onDisappear {
+            input.onEvent = nil
+            #if os(tvOS)
+            stopTVCapture()
+            #endif
+        }
+        #if !os(tvOS)
         .presentationDetents([.medium])
+        #endif
     }
+
+    #if os(tvOS)
+    /// While the menus have the controller, its buttons move the highlight
+    /// instead of reaching the engine, so nothing could be recorded. The
+    /// controller goes to the engine while this is up, which leaves nothing
+    /// on screen pressable: Back on the Siri Remote cancels, and so does
+    /// waiting, so there is always a way out.
+    private func startTVCapture() {
+        ControllerCapture.setInterfaceActive(false)
+        for controller in GCController.controllers() where controller.extendedGamepad == nil {
+            controller.microGamepad?.buttonMenu.pressedChangedHandler = { _, _, pressed in
+                guard pressed else { return }
+                MainActor.assumeIsolated { onCancel() }
+            }
+        }
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(10))
+            if !captured { onCancel() }
+        }
+    }
+
+    private func stopTVCapture() {
+        for controller in GCController.controllers() where controller.extendedGamepad == nil {
+            controller.microGamepad?.buttonMenu.pressedChangedHandler = nil
+        }
+        ControllerCapture.setInterfaceActive(true)
+    }
+    #endif
 }

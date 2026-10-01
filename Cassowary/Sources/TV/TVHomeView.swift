@@ -164,7 +164,7 @@ struct TVHomeView: View {
 
     private static var launchTab: Tab {
         #if DEBUG
-        if TVScreenshotHooks.systemToOpen != nil { return .settings }
+        if TVScreenshotHooks.systemToOpen != nil || TVScreenshotHooks.bindingsToOpen != nil { return .settings }
         if let name = TVScreenshotHooks.tab, let tab = Tab(rawValue: name) { return tab }
         #endif
         return .library
