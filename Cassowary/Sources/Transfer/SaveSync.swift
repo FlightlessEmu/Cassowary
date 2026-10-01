@@ -120,14 +120,20 @@ struct SaveSyncResult {
     var conflicts = 0
     var error: Error?
 
+    /// Whether any save actually moved.
+    var movedAny: Bool { uploaded > 0 || downloaded > 0 }
+
+    /// What happened, in a short sentence: "Sent 2 saves, received 1."
+    /// Conflicts are left out; the screens that show this offer them on
+    /// their own.
     var summary: String {
         if let error { return error.localizedDescription }
-        if uploaded == 0, downloaded == 0, conflicts == 0 { return "Already in sync" }
+        guard movedAny else { return "Already in sync" }
         var parts: [String] = []
-        if uploaded > 0 { parts.append("sent \(uploaded)") }
+        if uploaded > 0 { parts.append("sent \(uploaded) save\(uploaded == 1 ? "" : "s")") }
         if downloaded > 0 { parts.append("received \(downloaded)") }
-        if conflicts > 0 { parts.append("\(conflicts) to choose") }
-        return parts.joined(separator: ", ")
+        let sentence = parts.joined(separator: ", ")
+        return sentence.prefix(1).uppercased() + sentence.dropFirst()
     }
 }
 
@@ -148,6 +154,18 @@ enum SaveSyncEngine {
             let localMetas = SaveStore.scan(games: games)
             let index = TransferProtocol.SavesIndex(deviceID: DeviceIdentity.current.id, blobs: localMetas)
             let answer = try await peer.mergeSaves(index)
+
+            // A save the other device neither asks for nor answers with a
+            // copy of its own is one it already has, byte for byte. It is
+            // not going to ask later, so it counts as sent now; otherwise it
+            // would wait to be sent for ever.
+            for local in localMetas {
+                let mentioned = answer.need.contains { $0.gameID == local.gameID && $0.kind == local.kind }
+                    || answer.send.contains { $0.gameID == local.gameID && $0.kind == local.kind }
+                if !mentioned {
+                    markSynced(gameID: local.gameID, kind: local.kind)
+                }
+            }
 
             // What the other device wants from us.
             for wanted in answer.need {
@@ -243,8 +261,15 @@ enum SaveSyncEngine {
                               data: Data,
                               games: [GameLocation]) -> TransferProtocol.SavePutResponse {
         if meta.kind == SaveKind.playInfo {
-            let outcome = mergePlayInfo(remote: meta, data: data, games: games)
-            return TransferProtocol.SavePutResponse(stored: outcome != .ignored, conflict: false)
+            // Play history merges, so it is always taken in. A merge that
+            // changes nothing means this device already had all of it, which
+            // still counts as stored: answering "not stored" made the sender
+            // offer the same history again on every sync.
+            guard SaveStore.url(for: meta, games: games) != nil else {
+                return TransferProtocol.SavePutResponse(stored: false, conflict: false)
+            }
+            _ = mergePlayInfo(remote: meta, data: data, games: games)
+            return TransferProtocol.SavePutResponse(stored: true, conflict: false)
         }
 
         let local = SaveIndexStore.shared.record(gameID: meta.gameID, kind: meta.kind)
@@ -388,8 +413,18 @@ enum SaveSyncEngine {
         let localInfo = localData.flatMap { try? TransferProtocol.decoder.decode(PlayInfo.self, from: $0) } ?? .empty
         let merged = localInfo.merged(with: remoteInfo)
 
+        // The other device's copy already holds everything: keep it as it
+        // is and owe nothing back. Marking the merge as new here made the two
+        // devices send the same history to each other on every sync.
+        if merged == remoteInfo {
+            let stored = SaveStore.store(data: data, meta: remote, games: games, markPending: false)
+            return stored ? .stored : .ignored
+        }
+
+        // Nothing here is new, and what this device has still goes out.
+        if localData != nil, merged == localInfo { return .ignored }
+
         guard let mergedData = try? TransferProtocol.encoder.encode(merged) else { return .ignored }
-        if let localData, localData == mergedData { return .ignored }
 
         var meta = remote
         meta.version = (SaveIndexStore.shared.record(gameID: remote.gameID, kind: remote.kind)?.version ?? 0) + 1
@@ -403,7 +438,7 @@ enum SaveSyncEngine {
     }
 
     private static func markSynced(gameID: String, kind: String) {
-        guard var record = SaveIndexStore.shared.record(gameID: gameID, kind: kind) else { return }
+        guard var record = SaveIndexStore.shared.record(gameID: gameID, kind: kind), record.pending else { return }
         record.pending = false
         SaveIndexStore.shared.set(record, gameID: gameID, kind: kind)
     }
