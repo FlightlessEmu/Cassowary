@@ -38,6 +38,25 @@ import MetalFX
 /// difference is input: there is no touch pad on a TV, so a game controller
 /// reaches the emulator through the engine's GameController bridge, which
 /// `GameSession` starts when the game does.
+/// Extra time from tvOS to finish work after the app leaves the screen.
+/// Ended once, whether the work finishes or tvOS runs out of patience first.
+@MainActor
+private final class BackgroundTime {
+    private var task: UIBackgroundTaskIdentifier = .invalid
+
+    init() {
+        task = UIApplication.shared.beginBackgroundTask(withName: "Save the game") { [weak self] in
+            MainActor.assumeIsolated { self?.end() }
+        }
+    }
+
+    func end() {
+        guard task != .invalid else { return }
+        UIApplication.shared.endBackgroundTask(task)
+        task = .invalid
+    }
+}
+
 struct TVPlayerView: View {
 
     let game: TVStore.LocalGame
@@ -1067,25 +1086,36 @@ struct TVPlayerView: View {
         closeFilters()
     }
 
+    /// The app is leaving the screen with a game running: pause, write the
+    /// autosave, file the saves and send them, so nothing is lost if tvOS
+    /// later ends the app.
     private func saveBeforeLeaving() {
         guard !didClose, let session, session.isRunning else { return }
         leftActive = true
         controllerInput.setGameplayActive(false)
         session.setPaused(true)
+
+        // tvOS suspends an app soon after it leaves the screen. Asking for a
+        // little more time keeps the save and the sync from being cut off
+        // halfway; it is handed back as soon as they are done.
+        let time = BackgroundTime()
         if session.raHardcoreActive {
-            fileSavesAndRecordPlay()
+            fileSavesAndRecordPlay(then: time.end)
         } else {
             session.saveState(in: SaveKind.autosave) { _ in
-                self.fileSavesAndRecordPlay()
+                self.fileSavesAndRecordPlay(then: time.end)
             }
         }
     }
 
-    private func fileSavesAndRecordPlay() {
+    private func fileSavesAndRecordPlay(then done: @escaping @MainActor () -> Void) {
         let store = TVStore.shared
         store.fileSessionSaves(game)
         store.recordPlay(game)
-        Task { await store.syncNow() }
+        Task {
+            await store.syncNow()
+            done()
+        }
     }
 
     private func close() {

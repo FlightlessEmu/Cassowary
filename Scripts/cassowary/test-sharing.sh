@@ -20,7 +20,9 @@
 #   Scripts/cassowary/test-sharing.sh --skip-build
 #
 # CASSOWARY_TEST_PHONE and CASSOWARY_TEST_TV name the simulators to use
-# instead of the shared defaults.
+# instead of the shared defaults. CASSOWARY_TEST_DIRECT=1 has the TV connect
+# to the phone by address instead of finding it with Bonjour, for when the
+# Mac's own name resolution is misbehaving (it is shared by the simulators).
 #
 # Exit status is 0 when every check passed.
 
@@ -51,6 +53,12 @@ TV_NAME="${CASSOWARY_TEST_TV:-Cassowary-TV}"
 TV_TYPE="com.apple.CoreSimulator.SimDeviceType.Apple-TV-4K-3rd-generation-1080p"
 TV_RUNTIME="com.apple.CoreSimulator.SimRuntime.tvOS-26-5"
 PORT=8765
+# How the Apple TV finds the phone: Bonjour, as a person's would, or straight
+# to its address.
+TV_FIND=(-cassowary.tvAutoConnectFirstHost YES)
+if [[ "${CASSOWARY_TEST_DIRECT:-0}" == 1 ]]; then
+  TV_FIND=(-cassowary.tvHostAddress "127.0.0.1:$PORT")
+fi
 SHOTS="build/sharing-test"
 mkdir -p "$SHOTS"
 
@@ -263,7 +271,7 @@ if [[ "$MODE" != host ]]; then
 
   print -- "launching the Apple TV app..."
   xcrun simctl launch "$TV_UDID" org.cassowary.CassowaryTV \
-    -cassowary.tvAutoConnectFirstHost YES \
+    "${TV_FIND[@]}" \
     -cassowary.autoPlayFirstGame YES \
     -cassowary.sharing.deviceName "Cassowary Test Apple TV" \
     -cassowary.testHoldButton OEGBButtonA,OEGBButtonRight >/dev/null
@@ -354,7 +362,7 @@ if [[ "$MODE" != host ]]; then
   DELETE_START=$(date -u +%Y-%m-%dT%H:%M:%SZ)
   xcrun simctl terminate "$TV_UDID" org.cassowary.CassowaryTV 2>/dev/null || true
   xcrun simctl launch "$TV_UDID" org.cassowary.CassowaryTV \
-    -cassowary.tvAutoConnectFirstHost YES \
+    "${TV_FIND[@]}" \
     -cassowary.autoPlayFirstGame YES \
     -cassowary.testDeleteSlot YES >/dev/null
   deleted=False
