@@ -16,7 +16,8 @@ deleting it once it is done.
   pad and a Blow row in the TV menu, never the real microphone, since those
   games cannot say when they listen. `check-nes-microphone.sh` checks the
   NES cores with a test ROM; the Disk System path was not run (it needs
-  the FDS BIOS).
+  the FDS BIOS). The Mac app was built and has the microphone entitlement
+  and the permission text, but has not been played with a real game.
 
 ## Needs a real Apple TV
 
@@ -47,19 +48,20 @@ press, and no real RetroAchievements account was used.
 
 ## Bugs and rough edges found, not fixed
 
-- **Atari Jaguar showed "no core installed" in the Mac app** (1 October).
-  Not reproduced since: VirtualJaguar builds for Mac Catalyst cleanly
-  (40 files), the Mac app built that morning contains it as a Catalyst
-  binary, and opening it logs no plugin errors. The app lists a core from
-  its Info.plist alone, so that message means the core was missing from
-  the build that was running. If it shows again, check
-  `Cassowary.app/Contents/PlugIns/Cores/` in that build.
+- **MAME for the Mac**: a Mac build from before 7cf4fad19 left MAME out
+  (`glcontext_eagl.mm` could not find `UIKit/UIKit.h`). That commit adds
+  the Catalyst flags to `build-mame-ios.sh`; check a fresh
+  `build-cassowary.sh --catalyst` now has `MAME.oecoreplugin`.
 
 ## Housekeeping
 
-- **If every TV check in test-sharing.sh fails at once**, the Mac's Bonjour
-  may have stopped resolving the phone (the simulators share it; it happened
-  on 1 October). `CASSOWARY_TEST_DIRECT=1` connects by address instead.
+- **test-sharing.sh and Bonjour**: TV checks failing over Bonjour (but
+  passing with `CASSOWARY_TEST_DIRECT=1`) came from the test, not Bonjour.
+  Other simulators left serving advertise too, and the TV took the first
+  phone it saw; and the TV's auto-play could pick a copy of an older run's
+  game that the phone no longer lists, whose saves have nowhere to go. The
+  phone now advertises a name of the run's own, the TV connects only to
+  that name, and auto-play picks only games the connected phone lists.
 - **The tests have simulators of their own**, Cassowary-Test-Phone and
   Cassowary-Test-TV, made on first use, and empty the phone's game folder
   before they start. Point them at another simulator only if it is a spare.

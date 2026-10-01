@@ -56,7 +56,10 @@ TV_RUNTIME="com.apple.CoreSimulator.SimRuntime.tvOS-26-5"
 PORT=8765
 # How the Apple TV finds the phone: Bonjour, as a person's would, or straight
 # to its address.
-TV_FIND=(-cassowary.tvAutoConnectFirstHost YES)
+# A name of this run's own: another simulator left serving from earlier work
+# advertises too, and the TV once played and synced with that one instead.
+PHONE_SHARE_NAME="Cassowary Test Phone $$"
+TV_FIND=(-cassowary.tvAutoConnectFirstHost YES -cassowary.tvAutoConnectHostNamed "$PHONE_SHARE_NAME")
 if [[ "${CASSOWARY_TEST_DIRECT:-0}" == 1 ]]; then
   TV_FIND=(-cassowary.tvHostAddress "127.0.0.1:$PORT")
 fi
@@ -126,7 +129,7 @@ launch_phone() {
   xcrun simctl launch "$PHONE_UDID" org.cassowary.Cassowary \
     -cassowary.sharing.enabled YES \
     -cassowary.sharing.trustAll YES \
-    -cassowary.sharing.deviceName "Cassowary Test Phone" \
+    -cassowary.sharing.deviceName "$PHONE_SHARE_NAME" \
     -cassowary.sharing.port "$PORT" \
     -cassowary.testRetroAchievementsSignIn off >/dev/null
 }

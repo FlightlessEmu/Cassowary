@@ -277,7 +277,13 @@ struct TVHomeView: View {
             guard store.connection.isConnected, !store.libraryIsLoading else { return }
             // A game still to copy down comes first: that is the path the
             // scripts check, and a shared simulator may already hold others.
-            let sourced = store.games.filter { $0.sourceDeviceID != nil }
+            // Only games the connected source lists now: copies kept from
+            // other sources, or of games this one has dropped, have nowhere
+            // to sync their saves, and the scripts check that saves arrive.
+            guard case .connected(let host) = store.connection else { return }
+            let sourced = store.games.filter {
+                $0.sourceDeviceID == host.deviceID && store.sourceStillHas($0)
+            }
             guard let first = sourced.first(where: { !$0.isDownloaded }) ?? sourced.first else { return }
             NSLog("[Cassowary] auto-play picked %@ (%@)", first.title, first.isDownloaded ? "here" : "to copy down")
             autoPlayTargetID = first.id

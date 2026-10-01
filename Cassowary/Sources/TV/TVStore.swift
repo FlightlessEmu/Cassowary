@@ -182,10 +182,13 @@ final class TVStore: ObservableObject {
             .sink { [weak self] hosts in
                 guard let self else { return }
 
-                // The test scripts ask for the first host without tapping.
+                // The test scripts ask for the first host without tapping,
+                // or the first with a given name: other simulators left
+                // serving advertise too.
+                let wantedName = UserDefaults.standard.string(forKey: "cassowary.tvAutoConnectHostNamed")
                 if UserDefaults.standard.bool(forKey: "cassowary.tvAutoConnectFirstHost"),
                    !self.connection.isConnected, !self.isConnecting,
-                   let first = hosts.first {
+                   let first = hosts.first(where: { wantedName == nil || $0.name == wantedName }) {
                     Task { await self.connect(to: first) }
                     return
                 }
