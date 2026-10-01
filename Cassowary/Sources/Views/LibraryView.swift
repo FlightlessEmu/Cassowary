@@ -385,14 +385,13 @@ struct LibraryView: View {
     @ViewBuilder
     private func sidebarRows(linked: Bool) -> some View {
         Section {
-            sidebarRow(for: .all, linked: linked) {
+            sidebarRow(for: .all, linked: linked, count: library.games.count) {
                 Label {
                     Text("All Games")
                 } icon: {
                     Image(systemName: "gamecontroller.fill")
                 }
             }
-            .badge(library.games.count)
             sidebarRow(for: .continuePlaying, linked: linked) {
                 Label("Continue", systemImage: "clock")
             }
@@ -407,7 +406,7 @@ struct LibraryView: View {
 
         Section("Systems") {
             ForEach(catalog.systems) { system in
-                sidebarRow(for: .system(system.id), linked: linked) {
+                sidebarRow(for: .system(system.id), linked: linked, count: gameCount(for: system.id)) {
                     Label {
                         Text(system.name)
                     } icon: {
@@ -418,7 +417,6 @@ struct LibraryView: View {
                         }
                     }
                 }
-                .badge(gameCount(for: system.id))
             }
         }
 
@@ -440,10 +438,23 @@ struct LibraryView: View {
     private func sidebarRow(
         for target: LibrarySelection,
         linked: Bool,
+        count: Int = 0,
         @ViewBuilder label: () -> some View
     ) -> some View {
         if linked {
-            NavigationLink(value: target, label: label)
+            // The count goes inside the link. A badge on the link itself is
+            // drawn after its arrow on iPhone, which reads as "> 4".
+            NavigationLink(value: target) {
+                HStack {
+                    label()
+                    Spacer(minLength: 8)
+                    if count > 0 {
+                        Text("\(count)")
+                            .foregroundStyle(.secondary)
+                            .monospacedDigit()
+                    }
+                }
+            }
                 .tag(target)
 #if targetEnvironment(macCatalyst)
                 .foregroundStyle(selection == target ? Color.white : Color.primary)
@@ -457,7 +468,9 @@ struct LibraryView: View {
                 .accessibilityAddTraits(selection == target ? .isSelected : [])
 #endif
         } else {
-            label().tag(target)
+            label()
+                .badge(count)
+                .tag(target)
         }
     }
 
