@@ -111,7 +111,7 @@ index 3657eb3fc0e..9e19f6e55cc 100644
  #include <time.h>
 +#if defined(__APPLE__)
 +#include <TargetConditionals.h>
-+#if TARGET_OS_TV
++#if TARGET_OS_TV || TARGET_OS_IOS
 +#include <libkern/OSCacheControl.h>
 +#endif
 +#endif
@@ -122,10 +122,10 @@ index 3657eb3fc0e..9e19f6e55cc 100644
  bool invalidate_instruction_cache(void const *start, std::size_t size)
  {
  	char const *const begin(reinterpret_cast<char const *>(start));
-+#if defined(__APPLE__) && TARGET_OS_TV
-+	// tvOS has no __clear_cache: clang turns the builtin into a call to a
-+	// symbol the SDK does not provide. Flush the cache through the system
-+	// call instead.
++#if defined(__APPLE__) && (TARGET_OS_TV || TARGET_OS_IOS)
++	// A real Apple TV or iPhone has no __clear_cache: clang turns the builtin
++	// into a call to a symbol the SDK does not provide. Flush the cache
++	// through the system call instead (it exists on every Apple platform).
 +	sys_icache_invalidate(const_cast<char *>(begin), size);
 +#else
  	char const *const end(begin + size);
