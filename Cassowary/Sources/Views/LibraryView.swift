@@ -442,10 +442,8 @@ struct LibraryView: View {
         // an iPad in portrait — the system's default sidebar would leave the
         // games a very small column. Keeping it near 240 leaves room for both.
         .navigationSplitViewColumnWidth(min: 200, ideal: 240, max: 300)
+        .navigationTitle("Library")
         .toolbar {
-            ToolbarItem(placement: .topBarLeading) {
-                sidebarTitle
-            }
             ToolbarItem(placement: .primaryAction) {
                 Button {
                     showSettings = true
@@ -461,10 +459,8 @@ struct LibraryView: View {
         List(selection: $selection) {
             sidebarRows(linked: false)
         }
+        .navigationTitle("Library")
         .toolbar {
-            ToolbarItem(placement: .topBarLeading) {
-                sidebarTitle
-            }
             ToolbarItem(placement: .primaryAction) {
                 Button {
                     withAnimation { showCompactSidebar = false }
@@ -480,20 +476,6 @@ struct LibraryView: View {
                 }
             }
         }
-    }
-
-    /// The sidebar's own title.
-    ///
-    /// A plain leading label rather than `.navigationTitle`: the navigation
-    /// title is centred, and on iOS 26 it slides to the centre as the list
-    /// scrolls under it. This one stays put, at the size a sidebar title has
-    /// always been.
-    private var sidebarTitle: some View {
-        Text("Library")
-            .font(.headline)
-            .lineLimit(1)
-            .fixedSize()
-            .accessibilityAddTraits(.isHeader)
     }
 
     /// Two columns for a compact-width window with room to spare: the systems
