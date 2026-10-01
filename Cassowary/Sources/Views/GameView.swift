@@ -194,14 +194,17 @@ struct GameView: View {
     /// Translucent control cluster: close, title chip, pause, save, more.
     /// Glass materials keep it readable over any game, in both idioms.
     private var topBar: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 8) {
             glassButton("xmark") { closeGame() }
                 .accessibilityLabel("Close game")
 
             Spacer()
 
             if session != nil {
+                // First claim on the room the buttons leave: the spacers
+                // give way before the title does.
                 titleChip
+                    .layoutPriority(1)
             }
 
             Spacer()
@@ -220,17 +223,6 @@ struct GameView: View {
                 .accessibilityLabel(isPaused ? "Resume" : "Pause")
                 .keyboardShortcut("p", modifiers: .command)
 
-                // Only while a DS game is listening: blowing into a real
-                // microphone works too, but a phone held at arm's length, a
-                // refused permission or a Mac without one needs this.
-                if microphone.isListening {
-                    glassButton("wind") {
-                        microphone.blow()
-                        show(notice: "Blowing")
-                    }
-                    .accessibilityLabel("Blow into the microphone")
-                }
-
                 // Hardcore turns save states off; the engine refuses them
                 // anyway, so don't offer buttons that can only fail.
                 if !session.raHardcoreActive {
@@ -244,6 +236,19 @@ struct GameView: View {
                 }
 
                 Menu {
+                    // Only while a DS game is listening: blowing into a real
+                    // microphone works too, but a phone held at arm's length,
+                    // a refused permission or a Mac without one needs this.
+                    // The pad's Mic button does the same; this is for when a
+                    // controller has hidden the pad. Kept out of the top bar,
+                    // which has no room for it on a narrow phone.
+                    if microphone.isListening {
+                        Button("Blow Into Microphone", systemImage: "wind") {
+                            microphone.blow()
+                            show(notice: "Blowing")
+                        }
+                        Divider()
+                    }
                     // Hardcore turns save states off, so the manager has
                     // nothing it could do.
                     if !session.raHardcoreActive {
@@ -323,18 +328,22 @@ struct GameView: View {
     /// What is playing and what is running it.
     private var titleChip: some View {
         VStack(spacing: 1) {
+            // A long title shrinks a little before it is cut short; a
+            // small phone has room for about a dozen letters at full size.
             Text(game.title)
                 .font(.subheadline.weight(.semibold))
                 .lineLimit(1)
+                .minimumScaleFactor(0.8)
             if let subtitle = coreSubtitle {
                 Text(subtitle)
                     .font(.caption2)
                     .foregroundStyle(.white.opacity(0.75))
                     .lineLimit(1)
+                    .minimumScaleFactor(0.8)
             }
         }
         .foregroundStyle(.white)
-        .padding(.horizontal, 14)
+        .padding(.horizontal, 12)
         .padding(.vertical, 7)
         .background(.ultraThinMaterial, in: .capsule)
     }

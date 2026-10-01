@@ -18,8 +18,6 @@ deleting it once it is done.
   NES cores with a test ROM; the Disk System path was not run (it needs
   the FDS BIOS). The Mac build was not checked: it needs the new
   `device.audio-input` entitlement to hear anything.
-- On a narrow phone the Blow button squeezes the game's title in the top
-  bar to a few letters while a game listens.
 
 ## Needs a real Apple TV
 
