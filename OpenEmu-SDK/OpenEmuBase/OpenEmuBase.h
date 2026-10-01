@@ -36,6 +36,7 @@
 #import <OpenEmuBase/OEGameCore.h>
 #import <OpenEmuBase/OEGameCoreController.h>
 #import <OpenEmuBase/OERingBuffer.h>
+#import <OpenEmuBase/OEMicrophoneInput.h>
 #import <OpenEmuBase/OESystemResponderClient.h>
 #import <OpenEmuBase/OETimingUtils.h>
 #import <OpenEmuBase/TPCircularBuffer.h>

@@ -65,6 +65,8 @@
 		C6772A751710BD6200ED580A /* OEGameCoreController.m in Sources */ = {isa = PBXBuildFile; fileRef = C6772A671710BD6200ED580A /* OEGameCoreController.m */; };
 		C6772A761710BD6200ED580A /* OERingBuffer.h in Headers */ = {isa = PBXBuildFile; fileRef = C6772A681710BD6200ED580A /* OERingBuffer.h */; settings = {ATTRIBUTES = (Public, ); }; };
 		C6772A771710BD6200ED580A /* OERingBuffer.m in Sources */ = {isa = PBXBuildFile; fileRef = C6772A691710BD6200ED580A /* OERingBuffer.m */; };
+		OE0MIC0INPUT0BUILDFILE00H /* OEMicrophoneInput.h in Headers */ = {isa = PBXBuildFile; fileRef = OE0MIC0INPUT0FILEREF0000H /* OEMicrophoneInput.h */; settings = {ATTRIBUTES = (Public, ); }; };
+		OE0MIC0INPUT0BUILDFILE00M /* OEMicrophoneInput.m in Sources */ = {isa = PBXBuildFile; fileRef = OE0MIC0INPUT0FILEREF0000M /* OEMicrophoneInput.m */; };
 		C6772A781710BD6200ED580A /* TPCircularBuffer.c in Sources */ = {isa = PBXBuildFile; fileRef = C6772A6A1710BD6200ED580A /* TPCircularBuffer.c */; };
 		C6772A791710BD6200ED580A /* TPCircularBuffer.h in Headers */ = {isa = PBXBuildFile; fileRef = C6772A6B1710BD6200ED580A /* TPCircularBuffer.h */; settings = {ATTRIBUTES = (Public, ); }; };
 		C6772A7A1710BD6200ED580A /* OETimingUtils.h in Headers */ = {isa = PBXBuildFile; fileRef = C6772A6C1710BD6200ED580A /* OETimingUtils.h */; settings = {ATTRIBUTES = (Public, ); }; };
@@ -218,6 +220,8 @@
 		C6772A671710BD6200ED580A /* OEGameCoreController.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = OEGameCoreController.m; sourceTree = "<group>"; };
 		C6772A681710BD6200ED580A /* OERingBuffer.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = OERingBuffer.h; sourceTree = "<group>"; };
 		C6772A691710BD6200ED580A /* OERingBuffer.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = OERingBuffer.m; sourceTree = "<group>"; };
+		OE0MIC0INPUT0FILEREF0000H /* OEMicrophoneInput.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = OEMicrophoneInput.h; sourceTree = "<group>"; };
+		OE0MIC0INPUT0FILEREF0000M /* OEMicrophoneInput.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = OEMicrophoneInput.m; sourceTree = "<group>"; };
 		C6772A6A1710BD6200ED580A /* TPCircularBuffer.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = TPCircularBuffer.c; sourceTree = "<group>"; };
 		C6772A6B1710BD6200ED580A /* TPCircularBuffer.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = TPCircularBuffer.h; sourceTree = "<group>"; };
 		C6772A6C1710BD6200ED580A /* OETimingUtils.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = OETimingUtils.h; sourceTree = "<group>"; };
@@ -394,6 +398,8 @@
 				011829A620ACA8AA0030B347 /* OEAudioBuffer.h */,
 				C6772A681710BD6200ED580A /* OERingBuffer.h */,
 				C6772A691710BD6200ED580A /* OERingBuffer.m */,
+				OE0MIC0INPUT0FILEREF0000H /* OEMicrophoneInput.h */,
+				OE0MIC0INPUT0FILEREF0000M /* OEMicrophoneInput.m */,
 				C6772A6B1710BD6200ED580A /* TPCircularBuffer.h */,
 				C6772A6A1710BD6200ED580A /* TPCircularBuffer.c */,
 				C6772A6C1710BD6200ED580A /* OETimingUtils.h */,
@@ -577,6 +583,7 @@
 				C6772A741710BD6200ED580A /* OEGameCoreController.h in Headers */,
 				01F306FB20AA1C64005C8F18 /* NSUserDefaults+OpenEmuSDK.h in Headers */,
 				C6772A761710BD6200ED580A /* OERingBuffer.h in Headers */,
+				OE0MIC0INPUT0BUILDFILE00H /* OEMicrophoneInput.h in Headers */,
 				8363A434193CA52400F18425 /* OEGeometry.h in Headers */,
 				011829A720ACA8AA0030B347 /* OEAudioBuffer.h in Headers */,
 				C694EEC21C2A078B00DFD15C /* OEPropertyList.h in Headers */,
@@ -824,6 +831,7 @@
 				C6772A751710BD6200ED580A /* OEGameCoreController.m in Sources */,
 				011FAED52325B8F900DBEC62 /* NSDictionary+OpenEmuSDK.m in Sources */,
 				C6772A771710BD6200ED580A /* OERingBuffer.m in Sources */,
+				OE0MIC0INPUT0BUILDFILE00M /* OEMicrophoneInput.m in Sources */,
 				C6772A781710BD6200ED580A /* TPCircularBuffer.c in Sources */,
 				01F306FC20AA1C64005C8F18 /* NSUserDefaults+OpenEmuSDK.m in Sources */,
 				C6772A7B1710BD6200ED580A /* OETimingUtils.m in Sources */,

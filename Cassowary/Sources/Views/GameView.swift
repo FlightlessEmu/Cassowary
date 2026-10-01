@@ -76,6 +76,8 @@ struct GameView: View {
     /// only the first one counts.
     @State private var didClose = false
     @StateObject private var shaderCatalog = ShaderCatalog()
+    /// Whether the game is listening to the microphone, for the Blow button.
+    @ObservedObject private var microphone = MicrophoneCapture.shared
     @State private var shaderName: String?
     @AppStorage(RumbleHaptics.strengthKey) private var rumbleStrength = RumbleStrength.medium.rawValue
 
@@ -217,6 +219,17 @@ struct GameView: View {
                 }
                 .accessibilityLabel(isPaused ? "Resume" : "Pause")
                 .keyboardShortcut("p", modifiers: .command)
+
+                // Only while a DS game is listening: blowing into a real
+                // microphone works too, but a phone held at arm's length, a
+                // refused permission or a Mac without one needs this.
+                if microphone.isListening {
+                    glassButton("wind") {
+                        microphone.blow()
+                        show(notice: "Blowing")
+                    }
+                    .accessibilityLabel("Blow into the microphone")
+                }
 
                 // Hardcore turns save states off; the engine refuses them
                 // anyway, so don't offer buttons that can only fail.

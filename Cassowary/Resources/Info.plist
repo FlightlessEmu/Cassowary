@@ -45,6 +45,8 @@
 	<true/>
 	<!-- Sharing the library with an Apple TV. The permission is asked for the
 	     first time the sharing server starts. -->
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Some Nintendo DS games listen through the microphone, to blow out candles or hear your voice. Cassowary only listens while such a game asks.</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Cassowary finds your Apple TV on your local network to share games and saves with it.</string>
 	<key>NSBonjourServices</key>

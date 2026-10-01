@@ -39,6 +39,10 @@ struct CassowaryApp: App {
         // arrive on a later launch, so this is set up before anything can run.
         DiagnosticsStore.shared.start()
 
+        // Listens for a Nintendo DS game asking for the microphone; nothing is
+        // captured, or asked for, until one does.
+        MicrophoneCapture.shared.start()
+
 #if DEBUG
         // Seed a report so the Diagnostics screen can be looked at without
         // waiting for a real crash. Used by Scripts/cassowary/run-cassowary.sh.

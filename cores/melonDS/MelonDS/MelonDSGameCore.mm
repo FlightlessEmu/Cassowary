@@ -33,6 +33,7 @@
 #import "MelonDSGameCore.h"
 
 #import <OpenEmuBase/OEAudioBuffer.h>
+#import <OpenEmuBase/OEMicrophoneInput.h>
 
 #include "MelonDSMetalRenderer.h"
 
@@ -124,6 +125,23 @@ public:
     void RumbleStop() override
     {
         [_core setRumble:NO];
+    }
+
+    // The game's microphone. The app captures it (it owns the audio
+    // session) and hands the samples over through OEMicrophoneInput.
+    void MicStart() override
+    {
+        [OEMicrophoneInput.sharedInput startListening];
+    }
+
+    void MicStop() override
+    {
+        [OEMicrophoneInput.sharedInput stopListening];
+    }
+
+    int MicReadInput(melonDS::s16 *data, int maxlength) override
+    {
+        return (int)[OEMicrophoneInput.sharedInput readSamples:data maxCount:(NSUInteger)maxlength];
     }
 
 private:
@@ -371,6 +389,8 @@ private:
 - (void)stopEmulation
 {
     [self flushSave];
+    // A game closed while listening never says it has stopped.
+    [OEMicrophoneInput.sharedInput stopListening];
     [super stopEmulation];
 }
 

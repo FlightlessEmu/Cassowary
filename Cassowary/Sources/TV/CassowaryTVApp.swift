@@ -59,6 +59,9 @@ final class TVAppDelegate: UIResponder, UIApplicationDelegate {
         // before any plugin is looked up.
         OECorePlugin.registerClass()
         OESystemPlugin.registerClass()
+        // No microphone an app can use here, but it still tells the game
+        // menu when a DS game is listening, so it can offer Blow instead.
+        MicrophoneCapture.shared.start()
 
         return true
     }

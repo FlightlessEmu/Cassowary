@@ -72,6 +72,8 @@ struct TVPlayerView: View {
 
     @State private var session: GameSession?
     @StateObject private var controllerInput = TVControllerInput()
+    /// Whether a DS game is listening, for the menu's Blow row.
+    @ObservedObject private var microphone = MicrophoneCapture.shared
     @State private var buttonTap: Task<Void, Never>?
     @State private var tappedButton: String?
     @State private var menuButtonHorizontalPadding: CGFloat = 0
@@ -117,7 +119,7 @@ struct TVPlayerView: View {
     @FocusState private var stateFocus: StateFocus?
 
     private enum MenuFocus: Hashable {
-        case resume, start, select, saveState, states, reset, filter, video, close
+        case resume, start, select, saveState, states, blow, reset, filter, video, close
     }
 
     private enum FilterFocus: Hashable {
@@ -314,6 +316,17 @@ struct TVPlayerView: View {
                         openStates()
                     }
                     .focused($menuFocus, equals: .states)
+                }
+
+                // A DS game listening for breath: the TV has no microphone an
+                // app can use, so this blows for it, straight after closing
+                // the menu so the game is running to hear it.
+                if microphone.isListening {
+                    menuButton("Blow", systemImage: "wind") {
+                        closeMenu()
+                        microphone.blow()
+                    }
+                    .focused($menuFocus, equals: .blow)
                 }
 
                 menuButton("Reset", systemImage: "arrow.counterclockwise") {
