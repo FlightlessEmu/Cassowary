@@ -504,6 +504,23 @@ final class HostShareController: ObservableObject {
             return .json(response)
         }
 
+        if request.method == "DELETE" {
+            // Deleted on the other device. A save made here that it had not
+            // seen is kept, and goes back out; either way the deletion has
+            // been dealt with, so it is answered as taken.
+            let deletion = TransferProtocol.SaveBlobMeta(gameID: gameID,
+                                                         kind: kind,
+                                                         version: Int(request.header("X-Cassowary-Version") ?? "") ?? 0,
+                                                         deviceID: request.header("X-Cassowary-Device") ?? "",
+                                                         hash: TransferProtocol.SaveBlobMeta.deletedHash,
+                                                         size: 0,
+                                                         modifiedAt: Date(),
+                                                         deleted: true)
+            SaveSyncEngine.applyDeletion(deletion, games: locations, markPending: true)
+            refreshSaveState()
+            return .json(TransferProtocol.SavePutResponse(stored: true, conflict: false))
+        }
+
         return .text("Not supported", status: 400)
     }
 

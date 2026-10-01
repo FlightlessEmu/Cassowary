@@ -208,6 +208,21 @@ final class MediaClient {
         try await getData(TransferProtocol.Path.save(gameID: meta.gameID, kind: meta.kind)) ?? Data()
     }
 
+    /// Tells the host a save was deleted here. Same answer as an upload.
+    func deleteSaveBlob(_ meta: TransferProtocol.SaveBlobMeta) async throws -> TransferProtocol.SavePutResponse {
+        var request = URLRequest(url: try url(for: TransferProtocol.Path.save(gameID: meta.gameID, kind: meta.kind)))
+        request.httpMethod = "DELETE"
+        addToken(to: &request)
+        request.setValue(String(meta.version), forHTTPHeaderField: "X-Cassowary-Version")
+
+        let (body, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+            throw MediaClientError.http((response as? HTTPURLResponse)?.statusCode ?? 0)
+        }
+        return (try? TransferProtocol.decoder.decode(TransferProtocol.SavePutResponse.self, from: body))
+            ?? TransferProtocol.SavePutResponse(stored: true, conflict: false)
+    }
+
     func putSaveBlob(_ meta: TransferProtocol.SaveBlobMeta, data: Data) async throws -> TransferProtocol.SavePutResponse {
         var request = URLRequest(url: try url(for: TransferProtocol.Path.save(gameID: meta.gameID, kind: meta.kind)))
         request.httpMethod = "PUT"

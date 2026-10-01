@@ -152,6 +152,16 @@ enum TransferProtocol {
         var hash: String
         var size: Int64
         var modifiedAt: Date
+        /// True when this version is a deletion: the save was deleted on the
+        /// device that wrote it, and the others should delete theirs. Left
+        /// out (nil) by apps from before deletions travelled.
+        var deleted: Bool? = nil
+
+        var isDeleted: Bool { deleted == true }
+
+        /// Stands in for a deleted save's fingerprint, so two deletions of
+        /// the same save compare as the same.
+        static let deletedHash = "deleted"
     }
 
     /// `GET /v1/saves/index` and the body of `POST /v1/saves/merge`.

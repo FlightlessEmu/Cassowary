@@ -204,6 +204,23 @@ print((mine or games)[0]["id"] if games else "")')
     else
       fail "save state read back as: $BACK"
     fi
+
+    # A deletion from another device removes the save and is remembered as a
+    # deletion, so the next sync does not bring the save back.
+    DEL=$(curl -s -m 10 -X DELETE -H "X-Cassowary-Protocol: 2" -H "X-Cassowary-Token: $TOKEN" \
+      -H "X-Cassowary-Version: 1000" "http://127.0.0.1:$PORT/v1/saves/$GAME_ID/state")
+    GONE=$(curl -s -m 10 -o /dev/null -w '%{http_code}' -H "X-Cassowary-Protocol: 2" \
+      -H "X-Cassowary-Token: $TOKEN" "http://127.0.0.1:$PORT/v1/saves/$GAME_ID/state")
+    LISTED=$(curl -s -m 10 -H "X-Cassowary-Protocol: 2" -H "X-Cassowary-Token: $TOKEN" \
+      "http://127.0.0.1:$PORT/v1/saves/index" | GAME_ID="$GAME_ID" python3 -c '
+import json, os, sys
+blobs = json.load(sys.stdin).get("blobs", [])
+print(any(b["gameID"] == os.environ["GAME_ID"] and b["kind"] == "state" and b.get("deleted") for b in blobs))')
+    if [[ "$DEL" == *'"stored":true'* && "$GONE" == 404 && "$LISTED" == True ]]; then
+      pass "a deleted save is gone and listed as deleted"
+    else
+      fail "deleting a save: answer $DEL, then $GONE, listed as deleted: $LISTED"
+    fi
   fi
 
   # The sign-in only goes to a TV when the phone's Share With Apple TV is on,
@@ -232,6 +249,8 @@ if [[ "$MODE" != host ]]; then
   print -- "apple tv simulator: $TV_UDID"
 
   xcrun simctl terminate "$TV_UDID" org.cassowary.CassowaryTV 2>/dev/null || true
+  # A TV Settings left open by an earlier run would sit in front of the game.
+  xcrun simctl terminate "$TV_UDID" com.apple.TVSettings 2>/dev/null || true
   xcrun simctl install "$TV_UDID" "$TV_APP"
 
   # The phone may have been put away while the TV app was being built.
@@ -324,6 +343,39 @@ if [[ "$MODE" != host ]]; then
     fi
   else
     fail "could not launch TV Settings to check background autosaving"
+  fi
+  # Settings would otherwise stay in front of the TV app, here and in the
+  # next run.
+  xcrun simctl terminate "$TV_UDID" com.apple.TVSettings 2>/dev/null || true
+
+  # A slot deleted on the TV is deleted on the phone too. The TV saves into
+  # Slot 1, sends it, then deletes it; the phone can only record a deletion
+  # of a save it had, so its record proves the slot arrived and then went.
+  DELETE_START=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+  xcrun simctl terminate "$TV_UDID" org.cassowary.CassowaryTV 2>/dev/null || true
+  xcrun simctl launch "$TV_UDID" org.cassowary.CassowaryTV \
+    -cassowary.tvAutoConnectFirstHost YES \
+    -cassowary.autoPlayFirstGame YES \
+    -cassowary.testDeleteSlot YES >/dev/null
+  deleted=False
+  for _ in {1..20}; do
+    sleep 2
+    deleted=$(DELETE_START="$DELETE_START" python3 -c '
+import json, os, sys
+try:
+    records = json.load(open(sys.argv[1]))
+except Exception:
+    print(False); sys.exit()
+start = os.environ["DELETE_START"]
+print(any(key.endswith("|state:slot-1") and record.get("deleted") and record["modifiedAt"] >= start
+          for key, record in records.items()))' "$CONTAINER/Library/Application Support/Sharing/saves.json")
+    [[ "$deleted" == True ]] && break
+  done
+  LEFT=$(find "$CONTAINER/Documents" -name '*.slot-1.oesavestate' -newermt "$DELETE_START" 2>/dev/null || true)
+  if [[ "$deleted" == True && -z "$LEFT" ]]; then
+    pass "a slot deleted on the Apple TV is deleted on the phone"
+  else
+    fail "a slot deleted on the Apple TV is still on the phone (recorded as deleted: $deleted)"
   fi
 
   print -- ""

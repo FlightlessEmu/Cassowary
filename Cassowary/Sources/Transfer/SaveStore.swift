@@ -33,6 +33,17 @@ struct SaveVersionRecord: Codable, Hashable {
     var modifiedAt: Date
     /// True while the newest copy has not been handed to every paired device.
     var pending: Bool
+    /// True when the newest version is a deletion. Optional so indexes saved
+    /// before deletions travelled still read.
+    var deleted: Bool? = nil
+
+    var isDeleted: Bool { deleted == true }
+
+    func meta(gameID: String, kind: String) -> TransferProtocol.SaveBlobMeta {
+        TransferProtocol.SaveBlobMeta(gameID: gameID, kind: kind, version: version,
+                                      deviceID: deviceID, hash: hash, size: size,
+                                      modifiedAt: modifiedAt, deleted: deleted)
+    }
 }
 
 /// The save versions, remembered across launches.
@@ -148,6 +159,10 @@ struct SaveStore {
                     if let meta = meta(gameID: game.id, kind: kind, url: stateURL, deviceID: deviceID) {
                         metas.append(meta)
                     }
+                } else if let record = SaveIndexStore.shared.record(gameID: game.id, kind: kind),
+                          record.isDeleted {
+                    // A deleted slot is still listed, as its deletion.
+                    metas.append(record.meta(gameID: game.id, kind: kind))
                 }
             }
 
@@ -278,7 +293,24 @@ struct SaveStore {
         let url = saveStateURL(for: romURL, kind: kind)
         try? FileManager.default.removeItem(at: url)
         try? FileManager.default.removeItem(at: screenshotURL(forStateURL: url))
-        SaveIndexStore.shared.remove(gameID: gameID, kind: kind)
+        recordDeletion(gameID: gameID, kind: kind)
+    }
+
+    /// Notes that a save was deleted here, as a version of its own, so the
+    /// deletion reaches the other devices. Just forgetting the save let the
+    /// next sync bring the other device's copy straight back.
+    static func recordDeletion(gameID: String, kind: String) {
+        guard let previous = SaveIndexStore.shared.record(gameID: gameID, kind: kind),
+              !previous.isDeleted
+        else { return }
+        SaveIndexStore.shared.set(SaveVersionRecord(version: previous.version + 1,
+                                                    deviceID: DeviceIdentity.current.id,
+                                                    hash: TransferProtocol.SaveBlobMeta.deletedHash,
+                                                    size: 0,
+                                                    modifiedAt: Date(),
+                                                    pending: true,
+                                                    deleted: true),
+                                  gameID: gameID, kind: kind)
     }
 
     /// Removes a game's play history and its version record.

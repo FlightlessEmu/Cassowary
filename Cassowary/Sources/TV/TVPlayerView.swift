@@ -106,10 +106,11 @@ struct TVPlayerView: View {
         case shader(String)
     }
 
-    /// A slot's Load or Save Here button, by slot kind.
+    /// A slot's Load, Save Here or Delete button, by slot kind.
     private enum StateFocus: Hashable {
         case load(String)
         case save(String)
+        case delete(String)
     }
 
     private enum VideoFocus: Hashable {
@@ -398,10 +399,8 @@ struct TVPlayerView: View {
     }
 
     /// Every save-state slot, in place of the buttons: the same slots as the
-    /// phone's Save States sheet. A filled slot can be loaded; any slot but
-    /// the autosave can be saved over. Deleting stays on the phone: the TV
-    /// files its saves through the vault when the game ends, and a slot
-    /// removed mid-game would come back from there.
+    /// phone's Save States sheet. A filled slot can be loaded or deleted; any
+    /// slot but the autosave can be saved over.
     private var stateList: some View {
         VStack(spacing: 24) {
             Text("Save States")
@@ -432,7 +431,7 @@ struct TVPlayerView: View {
                     .font(.caption)
                     .foregroundStyle(.white.opacity(0.7))
             }
-            .frame(width: 520, alignment: .leading)
+            .frame(width: 440, alignment: .leading)
 
             // Fixed columns, so every Save Here lines up whether or not the
             // slot beside it has something to load.
@@ -454,8 +453,20 @@ struct TVPlayerView: View {
                 }
             }
             .frame(width: 250)
+            Group {
+                if slot != nil {
+                    // Red text, not a destructive role: tvOS draws that red on red.
+                    Button { deleteSlot(kind) } label: {
+                        Text("Delete").foregroundStyle(.red)
+                    }
+                    .focused($stateFocus, equals: .delete(kind))
+                } else {
+                    Color.clear
+                }
+            }
+            .frame(width: 190)
         }
-        .frame(width: 1000, height: 96, alignment: .leading)
+        .frame(width: 1110, height: 96, alignment: .leading)
     }
 
     private func slotDetail(kind: String, slot: SaveSlotInfo?) -> String {
@@ -476,6 +487,17 @@ struct TVPlayerView: View {
             if case .success = result {
                 closeMenu()
             }
+        }
+    }
+
+    /// Deletes a slot on this TV and, at the next sync, on the phone.
+    private func deleteSlot(_ kind: String) {
+        TVStore.shared.deleteState(game, kind: kind)
+        slots = session?.filledSlots ?? []
+        show(notice: "Deleted \(SaveKind.displayName(for: kind))")
+        // The Delete button just went away with the slot; land on its Save Here.
+        Task { @MainActor in
+            stateFocus = kind == SaveKind.autosave ? slots.first.map { .load($0.kind) } : .save(kind)
         }
     }
 
@@ -697,6 +719,21 @@ struct TVPlayerView: View {
             // Used to check the save-state list without a remote: saves into
             // Slot 1 so there is a filled slot to show, then opens the menu
             // and the list. Only set from the command line.
+            // Used by test-sharing.sh to check a deletion reaches the phone:
+            // saves into Slot 1, sends it, then deletes it. Only set from
+            // the command line.
+            if UserDefaults.standard.bool(forKey: "cassowary.testDeleteSlot") {
+                Task {
+                    try? await Task.sleep(for: .seconds(4))
+                    saveSlot(SaveKind.stateSlot(1))
+                    try? await Task.sleep(for: .seconds(1))
+                    TVStore.shared.fileSessionSaves(game)
+                    await TVStore.shared.syncNow()
+                    try? await Task.sleep(for: .seconds(2))
+                    deleteSlot(SaveKind.stateSlot(1))
+                }
+            }
+
             if UserDefaults.standard.bool(forKey: "cassowary.testOpenStates") {
                 Task {
                     try? await Task.sleep(for: .seconds(4))

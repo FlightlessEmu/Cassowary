@@ -686,7 +686,14 @@ final class TVStore: ObservableObject {
     }
 
     private func stageVaultFile(_ vault: URL, to beside: URL) {
-        guard FileManager.default.fileExists(atPath: vault.path) else { return }
+        // No vault copy means the slot is empty or was deleted, here or on
+        // the phone. A copy left beside the ROM from an earlier session would
+        // otherwise load, and be filed back into the vault afterwards.
+        guard FileManager.default.fileExists(atPath: vault.path) else {
+            try? FileManager.default.removeItem(at: beside)
+            try? FileManager.default.removeItem(at: SaveStore.screenshotURL(forStateURL: beside))
+            return
+        }
         try? FileManager.default.removeItem(at: beside)
         try? FileManager.default.copyItem(at: vault, to: beside)
         // Screenshots ride along so the menus can show them.
@@ -742,6 +749,18 @@ final class TVStore: ObservableObject {
             state.games[game.id] = updated
             saveState()
         }
+    }
+
+    /// Deletes a save-state slot here, the copy the running game uses and
+    /// the vault's alike, and tells the phone at the next sync.
+    func deleteState(_ game: LocalGame, kind: String) {
+        if let rom = playableURL(for: game) {
+            let beside = SaveStore.saveStateURL(for: rom, kind: kind)
+            try? FileManager.default.removeItem(at: beside)
+            try? FileManager.default.removeItem(at: SaveStore.screenshotURL(forStateURL: beside))
+        }
+        SaveStore.deleteState(gameID: game.id, romURL: vaultROMURL(gameID: game.id), kind: kind)
+        Task { await syncNow() }
     }
 
     func toggleFavorite(_ game: LocalGame) {

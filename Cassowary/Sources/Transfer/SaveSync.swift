@@ -169,10 +169,20 @@ enum SaveSyncEngine {
 
             // What the other device wants from us.
             for wanted in answer.need {
-                guard let local = localMetas.first(where: { $0.gameID == wanted.gameID && $0.kind == wanted.kind }),
-                      let data = SaveStore.data(for: local, games: games)
+                guard let local = localMetas.first(where: { $0.gameID == wanted.gameID && $0.kind == wanted.kind })
                 else { continue }
 
+                if local.isDeleted {
+                    // A device too old to take deletions answers with an
+                    // error; the deletion then just waits, like any save.
+                    if let response = try? await peer.deleteSaveBlob(local), response.stored {
+                        markSynced(gameID: local.gameID, kind: local.kind)
+                        result.uploaded += 1
+                    }
+                    continue
+                }
+
+                guard let data = SaveStore.data(for: local, games: games) else { continue }
                 let response = try await peer.putSaveBlob(local, data: data)
                 if response.conflict {
                     result.conflicts += 1
@@ -184,8 +194,13 @@ enum SaveSyncEngine {
 
             // What the other device has for us.
             for remote in answer.send {
-                let data = try await peer.fetchSaveBlob(remote)
-                let outcome = await apply(remote: remote, data: data, games: games)
+                let outcome: IncomingOutcome
+                if remote.isDeleted {
+                    outcome = applyDeletion(remote, games: games, markPending: false)
+                } else {
+                    let data = try await peer.fetchSaveBlob(remote)
+                    outcome = await apply(remote: remote, data: data, games: games)
+                }
                 switch outcome {
                 case .stored:      result.downloaded += 1
                 case .conflict:    result.conflicts += 1
@@ -221,6 +236,15 @@ enum SaveSyncEngine {
         // Same bytes either way.
         let incomingHash = Hashing.sha256(of: data)
         if local.hash == incomingHash { return .ignored }
+
+        // Deleted here, but the other device saved into the slot at or after
+        // the deletion's number, without having seen it: the save wins, so
+        // nothing is lost. An older save is one the deletion already covers.
+        if local.isDeleted {
+            guard remote.version >= local.version else { return .ignored }
+            let stored = SaveStore.store(data: data, meta: remote, games: games, markPending: false)
+            return stored ? .stored : .ignored
+        }
 
         // Local changes that have not gone out yet: only the user can say
         // which copy to keep.
@@ -282,6 +306,16 @@ enum SaveSyncEngine {
 
         if local.hash == hash {
             return TransferProtocol.SavePutResponse(stored: true, conflict: false)
+        }
+
+        // Deleted here, but saved into again over there: the save wins,
+        // unless it is older than the deletion.
+        if local.isDeleted {
+            guard meta.version >= local.version else {
+                return TransferProtocol.SavePutResponse(stored: true, conflict: false)
+            }
+            let stored = SaveStore.store(data: data, meta: meta, games: games, markPending: true)
+            return TransferProtocol.SavePutResponse(stored: stored, conflict: false)
         }
 
         if local.pending {
@@ -435,6 +469,43 @@ enum SaveSyncEngine {
 
         let stored = SaveStore.store(data: mergedData, meta: meta, games: games, markPending: true)
         return stored ? .stored : .ignored
+    }
+
+    /// Applies another device's deletion of a save.
+    ///
+    /// The deleting device numbers its deletion one past the copy it had, so
+    /// a copy here with a lower number is one it saw, and goes. A copy here
+    /// at the same number or higher was saved without the deleting device
+    /// knowing; it is kept, and moved past the deletion so it is what goes
+    /// back out. Deleting never throws away a save the deleter never saw.
+    @discardableResult
+    static func applyDeletion(_ remote: TransferProtocol.SaveBlobMeta,
+                              games: [GameLocation],
+                              markPending: Bool) -> IncomingOutcome {
+        guard var local = SaveIndexStore.shared.record(gameID: remote.gameID, kind: remote.kind),
+              !local.isDeleted
+        else { return .ignored }
+
+        guard remote.version > local.version else {
+            local.version = remote.version + 1
+            local.pending = true
+            SaveIndexStore.shared.set(local, gameID: remote.gameID, kind: remote.kind)
+            return .ignored
+        }
+
+        if let url = SaveStore.url(for: remote, games: games) {
+            try? FileManager.default.removeItem(at: url)
+            try? FileManager.default.removeItem(at: SaveStore.screenshotURL(forStateURL: url))
+        }
+        SaveIndexStore.shared.set(SaveVersionRecord(version: remote.version,
+                                                    deviceID: remote.deviceID,
+                                                    hash: TransferProtocol.SaveBlobMeta.deletedHash,
+                                                    size: 0,
+                                                    modifiedAt: remote.modifiedAt,
+                                                    pending: markPending,
+                                                    deleted: true),
+                                  gameID: remote.gameID, kind: remote.kind)
+        return .stored
     }
 
     private static func markSynced(gameID: String, kind: String) {

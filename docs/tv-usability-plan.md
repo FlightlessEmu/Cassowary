@@ -158,8 +158,11 @@ says how to launch with each.
   server can refuse a pause, as on the phone.
 - **WP5 — Controller button remapping on the TV**, with the same bindings
   store the phone uses.
-- **WP6 — Delete a save slot on the TV**, removing the vault copy and
-  telling the phone, so the slot does not come back on the next sync.
+- **WP6 — Done. Delete a save slot on the TV**, and have a deletion stick
+  on either device. A deleted save is now a version of its own (marked
+  deleted) instead of a forgotten one, so the other device's copy is
+  removed at the next sync rather than sent back. A save made where the
+  deleting device had not seen it wins over the deletion.
 - **WP7 — Done. Sync you can see:** the library says "Syncing saves…",
   "N saves to send" or "Saves synced 2 minutes ago"; Settings adds the last
   sync time, saves waiting for another device, and a Sync Now that shows it
