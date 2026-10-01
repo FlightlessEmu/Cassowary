@@ -104,6 +104,9 @@ if [[ "$MODE" == catalyst ]]; then
   SDK_FLAGS=()
 fi
 BUILD="$PWD/build/cassowary-$MODE"
+# The build logs are written straight into it, before anything else would
+# make it, so a fresh checkout stopped at the first framework.
+mkdir -p "$BUILD"
 SUPPORTED="iphoneos iphonesimulator macosx"
 
 # The Apple TV app stages its frameworks and plugins apart from the phone's,
