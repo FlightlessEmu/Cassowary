@@ -40,17 +40,28 @@ struct TVGameArtwork: View {
     let systemIdentifier: String
 
     var body: some View {
-        ZStack {
-            if let art {
-                Image(uiImage: art)
-                    .resizable()
-                    .scaledToFill()
-            } else {
-                placeholder
+        // An empty view sets the size and the art is drawn over it. With the
+        // image itself as the content, a card button laid it out at the
+        // art's own shape: a wide SNES box spilled over its neighbours and a
+        // tall Master System box stood out of the row.
+        Color.clear
+            .overlay {
+                if let art {
+                    boxArt(art)
+                } else {
+                    placeholder
+                }
             }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .clipped()
+            .clipped()
+    }
+
+    /// The box fills the square, as the TV's own apps show posters. Fitting
+    /// it whole over a blurred copy was tried; the card button flattens the
+    /// layers and showed the same crop, sharp.
+    private func boxArt(_ art: UIImage) -> some View {
+        Image(uiImage: art)
+            .resizable()
+            .scaledToFill()
     }
 
     private var placeholder: some View {

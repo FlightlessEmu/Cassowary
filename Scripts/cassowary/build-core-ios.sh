@@ -617,6 +617,7 @@ done
 if [[ "$CORE" == Mupen64Plus ]]; then
   case "$PLATFORM" in
     simulator) MUPEN_PLUGIN_PLATFORM="simulator" ;;
+    device)    MUPEN_PLUGIN_PLATFORM="device" ;;
     catalyst)  MUPEN_PLUGIN_PLATFORM="catalyst" ;;
     tvos)      MUPEN_PLUGIN_PLATFORM="tvos" ;;
     tvos-sim)  MUPEN_PLUGIN_PLATFORM="tvos-sim" ;;

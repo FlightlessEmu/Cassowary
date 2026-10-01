@@ -577,6 +577,22 @@ static void MupenSetAudioSpeed(int percent)
     NSBundle *coreBundle = [NSBundle bundleForClass:[self class]];
     NSURL *dataURL = coreBundle.resourceURL;
 
+#if TARGET_OS_IPHONE
+    // These devices have no OpenGL, so the GLideN64 fallback below cannot
+    // draw, and the app stops dead when a core asks for it. Without the
+    // paraLLEl video plugin, say so instead of starting.
+    NSString *parallelPath = [coreBundle.builtInPlugInsPath stringByAppendingPathComponent:@"mupen64plus-video-parallel.dylib"];
+    if (![[NSFileManager defaultManager] fileExistsAtPath:parallelPath]) {
+        if (error) {
+            *error = [NSError errorWithDomain:OEGameCoreErrorDomain code:OEGameCoreCouldNotLoadROMError userInfo:@{
+                NSLocalizedDescriptionKey: @"Nintendo 64 games can't run in this build.",
+                NSLocalizedRecoverySuggestionErrorKey: @"Its video plugin is missing. Rebuild the app with the paraLLEl video plugin for this device.",
+            }];
+        }
+        return NO;
+    }
+#endif
+
     NSURL *configURL = [NSURL fileURLWithPath:self.supportDirectoryPath];
 
     NSURL *batterySavesDirectory = [NSURL fileURLWithPath:self.batterySavesDirectoryPath];

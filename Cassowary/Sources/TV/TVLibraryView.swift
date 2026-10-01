@@ -569,8 +569,10 @@ struct TVLibraryView: View {
         if game.isDownloaded {
             return nil
         }
+        // The poster's download badge already says so, and the words left
+        // the system's name a few letters long.
         if store.isSourceAvailable(for: game) {
-            return ("Not downloaded", .secondary)
+            return nil
         }
         return ("\(game.sourceName ?? "Source") is away", .secondary)
     }
