@@ -736,9 +736,10 @@ final class TVStore: ObservableObject {
     func recordPlay(_ game: LocalGame) {
         guard playingGameID == game.id else { return }
         var info = SaveStore.loadPlayInfo(gameID: game.id)
-        info.lastPlayedAt = Date()
-        if !recordedPlay {
-            info.playCount += 1
+        if recordedPlay {
+            info.lastPlayedAt = Date()
+        } else {
+            info.recordPlay(on: DeviceIdentity.current.id)
             recordedPlay = true
         }
         SaveStore.savePlayInfo(info, gameID: game.id)
@@ -765,7 +766,7 @@ final class TVStore: ObservableObject {
 
     func toggleFavorite(_ game: LocalGame) {
         var info = SaveStore.loadPlayInfo(gameID: game.id)
-        info.favorite.toggle()
+        info.setFavorite(!info.favorite)
         SaveStore.savePlayInfo(info, gameID: game.id)
 
         if var updated = state.games[game.id] {

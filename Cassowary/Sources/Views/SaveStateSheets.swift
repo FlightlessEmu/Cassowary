@@ -56,7 +56,7 @@ enum PlayHistory {
         let id = gameID(for: game)
         guard !id.isEmpty else { return }
         var info = SaveStore.loadPlayInfo(gameID: id)
-        info.favorite = favorite
+        info.setFavorite(favorite)
         SaveStore.savePlayInfo(info, gameID: id)
         HostShareController.shared.refreshSaveState()
     }
@@ -67,8 +67,7 @@ enum PlayHistory {
         let id = gameID(for: game)
         guard !id.isEmpty else { return }
         var info = SaveStore.loadPlayInfo(gameID: id)
-        info.lastPlayedAt = Date()
-        info.playCount += 1
+        info.recordPlay(on: DeviceIdentity.current.id)
         SaveStore.savePlayInfo(info, gameID: id)
         HostShareController.shared.refreshSaveState()
     }

@@ -261,16 +261,70 @@ enum SaveKind {
 /// What a device remembers about playing one game.
 struct PlayInfo: Codable, Hashable {
     var lastPlayedAt: Date?
+    /// Plays on every device together. Kept for apps from before plays were
+    /// counted per device; this app reads `playCounts`.
     var playCount: Int = 0
     var favorite: Bool = false
+    /// When `favorite` was last set, either way. Without it, removing a
+    /// favorite could never win over the other device still having it.
+    var favoriteChangedAt: Date?
+    /// Plays by device id. Each device only ever adds to its own, so two
+    /// devices playing between syncs add up instead of one count losing.
+    /// Plays counted before this existed sit under `earlierKey`.
+    var playCounts: [String: Int]?
 
     static let empty = PlayInfo()
+    private static let earlierKey = "earlier"
 
-    /// Merges two records without losing anything: the later date, the higher
-    /// count, and a favorite stays one.
+    mutating func setFavorite(_ value: Bool, at date: Date = Date()) {
+        favorite = value
+        favoriteChangedAt = date
+    }
+
+    mutating func recordPlay(on deviceID: String, at date: Date = Date()) {
+        var counts = countsByDevice
+        counts[deviceID, default: 0] += 1
+        playCounts = counts
+        playCount = counts.values.reduce(0, +)
+        lastPlayedAt = date
+    }
+
+    /// Merges two records without losing anything: the later play, every
+    /// device's plays, and whichever favorite choice was made last.
     func merged(with other: PlayInfo) -> PlayInfo {
-        PlayInfo(lastPlayedAt: [lastPlayedAt, other.lastPlayedAt].compactMap { $0 }.max(),
-                 playCount: max(playCount, other.playCount),
-                 favorite: favorite || other.favorite)
+        var result = PlayInfo()
+        result.lastPlayedAt = [lastPlayedAt, other.lastPlayedAt].compactMap { $0 }.max()
+
+        switch (favoriteChangedAt, other.favoriteChangedAt) {
+        case let (mine?, theirs?) where mine != theirs:
+            result.favorite = mine > theirs ? favorite : other.favorite
+            result.favoriteChangedAt = max(mine, theirs)
+        case (let mine?, nil):
+            result.favorite = favorite
+            result.favoriteChangedAt = mine
+        case (nil, let theirs?):
+            result.favorite = other.favorite
+            result.favoriteChangedAt = theirs
+        default:
+            // Neither knows when, or both at the same moment: keeping it is
+            // the safe side, as before.
+            result.favorite = favorite || other.favorite
+            result.favoriteChangedAt = favoriteChangedAt
+        }
+
+        if playCounts == nil, other.playCounts == nil {
+            result.playCount = max(playCount, other.playCount)
+        } else {
+            let counts = countsByDevice.merging(other.countsByDevice) { max($0, $1) }
+            result.playCounts = counts
+            result.playCount = counts.values.reduce(0, +)
+        }
+        return result
+    }
+
+    /// The per-device counts, with an older record's total as "earlier".
+    private var countsByDevice: [String: Int] {
+        if let playCounts { return playCounts }
+        return playCount > 0 ? [Self.earlierKey: playCount] : [:]
     }
 }
