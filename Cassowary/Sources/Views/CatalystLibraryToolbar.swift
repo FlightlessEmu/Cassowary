@@ -42,6 +42,7 @@ struct CatalystLibraryToolbar: UIViewRepresentable {
     let onSort: (String) -> Void
     let onAdd: () -> Void
     let onRefresh: () -> Void
+    let onSettings: () -> Void
     let onToggleSidebar: () -> Void
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
@@ -75,6 +76,7 @@ struct CatalystLibraryToolbar: UIViewRepresentable {
         private let addID = NSToolbarItem.Identifier("cassowary.add")
         private let sortID = NSToolbarItem.Identifier("cassowary.sort")
         private let refreshID = NSToolbarItem.Identifier("cassowary.refresh")
+        private let settingsID = NSToolbarItem.Identifier("cassowary.settings")
         private let searchID = NSToolbarItem.Identifier("cassowary.search")
 
         init(_ parent: CatalystLibraryToolbar) {
@@ -110,7 +112,7 @@ struct CatalystLibraryToolbar: UIViewRepresentable {
 
         func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
             [sidebarID, .primarySidebarTrackingSeparatorItemIdentifier, .flexibleSpace,
-             addID, sortID, refreshID, .space, searchID]
+             addID, sortID, refreshID, settingsID, .space, searchID]
         }
 
         func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
@@ -145,6 +147,9 @@ struct CatalystLibraryToolbar: UIViewRepresentable {
             case sidebarID: (label, symbol, action) = ("Show or Hide Systems", "sidebar.left", #selector(toggleSidebar))
             case addID: (label, symbol, action) = ("Add Games", "plus", #selector(add))
             case refreshID: (label, symbol, action) = ("Refresh", "arrow.clockwise", #selector(refresh))
+            // The menu's Settings… (⌘,) is easy to miss; the phone and iPad
+            // have a gear in the library, so the Mac does too.
+            case settingsID: (label, symbol, action) = ("Settings", "gearshape", #selector(settings))
             default: return nil
             }
             let button = UIBarButtonItem(image: UIImage(systemName: symbol), style: .plain,
@@ -174,6 +179,7 @@ struct CatalystLibraryToolbar: UIViewRepresentable {
         @objc private func toggleSidebar() { parent.onToggleSidebar() }
         @objc private func add() { parent.onAdd() }
         @objc private func refresh() { parent.onRefresh() }
+        @objc private func settings() { parent.onSettings() }
     }
 }
 #endif

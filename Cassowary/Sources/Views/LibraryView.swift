@@ -106,6 +106,10 @@ struct LibraryView: View {
     @State private var pickerRequest: CorePickerRequest?
     @State private var resumeRequest: ResumeRequest?
     @State private var showSettings = false
+#if targetEnvironment(macCatalyst)
+    /// The Mac's Settings is a window of its own.
+    @Environment(\.openWindow) private var openWindow
+#endif
     @State private var showCoverArtSettings = false
     @State private var dropTargeted = false
     @State private var importNotice: ImportNotice?
@@ -175,6 +179,7 @@ struct LibraryView: View {
                 onSort: { if let option = SortOption(rawValue: $0) { sort = option } },
                 onAdd: { showFileImporter = true },
                 onRefresh: refreshAll,
+                onSettings: { openWindow(id: "settings", value: "settings") },
                 onToggleSidebar: {
                     withAnimation {
                         columnVisibility = columnVisibility == .detailOnly ? .all : .detailOnly
