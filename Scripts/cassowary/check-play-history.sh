@@ -23,5 +23,7 @@ trap 'rm -rf "$WORK"' EXIT
   sed -n '/^struct PlayInfo: Codable, Hashable {/,/^}$/p' Cassowary/Sources/Transfer/TransferProtocol.swift
 } > "$WORK/PlayInfo.swift"
 
-swiftc -O "$WORK/PlayInfo.swift" Scripts/cassowary/checks/play-history.swift -o "$WORK/check"
+# Swift only runs top-level code from a file named main.swift.
+cp Scripts/cassowary/checks/play-history.swift "$WORK/main.swift"
+swiftc -O "$WORK/PlayInfo.swift" "$WORK/main.swift" -o "$WORK/check"
 "$WORK/check"
