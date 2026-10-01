@@ -45,6 +45,22 @@ struct CassowaryApp: App {
         if UserDefaults.standard.bool(forKey: "cassowary.writeSampleDiagnostics") {
             DiagnosticsStore.shared.writeSampleReport()
         }
+
+        // Stand in a RetroAchievements sign-in, written as "name:token", and
+        // share it with the TV, so sharing the sign-in can be checked without
+        // a real account. "off" clears it and stops sharing.
+        if let spec = UserDefaults.standard.string(forKey: "cassowary.testRetroAchievementsSignIn") {
+            if spec == "off" {
+                RetroAchievementsCredentialStore.clear()
+                RetroAchievementsCredentialStore.sharesWithTV = false
+            } else {
+                let parts = spec.split(separator: ":", maxSplits: 1).map(String.init)
+                if parts.count == 2 {
+                    RetroAchievementsCredentialStore.save(username: parts[0], displayName: parts[0], token: parts[1])
+                    RetroAchievementsCredentialStore.sharesWithTV = true
+                }
+            }
+        }
 #endif
     }
 

@@ -89,6 +89,24 @@ struct TVSettingsView: View {
                 }
 
                 Section {
+                    if let account = store.retroAchievementsAccount {
+                        LabeledContent("Signed in as", value: account)
+                        LabeledContent("Hardcore", value: RetroAchievementsCredentialStore.hardcoreEnabled ? "On" : "Off")
+                    } else {
+                        Text("Not signed in")
+                            .foregroundStyle(.secondary)
+                    }
+                    Toggle("Use the Phone's Sign-In", isOn: Binding(
+                        get: { store.usesSharedRetroAchievements },
+                        set: { store.setUsesSharedRetroAchievements($0) }
+                    ))
+                } header: {
+                    Text("RetroAchievements")
+                } footer: {
+                    Text(retroAchievementsFooter)
+                }
+
+                Section {
                     // A list of its own: inline, tvOS squeezes every filter
                     // into one segmented row and cuts each name to "…".
                     Picker("Video Filter", selection: globalShaderBinding) {
@@ -224,6 +242,16 @@ struct TVSettingsView: View {
             seen[core.id] = core
         }
         return seen.values.sorted { $0.displayName.localizedStandardCompare($1.displayName) == .orderedAscending }
+    }
+
+    private var retroAchievementsFooter: String {
+        if let source = store.retroAchievementsSource {
+            return "Shared by \(source). Change the account or hardcore there; this Apple TV picks it up the next time it syncs."
+        }
+        if !store.usesSharedRetroAchievements {
+            return "Games here play without achievements."
+        }
+        return "To earn achievements here, sign in to RetroAchievements in Cassowary on your iPhone, then turn on Share With Apple TV in its Achievements settings."
     }
 
     private var lastSyncedText: String {

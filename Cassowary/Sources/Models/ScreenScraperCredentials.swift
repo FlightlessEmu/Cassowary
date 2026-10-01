@@ -118,15 +118,32 @@ enum KeychainStore {
         query[kSecMatchLimit as String] = kSecMatchLimitOne
 
         var item: CFTypeRef?
-        guard SecItemCopyMatching(query as CFDictionary, &item) == errSecSuccess,
-              let data = item as? Data
-        else { return nil }
+        let status = SecItemCopyMatching(query as CFDictionary, &item)
+        #if targetEnvironment(simulator)
+        if status == errSecMissingEntitlement {
+            return UserDefaults.standard.string(forKey: simulatorKey(key))
+        }
+        #endif
+        guard status == errSecSuccess, let data = item as? Data else { return nil }
         return String(data: data, encoding: .utf8)
     }
+
+    #if targetEnvironment(simulator)
+    /// Simulator builds here are unsigned, and an unsigned app has no
+    /// keychain: every call answers "missing entitlement", so nothing could
+    /// ever be signed in. There, and only there, the value is kept in the
+    /// app's settings instead. A device build always uses the keychain.
+    private static func simulatorKey(_ key: String) -> String {
+        "cassowary.simulatorKeychain." + key
+    }
+    #endif
 
     static func set(_ value: String?, for key: String) {
         guard let value, !value.isEmpty else {
             SecItemDelete(query(for: key) as CFDictionary)
+            #if targetEnvironment(simulator)
+            UserDefaults.standard.removeObject(forKey: simulatorKey(key))
+            #endif
             return
         }
 
@@ -135,6 +152,12 @@ enum KeychainStore {
             query(for: key) as CFDictionary,
             [kSecValueData as String: data] as CFDictionary
         )
+        #if targetEnvironment(simulator)
+        if updated == errSecMissingEntitlement {
+            UserDefaults.standard.set(value, forKey: simulatorKey(key))
+            return
+        }
+        #endif
         if updated == errSecItemNotFound {
             var attributes = query(for: key)
             attributes[kSecValueData as String] = data

@@ -55,6 +55,9 @@ enum TransferProtocol {
         static let savesIndex = "/v1/saves/index"
         static let savesMerge = "/v1/saves/merge"
         static let savesPrefix = "/v1/saves/"
+        /// `GET /v1/retroachievements`: the phone's RetroAchievements sign-in,
+        /// for a paired TV, when the phone has chosen to share it.
+        static let retroAchievements = "/v1/retroachievements"
 
         /// `GET|PUT /v1/saves/<gameID>/<kind>`. Kind is percent-encoded, so a
         /// battery save's core and file name survive the trip.
@@ -80,6 +83,15 @@ enum TransferProtocol {
     }
 
     // MARK: - Messages
+
+    /// `GET /v1/retroachievements`. The login token, never the password:
+    /// the phone keeps no password to send.
+    struct RetroAchievementsShare: Codable, Hashable {
+        var username: String
+        var displayName: String
+        var token: String
+        var hardcore: Bool
+    }
 
     /// `GET /v1/info`.
     struct HostInfo: Codable, Hashable {

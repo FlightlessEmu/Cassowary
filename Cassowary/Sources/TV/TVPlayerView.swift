@@ -168,6 +168,11 @@ struct TVPlayerView: View {
         .focusEffectDisabled()
         .overlay { if isMenuOpen { gameMenu } }
         .overlay(alignment: .bottom) { hintBanner }
+        .overlay {
+            if let session, !isMenuOpen {
+                TVAchievementOverlay(state: session.raState)
+            }
+        }
         .overlay(alignment: .bottom) { noticeBanner }
         .task { startGame() }
         // UIKit hosts this view, so its notifications tell us when the app leaves.
@@ -198,7 +203,7 @@ struct TVPlayerView: View {
             } else if isMenuOpen {
                 closeMenu()
             } else {
-                openMenu()
+                requestMenu()
             }
         }
     }
@@ -639,7 +644,7 @@ struct TVPlayerView: View {
                     }
                 }
             }
-            controllerInput.start(session: session) { openMenu() }
+            controllerInput.start(session: session) { requestMenu() }
             // The filter and upscaling switches remembered for this system.
             // Shared with the phone player: see `VideoSettings`.
             shaderName = shaderCatalog.resolvedShaderName(forSystem: systemID)
@@ -767,6 +772,28 @@ struct TVPlayerView: View {
     /// with the game still holding the controller nothing on screen could be
     /// chosen, which is what made the old control row look selected but do
     /// nothing.
+    /// The player asked for the menu, with Back or a gamepad's Menu. In
+    /// hardcore RetroAchievements has a say first: pausing over and over is a
+    /// way to slow a game down, so the server can refuse for a few seconds,
+    /// the same rule the phone follows. Leaving the app always pauses.
+    private func requestMenu() {
+        guard let session, session.raHardcoreActive else {
+            openMenu()
+            return
+        }
+        session.canPauseHardcore { allowed, secondsToWait in
+            Task { @MainActor in
+                if allowed {
+                    openMenu()
+                } else if secondsToWait > 0 {
+                    show(notice: "Hardcore mode allows pausing again in \(secondsToWait) s")
+                } else {
+                    show(notice: "RetroAchievements is not allowing a pause right now")
+                }
+            }
+        }
+    }
+
     private func openMenu() {
         guard !isMenuOpen, !didClose, session != nil else { return }
         controllerInput.menuDidOpen()

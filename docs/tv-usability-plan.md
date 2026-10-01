@@ -147,12 +147,15 @@ says how to launch with each.
 
 ## Later packages (planned, not started)
 
-- **WP4 — RetroAchievements on the TV using the phone's sign-in.** A new
-  paired-only endpoint on the phone hands the TV the RetroAchievements
-  username and token, only if the phone's new "Share sign-in with Apple TV"
-  switch is on (off by default: the link is plain HTTP on the home network).
-  The TV stores it in its own keychain, shows "Signed in as … from <phone>"
-  with Sign Out, and gets unlock notices sized for a TV.
+- **WP4 — Done. RetroAchievements on the TV using the phone's sign-in.**
+  The phone's Achievements settings have Share With Apple TV (off by
+  default: the link is plain HTTP on the home network). A paired TV fetches
+  the username, token and hardcore choice on every sync
+  (`GET /v1/retroachievements`, 404 when not shared), keeps them in its own
+  keychain, shows "Signed in as …" in Settings with a switch to stop using
+  it, and signs out when the phone stops sharing. Unlocks, challenges and
+  notices show over the game without taking focus. In hardcore, the
+  server can refuse a pause, as on the phone.
 - **WP5 — Controller button remapping on the TV**, with the same bindings
   store the phone uses.
 - **WP6 — Delete a save slot on the TV**, removing the vault copy and

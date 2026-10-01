@@ -115,6 +115,18 @@ final class TVStore: ObservableObject {
     /// the library can say how fresh its saves are.
     @Published private(set) var lastSyncedAt: Date? =
         UserDefaults.standard.object(forKey: TVStore.lastSyncedKey) as? Date
+    /// The RetroAchievements account games here sign in as, and the device
+    /// it came from. The TV has no sign-in of its own: typing a password
+    /// with the remote is miserable, so it borrows the phone's.
+    @Published private(set) var retroAchievementsAccount: String?
+    @Published private(set) var retroAchievementsSource: String?
+    /// Whether to use a sign-in a source shares. Switching it off signs out.
+    @Published private(set) var usesSharedRetroAchievements =
+        UserDefaults.standard.object(forKey: TVStore.useSharedRAKey) as? Bool ?? true
+    private static let useSharedRAKey = "cassowary.tv.useSharedRetroAchievements"
+    private static let raSourceIDKey = "cassowary.tv.retroAchievementsSourceID"
+    private static let raSourceNameKey = "cassowary.tv.retroAchievementsSourceName"
+
     /// True while a sync is running.
     @Published private(set) var isSyncing = false
     private var syncsRunning = 0
@@ -153,6 +165,7 @@ final class TVStore: ObservableObject {
 
     func start() {
         conflicts = ConflictStore.shared.conflicts
+        loadRetroAchievementsAccount()
         browser.start()
         importBundledDemos()
         // A killed app may have left newer saves in the disposable cache.
@@ -828,8 +841,10 @@ final class TVStore: ObservableObject {
             isSyncing = syncsRunning > 0
         }
 
-        // Pick up games added on the phone since the last look.
+        // Pick up games added on the phone since the last look, and its
+        // RetroAchievements sign-in if it shares one.
         try? await refreshLibrary()
+        await refreshRetroAchievements(from: client)
 
         // Only the games this source has: the phone answers 404 for any
         // other, and that would show as an error on every sync. Saves for a
@@ -864,6 +879,58 @@ final class TVStore: ObservableObject {
                 connection = .connected(host)
             }
         }
+    }
+
+    // MARK: - RetroAchievements
+
+    /// Takes the source's shared sign-in, or lets go of one it no longer
+    /// shares. A sign-in from another source is left alone, and so is
+    /// everything when the source cannot be reached.
+    private func refreshRetroAchievements(from client: MediaClient) async {
+        guard usesSharedRetroAchievements, let host else { return }
+        let share: TransferProtocol.RetroAchievementsShare?
+        do {
+            share = try await client.retroAchievementsShare()
+        } catch {
+            return
+        }
+
+        let defaults = UserDefaults.standard
+        if let share {
+            RetroAchievementsCredentialStore.save(username: share.username,
+                                                  displayName: share.displayName,
+                                                  token: share.token)
+            RetroAchievementsCredentialStore.hardcoreEnabled = share.hardcore
+            defaults.set(host.deviceID, forKey: Self.raSourceIDKey)
+            defaults.set(host.name, forKey: Self.raSourceNameKey)
+        } else if defaults.string(forKey: Self.raSourceIDKey) == host.deviceID {
+            signOutOfRetroAchievements()
+        }
+        loadRetroAchievementsAccount()
+    }
+
+    func setUsesSharedRetroAchievements(_ uses: Bool) {
+        usesSharedRetroAchievements = uses
+        UserDefaults.standard.set(uses, forKey: Self.useSharedRAKey)
+        if uses {
+            Task { await syncNow() }
+        } else {
+            signOutOfRetroAchievements()
+            loadRetroAchievementsAccount()
+        }
+    }
+
+    private func signOutOfRetroAchievements() {
+        RetroAchievementsCredentialStore.clear()
+        UserDefaults.standard.removeObject(forKey: Self.raSourceIDKey)
+        UserDefaults.standard.removeObject(forKey: Self.raSourceNameKey)
+    }
+
+    private func loadRetroAchievementsAccount() {
+        let credentials = RetroAchievementsCredentialStore.load()
+        retroAchievementsAccount = credentials.isSignedIn ? credentials.displayName : nil
+        retroAchievementsSource = credentials.isSignedIn
+            ? UserDefaults.standard.string(forKey: Self.raSourceNameKey) : nil
     }
 
     func resolve(_ conflict: SaveConflict, choice: SaveSyncEngine.ConflictChoice) {

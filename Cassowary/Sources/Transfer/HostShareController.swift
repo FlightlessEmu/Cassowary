@@ -241,6 +241,10 @@ final class HostShareController: ObservableObject {
             return handleLibrary()
         }
 
+        if request.method == "GET", request.path == TransferProtocol.Path.retroAchievements {
+            return handleRetroAchievements(for: peer)
+        }
+
         if request.method == "GET", request.path == TransferProtocol.Path.savesIndex {
             let metas = SaveStore.scan(games: HostLibrary.shared.locations(for: games))
             pendingSaveCount = SaveIndexStore.shared.pendingCount()
@@ -266,6 +270,23 @@ final class HostShareController: ObservableObject {
         }
 
         return .text("Not found", status: 404)
+    }
+
+    // MARK: - RetroAchievements route
+
+    /// The sign-in, for a paired device, only while sharing it is switched
+    /// on. "Not found" otherwise, which is also what a phone too old to know
+    /// this request answers, so the TV treats both the same.
+    private func handleRetroAchievements(for peer: TrustedPeer) -> HTTPResponse {
+        let credentials = RetroAchievementsCredentialStore.load()
+        guard RetroAchievementsCredentialStore.sharesWithTV, credentials.isSignedIn else {
+            return .text("Not shared", status: 404)
+        }
+        NSLog("[Cassowary] sharing: RetroAchievements sign-in sent to %@", peer.name)
+        return .json(TransferProtocol.RetroAchievementsShare(username: credentials.username,
+                                                             displayName: credentials.displayName,
+                                                             token: credentials.token,
+                                                             hardcore: RetroAchievementsCredentialStore.hardcoreEnabled))
     }
 
     // MARK: - Pairing route

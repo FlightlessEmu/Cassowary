@@ -53,6 +53,15 @@ enum RetroAchievementsCredentialStore {
     /// softcore never upgrade. Turning it off allows save states, rewind,
     /// and cheats, but earns softcore unlocks only.
     static let hardcoreKey = "cassowary.retroachievements.hardcore"
+    static let shareWithTVKey = "cassowary.retroachievements.shareWithTV"
+
+    /// Whether a paired Apple TV may use this sign-in. Off unless chosen: the
+    /// link to the TV is plain HTTP on the home network, so handing it the
+    /// login token is the person's call.
+    static var sharesWithTV: Bool {
+        get { UserDefaults.standard.bool(forKey: shareWithTVKey) }
+        set { UserDefaults.standard.set(newValue, forKey: shareWithTVKey) }
+    }
 
     static var hardcoreEnabled: Bool {
         get {

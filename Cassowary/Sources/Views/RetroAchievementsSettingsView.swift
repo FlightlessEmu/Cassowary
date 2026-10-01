@@ -34,6 +34,7 @@ struct RetroAchievementsSettingsView: View {
     @State private var enteredUsername = ""
     @State private var password = ""
     @State private var hardcore = RetroAchievementsCredentialStore.hardcoreEnabled
+    @State private var sharesWithTV = RetroAchievementsCredentialStore.sharesWithTV
     @State private var status: Status = .idle
 
     private enum Status: Equatable {
@@ -72,6 +73,17 @@ struct RetroAchievementsSettingsView: View {
                 Text("Account")
             } footer: {
                 Text("A free retroachievements.org account. The password is used once to sign in and is never kept; only the login token is stored, in the keychain. Signing in or out takes effect for games launched afterwards.")
+            }
+
+            if credentials.isSignedIn {
+                Section {
+                    Toggle("Share With Apple TV", isOn: $sharesWithTV)
+                        .onChange(of: sharesWithTV) { _, newValue in
+                            RetroAchievementsCredentialStore.sharesWithTV = newValue
+                        }
+                } footer: {
+                    Text("Lets an Apple TV that borrows games from this device earn achievements as you, without typing a password with the remote. It gets the login token over your home network, which is not encrypted, so only turn this on for a network you trust. Turning it off signs the TV out the next time it connects.")
+                }
             }
 
             Section {

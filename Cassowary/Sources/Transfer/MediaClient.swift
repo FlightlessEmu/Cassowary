@@ -88,6 +88,17 @@ final class MediaClient {
         try await postJSON(TransferProtocol.Path.pair, body: request)
     }
 
+    /// The host's RetroAchievements sign-in, or nil when it does not share
+    /// one (switched off, signed out, or a phone too old to know the
+    /// request: all three answer "not found").
+    func retroAchievementsShare() async throws -> TransferProtocol.RetroAchievementsShare? {
+        do {
+            return try await getJSON(TransferProtocol.Path.retroAchievements)
+        } catch MediaClientError.http(404) {
+            return nil
+        }
+    }
+
     func library() async throws -> TransferProtocol.LibraryManifest {
         try await getJSON(TransferProtocol.Path.library)
     }

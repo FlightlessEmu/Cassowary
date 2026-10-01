@@ -117,7 +117,8 @@ launch_phone() {
     -cassowary.sharing.enabled YES \
     -cassowary.sharing.trustAll YES \
     -cassowary.sharing.deviceName "Cassowary Test Phone" \
-    -cassowary.sharing.port "$PORT" >/dev/null
+    -cassowary.sharing.port "$PORT" \
+    -cassowary.testRetroAchievementsSignIn off >/dev/null
 }
 
 print -- "launching the phone..."
@@ -203,6 +204,16 @@ print((mine or games)[0]["id"] if games else "")')
     else
       fail "save state read back as: $BACK"
     fi
+  fi
+
+  # The sign-in only goes to a TV when the phone's Share With Apple TV is on,
+  # and it is off unless someone turns it on.
+  RA_STATUS=$(curl -s -m 10 -o /dev/null -w '%{http_code}' -H "X-Cassowary-Protocol: 2" \
+    -H "X-Cassowary-Token: $TOKEN" "http://127.0.0.1:$PORT/v1/retroachievements")
+  if [[ "$RA_STATUS" == 404 ]]; then
+    pass "the RetroAchievements sign-in is not shared unless switched on"
+  else
+    fail "the RetroAchievements sign-in answered $RA_STATUS without sharing switched on"
   fi
 fi
 
