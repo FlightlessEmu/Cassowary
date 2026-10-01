@@ -48,8 +48,7 @@ press, and no real RetroAchievements account was used.
   press to the game.
 - **Home on a gamepad** opens the menu, if tvOS delivers it at all.
 - **Leaving with the TV button** writes the autosave and syncs before tvOS
-  suspends the app. It worked in the Simulator within five seconds; on a
-  slow device it may need `beginBackgroundTask` to get the time.
+  suspends the app (it now asks for background time to finish).
 - **RetroAchievements with a real account**: turn on Share With Apple TV on
   the phone, check the TV says "Signed in as …", earn an unlock and see the
   banner, and try pausing quickly in hardcore (the server can refuse; the TV
@@ -57,26 +56,16 @@ press, and no real RetroAchievements account was used.
 
 ## Bugs and rough edges found, not fixed
 
-- **Atari Jaguar shows "no core installed" in the Mac app.** VirtualJaguar is
-  in `Scripts/cassowary/cores.txt`, so it probably fails to build for Mac
-  Catalyst. Run `./Scripts/cassowary/build-core-ios.sh VirtualJaguar --catalyst`
-  and read the error.
-- **Un-favoriting does not sync.** Play history merges by "either device has
-  it as a favorite", so a favorite removed on one device comes back from the
-  other. Favorites need a version (or a time) like saves have.
-- **Play counts undercount.** Merging keeps the larger of the two counts, so
-  playing on both devices between syncs loses plays. Low stakes.
-- **Saves waiting for another device never clear.** Saves for a game the
-  phone no longer has wait for "its own source" for ever (Settings → Waiting
-  for another device). There should be a way to forget a game and its saves
-  on the TV; today a downloaded game the phone removed also stays.
+- **Atari Jaguar showed "no core installed" in the Mac app** (1 October).
+  Not reproduced since: VirtualJaguar builds for Mac Catalyst cleanly
+  (40 files), the Mac app built that morning contains it as a Catalyst
+  binary, and opening it logs no plugin errors. The app lists a core from
+  its Info.plist alone, so that message means the core was missing from
+  the build that was running. If it shows again, check
+  `Cassowary.app/Contents/PlugIns/Cores/` in that build.
 - **Replacing a ROM with a different file of the same name** attaches the old
   file's save states to the new game, since saves sit beside the ROM by name.
   The sharing test hit this; it now clears them, but a person could too.
-- **`build-cassowary.sh` on a fresh worktree** stops until
-  `build/cassowary-catalyst/` and `build/cassowary-simulator/` exist (found by
-  the library-title agent, which made the folders by hand). Make the script
-  create them.
 - **Compiler warnings that will be errors in Swift 6**: `GameSession`'s and
   `SystemBindingsForwarder`'s conformances cross into main-actor code
   (`GameSession+Owner.swift`, `InputBindings.swift`), a non-`Sendable` local
@@ -85,9 +74,9 @@ press, and no real RetroAchievements account was used.
 
 ## Housekeeping
 
-- **Old save conflicts on the test simulators** (`Cassowary-Audit-Phone`,
-  `Cassowary-Audit-TV2`) came from test runs before the sharing test cleaned
-  up after itself. Resolve or erase those simulators; they are not real data.
+- **If every TV check in test-sharing.sh fails at once**, the Mac's Bonjour
+  may have stopped resolving the phone (the simulators share it; it happened
+  on 1 October). `CASSOWARY_TEST_DIRECT=1` connects by address instead.
 - **Run the tests on simulators of their own.** Every worktree shares the
   default ones, and other work leaves games in them (a PlayStation disc once
   made the input test boot the wrong game). `test-cassowary.sh --device-id`
