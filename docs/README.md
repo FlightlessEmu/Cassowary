@@ -3,6 +3,9 @@
 Everything in `docs/`. Start with [PROJECT_LAYOUT.md](PROJECT_LAYOUT.md) if
 you're new to the repository.
 
+[next-up.md](next-up.md) lists what is left to do, what needs a real Apple TV
+to check, and known rough edges.
+
 ## Layout and process
 
 | Doc | What's in it |
