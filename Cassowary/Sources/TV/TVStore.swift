@@ -28,8 +28,9 @@ import Combine
 import OpenEmuBase
 import OpenEmuKit
 
-/// Everything the Apple TV knows and does: which phone it talks to, what the
-/// phone's library looks like, what is downloaded, and how saves get home.
+/// Everything the Apple TV knows and does: which sources it talks to (a phone,
+/// a Mac, several at once), what their libraries hold, what is downloaded,
+/// and how saves get home.
 ///
 /// The TV is a borrower. Its library is a copy of the host's, its cache is
 /// disposable, and the save vault exists so that throwing the cache away does
@@ -70,8 +71,40 @@ final class TVStore: ObservableObject {
         /// sources existed still loads.
         var sourceDeviceID: String?
         var sourceName: String?
+        /// Any other sources known to have the same game. The id is the
+        /// content, so a game on the phone and on the Mac is one game, which
+        /// either can send. Optional so an older library still loads.
+        var otherSourceIDs: [String]?
 
         var isDownloaded: Bool { downloadedAt != nil }
+
+        /// Every source known to have this game.
+        var sourceIDs: Set<String> {
+            Set([sourceDeviceID].compactMap { $0} + (otherSourceIDs ?? []))
+        }
+
+        mutating func addSource(_ host: MediaHost) {
+            if sourceDeviceID == nil || sourceDeviceID == host.deviceID {
+                sourceDeviceID = host.deviceID
+                sourceName = host.name
+            } else if !(otherSourceIDs ?? []).contains(host.deviceID) {
+                otherSourceIDs = (otherSourceIDs ?? []) + [host.deviceID]
+            }
+        }
+
+        /// Drops a source, handing "the" source to another one when there is
+        /// one. The last source is kept: a game with none is taken for one
+        /// that belongs to this TV (the bundled demo).
+        mutating func removeSource(_ id: String, names: [String: KnownHost]) {
+            if sourceDeviceID == id, var others = otherSourceIDs, !others.isEmpty {
+                sourceDeviceID = others.removeFirst()
+                sourceName = names[sourceDeviceID ?? ""]?.name
+                otherSourceIDs = others.isEmpty ? nil : others
+            } else if sourceDeviceID != id {
+                otherSourceIDs?.removeAll { $0 == id }
+                if otherSourceIDs?.isEmpty == true { otherSourceIDs = nil }
+            }
+        }
     }
 
     /// A source this TV can borrow games from. The phone is one; a network
@@ -101,7 +134,13 @@ final class TVStore: ObservableObject {
     }
 
     @Published private(set) var state = State()
+    /// How things stand overall: connected while any source is, naming the
+    /// latest. `connectedHosts` lists them all.
     @Published private(set) var connection: Connection = .idle
+    /// Every source connected right now, by name.
+    @Published private(set) var connectedHosts: [MediaHost] = []
+    /// A source being connected to while others may already be.
+    @Published private(set) var connectingTo: String?
     /// Download progress by game id, 0…1.
     @Published private(set) var downloads: [String: Double] = [:]
     @Published private(set) var syncSummary: String?
@@ -137,18 +176,28 @@ final class TVStore: ObservableObject {
 
     let browser = PeerBrowser()
 
-    private var client: MediaClient?
-    private var host: MediaHost?
+    /// One link per connected source, by device id. Every source in reach
+    /// stays connected at once, so a game can come from whichever has it.
+    private struct Link {
+        let host: MediaHost
+        let client: MediaClient
+        /// The games this source listed last time.
+        var listed: Set<String> = []
+        /// Failed syncs in a row. One can be a hiccup (the phone's app was
+        /// put away and brought back); two mean the source is really gone.
+        var failures = 0
+    }
+    private var links: [String: Link] = [:] {
+        didSet { connectedHosts = links.values.map(\.host).sorted { $0.name < $1.name } }
+    }
     private var syncTask: Task<Void, Never>?
     private var reconnectTask: Task<Void, Never>?
     private var playingGameID: String?
     private var recordedPlay = false
-    /// Set when the person disconnects or forgets a source on purpose, so the
-    /// reconnect loop does not drag them straight back in.
+    /// Set when the person disconnects on purpose, everything or one source,
+    /// so the reconnect loop does not drag them straight back in.
     private var autoReconnectPaused = false
-    /// Failed syncs in a row. One is allowed to pass; two mean the phone is
-    /// really gone.
-    private var syncFailures = 0
+    private var pausedHostIDs: Set<String> = []
     private var cancellables: Set<AnyCancellable> = []
     /// Games with an artwork download in flight, so the grid can show it.
     @Published private(set) var artworkFetches: Set<String> = []
@@ -193,23 +242,11 @@ final class TVStore: ObservableObject {
                     return
                 }
 
-                guard case .connected = self.connection else {
-                    if let id = self.state.lastHostDeviceID,
-                       let known = self.state.hosts[id],
-                       let match = self.discovered(known),
-                       !self.isConnecting {
-                        Task { await self.connect(to: match) }
-                    }
-                    return
-                }
+                self.connectNextKnownHost()
             }
             .store(in: &cancellables)
 
-        if let id = state.lastHostDeviceID,
-           let known = state.hosts[id],
-           let match = discovered(known) {
-            Task { await self.connect(to: match) }
-        }
+        connectNextKnownHost()
 
         // A test, or a network without Bonjour, can name the host directly.
         if let direct = UserDefaults.standard.string(forKey: "cassowary.tvHostAddress") {
@@ -227,26 +264,56 @@ final class TVStore: ObservableObject {
         browser.hosts.first { $0.deviceID == known.deviceID || $0.name == known.name }
     }
 
-    private var isConnecting: Bool {
-        if case .connecting = connection { return true }
-        return false
+    private var isConnecting: Bool { connectingTo != nil }
+
+    /// A remembered source that is on the network but not connected yet.
+    /// One at a time: each connection picks up the next when it is done.
+    private var nextKnownHost: FoundHost? {
+        // A test that names its source, or its address, wants that one only:
+        // the simulators remember sources from other runs.
+        if UserDefaults.standard.string(forKey: "cassowary.tvHostAddress") != nil { return nil }
+        let wantedName = UserDefaults.standard.string(forKey: "cassowary.tvAutoConnectHostNamed")
+        return state.hosts.values
+            .filter { wantedName == nil || $0.name == wantedName }
+            .sorted { $0.lastConnectedAt > $1.lastConnectedAt }
+            .filter { links[$0.deviceID] == nil && !pausedHostIDs.contains($0.deviceID) }
+            .lazy.compactMap { self.discovered($0) }
+            .first { found in !self.links.values.contains { $0.host.name == found.name } }
+    }
+
+    private func connectNextKnownHost() {
+        guard !autoReconnectPaused, !isConnecting, let next = nextKnownHost else { return }
+        Task { await self.connect(to: next) }
+    }
+
+    /// Says a connection did not work: as the state when nothing is
+    /// connected, and as a note when other sources still are.
+    private func connectFailed(_ message: String) {
+        connectingTo = nil
+        if links.isEmpty {
+            connection = .failed(message)
+        } else {
+            syncSummary = message
+        }
     }
 
     // MARK: - Connecting
 
     func connect(to found: FoundHost) async {
-        guard !isConnecting else { return }
+        guard !isConnecting, links[found.deviceID] == nil else { return }
         // Reaching this point means someone asked for this source, so the
         // reconnect loop may look after it again.
         autoReconnectPaused = false
-        connection = .connecting(found.name)
+        pausedHostIDs.remove(found.deviceID)
+        connectingTo = found.name
+        if links.isEmpty { connection = .connecting(found.name) }
         syncSummary = nil
 
         do {
             let host = try await BonjourResolver.identify(found)
             await connect(toHost: host)
         } catch {
-            connection = .failed(Self.connectionMessage(for: error, host: found.name))
+            connectFailed(Self.connectionMessage(for: error, host: found.name))
         }
     }
 
@@ -268,12 +335,17 @@ final class TVStore: ObservableObject {
                                  platformName: "ios")
             await connect(toHost: host)
         } catch {
-            connection = .failed(Self.connectionMessage(for: error, host: "the source"))
+            connectFailed(Self.connectionMessage(for: error, host: "the source"))
         }
     }
 
     private func connect(toHost host: MediaHost) async {
-        connection = .connecting(host.name)
+        guard links[host.deviceID] == nil else {
+            connectingTo = nil
+            return
+        }
+        connectingTo = host.name
+        if links.isEmpty { connection = .connecting(host.name) }
         syncSummary = nil
 
         do {
@@ -286,15 +358,13 @@ final class TVStore: ObservableObject {
                     platformName: DeviceIdentity.current.platformName))
 
                 guard response.accepted, let granted = response.token else {
-                    connection = .failed("\(host.name) did not allow this Apple TV in.")
+                    connectFailed("\(host.name) did not allow this Apple TV in.")
                     return
                 }
                 token = granted
             }
 
-            let client = MediaClient(host: host, token: token)
-            self.client = client
-            self.host = host
+            links[host.deviceID] = Link(host: host, client: MediaClient(host: host, token: token))
 
             state.lastHostDeviceID = host.deviceID
             state.lastHostName = host.name
@@ -304,17 +374,21 @@ final class TVStore: ObservableObject {
                                                    lastConnectedAt: Date())
             saveState()
 
-            try await refreshLibrary()
+            try await refreshLibrary(from: host.deviceID)
 
+            connectingTo = nil
             connection = .connected(host)
-            NSLog("[Cassowary] connected to %@ (%d games)", host.name, state.games.count)
+            NSLog("[Cassowary] connected to %@ (%d games)", host.name, links[host.deviceID]?.listed.count ?? 0)
             startSyncLoop()
             await syncNow()
             prefetchFavorites()
         } catch {
             NSLog("[Cassowary] connect failed: %@", error.localizedDescription)
-            connection = .failed(Self.connectionMessage(for: error, host: host.name))
+            links.removeValue(forKey: host.deviceID)
+            connectFailed(Self.connectionMessage(for: error, host: host.name))
         }
+        // Another remembered source may be waiting its turn.
+        connectNextKnownHost()
     }
 
     /// Turns a networking error into something a person can act on. The one
@@ -336,31 +410,39 @@ final class TVStore: ObservableObject {
     func disconnect() {
         syncTask?.cancel()
         syncTask = nil
-        client = nil
-        host = nil
+        links = [:]
+        connectingTo = nil
         autoReconnectPaused = true
         connection = .idle
     }
 
-    func forgetHost() {
-        if let id = state.lastHostDeviceID {
-            forgetHost(deviceID: id)
+    /// Lets go of one source and leaves the others connected.
+    func disconnect(deviceID: String) {
+        links.removeValue(forKey: deviceID)
+        pausedHostIDs.insert(deviceID)
+        if let other = links.values.first {
+            connection = .connected(other.host)
         } else {
-            disconnect()
+            syncTask?.cancel()
+            syncTask = nil
+            connection = .idle
         }
+        updateSaveCounts()
     }
 
     /// Forgets one remembered source, leaving the rest of the library alone.
     func forgetHost(deviceID: String) {
         TrustStore.shared.remove(deviceID: deviceID)
         state.hosts.removeValue(forKey: deviceID)
-
         if state.lastHostDeviceID == deviceID {
             state.lastHostDeviceID = nil
             state.lastHostName = nil
-            disconnect()
         }
-
+        if links[deviceID] != nil {
+            disconnect(deviceID: deviceID)
+        }
+        // Forgotten is not paused: found again, it would be a new source.
+        pausedHostIDs.remove(deviceID)
         saveState()
     }
 
@@ -369,23 +451,39 @@ final class TVStore: ObservableObject {
         state.hosts.values.sorted { $0.lastConnectedAt > $1.lastConnectedAt }
     }
 
-    /// Whether a game's source is the one right now. The demo game has no
-    /// source, so it is always available.
-    /// False only when the game's own source is connected and no longer
-    /// lists it: then it cannot be downloaded again, and its saves have
-    /// nowhere to go. Unknown counts as still there.
+    /// False only when every source the game came from is connected and
+    /// none lists it any more: then it cannot be downloaded again, and its
+    /// saves have nowhere to go. A source that is away counts as still
+    /// having it, and so does a game with no source (the bundled demo).
     func sourceStillHas(_ game: LocalGame) -> Bool {
-        guard let source = game.sourceDeviceID,
-              case .connected(let host) = connection,
-              source == host.deviceID
-        else { return true }
-        return hostGameIDs.contains(game.id)
+        let sources = game.sourceIDs
+        guard !sources.isEmpty else { return true }
+        return sources.contains { id in
+            guard let link = links[id] else { return true }
+            return link.listed.contains(game.id)
+        }
     }
 
+    /// Whether a connected source has this game now, so it can be copied
+    /// down. Any source with the same game will do.
     func isSourceAvailable(for game: LocalGame) -> Bool {
-        guard let source = game.sourceDeviceID else { return true }
-        guard case .connected(let host) = connection else { return false }
-        return source == host.deviceID
+        guard !game.sourceIDs.isEmpty else { return true }
+        return link(for: game) != nil
+    }
+
+    /// A connected source that lists the game, the one it came from first.
+    private func link(for game: LocalGame) -> Link? {
+        if let id = game.sourceDeviceID, let link = links[id], link.listed.contains(game.id) {
+            return link
+        }
+        return links.values
+            .sorted { $0.host.name < $1.host.name }
+            .first { $0.listed.contains(game.id) }
+    }
+
+    /// The games some connected source lists.
+    private var listedGameIDs: Set<String> {
+        links.values.reduce(into: Set<String>()) { $0.formUnion($1.listed) }
     }
 
     // MARK: - Library
@@ -426,13 +524,13 @@ final class TVStore: ObservableObject {
         saveState()
     }
 
-    private func refreshLibrary() async throws {
-        guard let client else { return }
+    private func refreshLibrary(from deviceID: String) async throws {
+        guard let link = links[deviceID] else { return }
         libraryIsLoading = true
         defer { libraryIsLoading = false }
 
-        let manifest = try await client.library()
-        let host = self.host
+        let manifest = try await link.client.library()
+        let host = link.host
 
         var updated = state.games
         for entry in manifest.games {
@@ -444,9 +542,8 @@ final class TVStore: ObservableObject {
                 existing.systemIdentifier = entry.systemIdentifier
                 existing.systemName = entry.systemName
                 existing.size = entry.size
-                existing.hasArtwork = entry.hasArtwork
-                existing.sourceDeviceID = host?.deviceID ?? existing.sourceDeviceID
-                existing.sourceName = host?.name ?? existing.sourceName
+                existing.hasArtwork = existing.hasArtwork || entry.hasArtwork
+                existing.addSource(host)
                 updated[entry.id] = existing
             } else {
                 updated[entry.id] = LocalGame(id: entry.id,
@@ -460,22 +557,26 @@ final class TVStore: ObservableObject {
                                               lastPlayedAt: nil,
                                               playCount: 0,
                                               favorite: false,
-                                              sourceDeviceID: host?.deviceID,
-                                              sourceName: host?.name)
+                                              sourceDeviceID: host.deviceID,
+                                              sourceName: host.name)
             }
         }
 
-        // A game the source no longer lists is kept once it is downloaded:
-        // this TV's library is its own, and a game that is here plays here
-        // regardless. One that was never copied down cannot be played or
-        // fetched any more, so it goes rather than sit there as a ghost.
+        // A game this source no longer lists stops coming from it. Another
+        // source may still have it. Once none does, a downloaded game stays
+        // (this TV's library is its own, and it plays here regardless), and
+        // one never copied down goes rather than sit there as a ghost.
         let listed = Set(manifest.games.map(\.id))
-        if let hostID = host?.deviceID {
-            updated = updated.filter { id, game in
-                game.sourceDeviceID != hostID || game.isDownloaded || listed.contains(id)
+        for (id, game) in updated where game.sourceIDs.contains(host.deviceID) && !listed.contains(id) {
+            if game.sourceIDs.count > 1 {
+                var trimmed = game
+                trimmed.removeSource(host.deviceID, names: state.hosts)
+                updated[id] = trimmed
+            } else if !game.isDownloaded {
+                updated[id] = nil
             }
         }
-        hostGameIDs = listed
+        links[deviceID]?.listed = listed
 
         state.games = updated
         saveState()
@@ -516,14 +617,14 @@ final class TVStore: ObservableObject {
             // every game missing art is asked about — not only ones the
             // manifest flagged — because that flag goes stale when the phone
             // downloads art after the TV last looked.
-            if client != nil {
+            if link(for: game) != nil {
                 fetchArtwork(for: game)
             }
         }
     }
 
     private func fetchArtwork(for game: LocalGame) {
-        guard let client, !artworkFetches.contains(game.id) else { return }
+        guard let client = link(for: game)?.client, !artworkFetches.contains(game.id) else { return }
         artworkFetches.insert(game.id)
 
         Task { [weak self] in
@@ -556,8 +657,10 @@ final class TVStore: ObservableObject {
     func progress(for id: String) -> Double? { downloads[id] }
 
     func download(_ game: LocalGame) async {
-        guard let client else {
-            syncSummary = "Connect to a source to download this game."
+        guard let client = link(for: game)?.client else {
+            syncSummary = links.isEmpty
+                ? "Connect to a source to download this game."
+                : "No connected source has this game right now."
             return
         }
         guard downloads[game.id] == nil else { return }
@@ -645,9 +748,7 @@ final class TVStore: ObservableObject {
         state.games[game.id] = nil
         saveState()
         updateCacheSize()
-        let pending = SaveIndexStore.shared.pendingCount(forGames: hostGameIDs)
-        pendingUploads = pending
-        savesWaitingElsewhere = SaveIndexStore.shared.pendingCount() - pending
+        updateSaveCounts()
         note("Forgot \(game.title).")
     }
 
@@ -851,10 +952,6 @@ final class TVStore: ObservableObject {
     /// away does not throw the saves away with it. Games that belong to this
     /// TV and nowhere else (the bundled demo) are left out: there is no other
     /// device that would have the same game.
-    /// The games the connected source listed last time, so a sync only
-    /// offers it saves for games it has.
-    private var hostGameIDs: Set<String> = []
-
     private var locations: [GameLocation] {
         state.games.values
             .filter { $0.sourceDeviceID != nil }
@@ -901,7 +998,7 @@ final class TVStore: ObservableObject {
     }
 
     func syncNow() async {
-        guard let client else { return }
+        guard !links.isEmpty else { return }
         // Several can overlap (the reconnect loop, leaving a game, Sync Now),
         // so count them rather than flip one flag.
         syncsRunning += 1
@@ -911,23 +1008,50 @@ final class TVStore: ObservableObject {
             isSyncing = syncsRunning > 0
         }
 
-        // Pick up games added on the phone since the last look, and its
-        // RetroAchievements sign-in if it shares one.
-        try? await refreshLibrary()
-        await refreshRetroAchievements(from: client)
+        // Each source in turn. A game more than one has syncs with each, so
+        // the TV carries a save made on the phone over to the Mac too.
+        var notes: [String] = []
+        for id in links.keys.sorted() {
+            guard let link = links[id] else { continue }
 
-        // Only the games this source has: the phone answers 404 for any
-        // other, and that would show as an error on every sync. Saves for a
-        // game from elsewhere wait for its own source.
-        let result = await SaveSyncEngine.sync(games: locations.filter { hostGameIDs.contains($0.id) },
-                                               with: client)
-        let pending = SaveIndexStore.shared.pendingCount(forGames: hostGameIDs)
-        pendingUploads = pending
-        savesWaitingElsewhere = SaveIndexStore.shared.pendingCount() - pending
+            // Pick up games added there since the last look, and its
+            // RetroAchievements sign-in if it shares one.
+            try? await refreshLibrary(from: id)
+            await refreshRetroAchievements(from: link)
+
+            // Only the games this source has: it answers 404 for any other,
+            // and that would show as an error on every sync. Saves for a
+            // game only elsewhere wait for that source.
+            let listed = links[id]?.listed ?? []
+            let result = await SaveSyncEngine.sync(games: locations.filter { listed.contains($0.id) },
+                                                   with: link.client)
+            // "Already in sync" is not news: the status line says when it
+            // last synced instead.
+            if result.movedAny { notes.append(result.summary) }
+
+            if let error = result.error {
+                let message = Self.connectionMessage(for: error, host: link.host.name)
+                links[id]?.failures += 1
+                if (links[id]?.failures ?? 0) >= 2 {
+                    // Gone: the reconnect loop finds it when it is back.
+                    links.removeValue(forKey: id)
+                    if let other = links.values.first {
+                        connection = .connected(other.host)
+                    } else {
+                        connection = .failed(message)
+                    }
+                }
+                notes.append(message)
+            } else {
+                links[id]?.failures = 0
+                lastSyncedAt = Date()
+                UserDefaults.standard.set(lastSyncedAt, forKey: Self.lastSyncedKey)
+            }
+        }
+
+        updateSaveCounts()
         conflicts = ConflictStore.shared.conflicts
-        // "Already in sync" is not news: the status line says when it last
-        // synced instead.
-        syncSummary = result.movedAny ? result.summary : nil
+        syncSummary = notes.isEmpty ? nil : notes.joined(separator: " ")
         refreshPlayInfo()
 
         #if DEBUG
@@ -938,25 +1062,14 @@ final class TVStore: ObservableObject {
         }
         #endif
 
-        // One failed sync can be a hiccup — the phone's app may have just been
-        // put away and brought back. Two in a row means the link is really
-        // gone: the reconnect loop takes over and the status says why.
-        if let error = result.error {
-            syncFailures += 1
-            let message = Self.connectionMessage(for: error, host: host?.name ?? "the phone")
-            if syncFailures >= 2 {
-                connection = .failed(message)
-            } else {
-                syncSummary = message
-            }
-        } else {
-            syncFailures = 0
-            lastSyncedAt = Date()
-            UserDefaults.standard.set(lastSyncedAt, forKey: Self.lastSyncedKey)
-            if case .failed = connection, let host {
-                connection = .connected(host)
-            }
-        }
+    }
+
+    /// Saves waiting for a connected source that has their game, and saves
+    /// waiting for one that is away.
+    private func updateSaveCounts() {
+        let pending = SaveIndexStore.shared.pendingCount(forGames: listedGameIDs)
+        pendingUploads = pending
+        savesWaitingElsewhere = SaveIndexStore.shared.pendingCount() - pending
     }
 
     // MARK: - RetroAchievements
@@ -964,11 +1077,12 @@ final class TVStore: ObservableObject {
     /// Takes the source's shared sign-in, or lets go of one it no longer
     /// shares. A sign-in from another source is left alone, and so is
     /// everything when the source cannot be reached.
-    private func refreshRetroAchievements(from client: MediaClient) async {
-        guard usesSharedRetroAchievements, let host else { return }
+    private func refreshRetroAchievements(from link: Link) async {
+        guard usesSharedRetroAchievements else { return }
+        let host = link.host
         let share: TransferProtocol.RetroAchievementsShare?
         do {
-            share = try await client.retroAchievementsShare()
+            share = try await link.client.retroAchievementsShare()
         } catch {
             return
         }
@@ -1036,7 +1150,7 @@ final class TVStore: ObservableObject {
         syncTask = Task { [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(120))
-                guard let self, self.connection.isConnected else { return }
+                guard let self, !self.links.isEmpty else { return }
                 await self.syncNow()
             }
         }
@@ -1054,16 +1168,15 @@ final class TVStore: ObservableObject {
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(8))
                 guard let self else { return }
-                guard !self.autoReconnectPaused,
-                      !self.connection.isConnected,
-                      !self.isConnecting else { continue }
+                guard !self.autoReconnectPaused, !self.isConnecting else { continue }
 
-                // The remembered phone comes first. A TV that has never been
-                // connected to anything takes the first source it sees, which
-                // saves a tap on first setup.
-                let remembered = self.state.lastHostDeviceID
-                let target = remembered.flatMap { id in self.state.hosts[id].flatMap { self.discovered($0) } }
-                    ?? (remembered == nil ? self.browser.hosts.first : nil)
+                // Every remembered source in reach, the latest first. A TV
+                // that has never been connected to anything takes the first
+                // source it sees, which saves a tap on first setup.
+                let isTest = UserDefaults.standard.string(forKey: "cassowary.tvHostAddress") != nil
+                    || UserDefaults.standard.string(forKey: "cassowary.tvAutoConnectHostNamed") != nil
+                let target = self.nextKnownHost
+                    ?? (self.state.hosts.isEmpty && self.links.isEmpty && !isTest ? self.browser.hosts.first : nil)
 
                 guard let target else { continue }
                 await self.connect(to: target)
@@ -1079,7 +1192,8 @@ final class TVStore: ObservableObject {
 
         Task { [weak self] in
             for game in wanted {
-                guard let self, self.connection.isConnected else { return }
+                guard let self, !self.links.isEmpty else { return }
+                guard self.isSourceAvailable(for: game) else { continue }
                 guard self.progress(for: game.id) == nil else { continue }
                 guard self.cacheBytes + game.size < self.cacheBudget else { continue }
                 await self.download(game)

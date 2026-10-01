@@ -151,10 +151,10 @@ struct TVHomeView: View {
             // does not fire; auto-play waits for the reload to end.
             autoPlayIfAsked()
         }
-        .onChange(of: store.connection) { _, _ in
-            // A game picked while the phone was away starts as soon as the
-            // link is back, so a tap is never wasted.
-            if store.connection.isConnected, let waiting = waitingToPlay {
+        .onChange(of: store.connectedHosts) { _, _ in
+            // A game picked while its source was away starts as soon as one
+            // that has it is back, so a tap is never wasted.
+            if let waiting = waitingToPlay, store.isSourceAvailable(for: waiting) {
                 waitingToPlay = nil
                 play(waiting)
             }
@@ -237,7 +237,7 @@ struct TVHomeView: View {
             store.prepareForPlay(game)
             playing = game
             playingCore = core
-        } else if store.connection.isConnected {
+        } else if store.isSourceAvailable(for: game) {
             // Copy it down and stay in the library. Picking several games in
             // a row is a normal thing to do, and starting the first one would
             // get in the way; a second tap plays it once it is here.
@@ -280,9 +280,8 @@ struct TVHomeView: View {
             // Only games the connected source lists now: copies kept from
             // other sources, or of games this one has dropped, have nowhere
             // to sync their saves, and the scripts check that saves arrive.
-            guard case .connected(let host) = store.connection else { return }
             let sourced = store.games.filter {
-                $0.sourceDeviceID == host.deviceID && store.sourceStillHas($0)
+                $0.sourceDeviceID != nil && store.isSourceAvailable(for: $0)
             }
             guard let first = sourced.first(where: { !$0.isDownloaded }) ?? sourced.first else { return }
             NSLog("[Cassowary] auto-play picked %@ (%@)", first.title, first.isDownloaded ? "here" : "to copy down")

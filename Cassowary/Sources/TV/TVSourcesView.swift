@@ -51,29 +51,45 @@ struct TVSourcesView: View {
                         Text("Sources")
                             .font(.system(size: 64, weight: .semibold))
 
-                        switch store.connection {
-                        case .connecting(let name):
+                        if let name = store.connectingTo {
                             Text("Connecting to \(name)…")
                                 .font(.title3)
                                 .foregroundStyle(.secondary)
-                        case .failed(let message):
+                        } else {
+                            switch store.connection {
+                            case .failed(let message):
                             Text(message)
                                 .font(.title3)
                                 .foregroundStyle(.orange)
-                        default:
-                            Text("Where games come from. What you download stays on this Apple TV.")
-                                .font(.title3)
-                                .foregroundStyle(.secondary)
+                            default:
+                                Text("Where games come from. Connect as many as you like; a game on more than one is listed once. What you download stays on this Apple TV.")
+                                    .font(.title3)
+                                    .foregroundStyle(.secondary)
+                            }
                         }
                     }
 
-                    if case .connected(let host) = store.connection {
+                    if !store.connectedHosts.isEmpty {
                         section("Connected") {
-                            hostCard(name: host.name,
-                                     detail: host.platformName == "tvos" ? "Apple TV" : "iPhone, iPad, or Mac",
-                                     symbol: "checkmark.circle.fill",
-                                     symbolTint: .green,
-                                     subtitle: nil)
+                            ForEach(store.connectedHosts) { host in
+                                // Pressable so it can be focused: the menu on
+                                // a long press is how one source is let go.
+                                hostCard(name: host.name,
+                                         detail: Self.deviceKind(host.platformName),
+                                         symbol: "checkmark.circle.fill",
+                                         symbolTint: .green,
+                                         subtitle: nil) {
+                                    store.note("Hold the button on \(host.name) to disconnect it or forget it.")
+                                }
+                                .contextMenu {
+                                    Button("Disconnect \(host.name)") {
+                                        store.disconnect(deviceID: host.deviceID)
+                                    }
+                                    Button("Forget \(host.name)", role: .destructive) {
+                                        store.forgetHost(deviceID: host.deviceID)
+                                    }
+                                }
+                            }
                         }
                     }
 
@@ -81,7 +97,7 @@ struct TVSourcesView: View {
                         section("On Your Network") {
                             ForEach(discovered) { host in
                                 hostCard(name: host.name,
-                                         detail: host.platformName == "tvos" ? "Apple TV" : "iPhone, iPad, or Mac",
+                                         detail: Self.deviceKind(host.platformName),
                                          symbol: "wifi",
                                          subtitle: nil) {
                                     Task { await store.connect(to: host) }
@@ -188,30 +204,32 @@ struct TVSourcesView: View {
         }
     }
 
-    /// Hosts the browser can see right now, other than the one connected.
+    /// What kind of device a source is, from the platform it reports.
+    private static func deviceKind(_ platformName: String) -> String {
+        switch platformName {
+        case "tvos": return "Apple TV"
+        case "mac":  return "Mac"
+        case "ios":  return "iPhone or iPad"
+        default:     return "iPhone, iPad, or Mac"
+        }
+    }
+
+    /// Hosts the browser can see right now, other than the connected ones.
     ///
     /// Discovery names a host by its Bonjour service name when the system
     /// hands back no TXT record, so a name is compared as well as an id.
     private var discovered: [FoundHost] {
         store.browser.hosts.filter { host in
-            if case .connected(let connected) = store.connection,
-               connected.deviceID == host.deviceID || connected.name == host.name {
-                return false
-            }
-            return true
+            !store.connectedHosts.contains { $0.deviceID == host.deviceID || $0.name == host.name }
         }
     }
 
-    /// Hosts this TV has used before that are neither in front of us nor
-    /// still on the network. The one being played from is shown as Connected,
-    /// so it is left out here.
+    /// Hosts this TV has used before that are neither connected nor on the
+    /// network.
     private var remembered: [TVStore.KnownHost] {
         store.knownHosts.filter { known in
-            if case .connected(let connected) = store.connection,
-               connected.deviceID == known.deviceID || connected.name == known.name {
-                return false
-            }
-            return !store.browser.hosts.contains { $0.deviceID == known.deviceID || $0.name == known.name }
+            !store.connectedHosts.contains { $0.deviceID == known.deviceID || $0.name == known.name }
+                && !store.browser.hosts.contains { $0.deviceID == known.deviceID || $0.name == known.name }
         }
     }
 }

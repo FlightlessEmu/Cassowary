@@ -49,12 +49,13 @@ struct TVSettingsView: View {
     var body: some View {
         NavigationStack {
             List {
-                Section("Phone") {
-                    if case .connected(let host) = store.connection {
-                        LabeledContent("Connected to", value: host.name)
-                    } else {
+                Section("Sources") {
+                    if store.connectedHosts.isEmpty {
                         Text("Not connected")
                             .foregroundStyle(.secondary)
+                    }
+                    ForEach(store.connectedHosts) { host in
+                        LabeledContent("Connected to", value: host.name)
                     }
 
                     LabeledContent("Last synced", value: lastSyncedText)
@@ -84,8 +85,13 @@ struct TVSettingsView: View {
                     }
                     .disabled(store.isSyncing || !store.connection.isConnected)
 
-                    Button("Disconnect and Forget", role: .destructive) {
-                        store.forgetHost()
+                    // Red text, not a red button: tvOS draws a destructive
+                    // button red on red.
+                    ForEach(store.connectedHosts) { host in
+                        Button("Forget \(host.name)") {
+                            store.forgetHost(deviceID: host.deviceID)
+                        }
+                        .foregroundStyle(.red)
                     }
                 }
 

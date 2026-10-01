@@ -142,8 +142,9 @@ struct TVLibraryView: View {
     private var status: some View {
         HStack(spacing: 14) {
             switch store.connection {
-            case .connected(let host):
-                statusPill(host.name, systemImage: "circle.fill", tint: .green)
+            case .connected:
+                statusPill(store.connectedHosts.map(\.name).joined(separator: " · "),
+                           systemImage: "circle.fill", tint: .green)
             case .connecting(let name):
                 statusPill("Connecting to \(name)…", systemImage: "circle.dotted", tint: .secondary)
             default:
