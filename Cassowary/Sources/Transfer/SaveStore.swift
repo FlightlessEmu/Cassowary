@@ -81,6 +81,15 @@ final class SaveIndexStore {
         return records.values.filter(\.pending).count
     }
 
+    /// How many waiting saves belong to these games. A device only takes
+    /// saves for games it has, so this is what the connected one can be sent.
+    func pendingCount(forGames gameIDs: Set<String>) -> Int {
+        lock.lock(); defer { lock.unlock() }
+        return records.filter { key, record in
+            record.pending && gameIDs.contains(String(key.prefix { $0 != "|" }))
+        }.count
+    }
+
     private func load() {
         guard let data = try? Data(contentsOf: SharingPaths.saveIndex),
               let saved = try? JSONDecoder().decode([String: SaveVersionRecord].self, from: data)

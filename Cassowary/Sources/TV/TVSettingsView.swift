@@ -56,7 +56,13 @@ struct TVSettingsView: View {
                             .foregroundStyle(.secondary)
                     }
 
+                    LabeledContent("Last synced", value: lastSyncedText)
                     LabeledContent("Saves to send", value: "\(store.pendingUploads)")
+                    if store.savesWaitingElsewhere > 0 {
+                        // Saves for games this phone does not have: they go
+                        // to the device the game came from when it is back.
+                        LabeledContent("Waiting for another device", value: "\(store.savesWaitingElsewhere)")
+                    }
 
                     if let summary = store.syncSummary {
                         Text(summary)
@@ -64,9 +70,18 @@ struct TVSettingsView: View {
                             .foregroundStyle(.secondary)
                     }
 
-                    Button("Sync Now") {
+                    Button {
                         Task { await store.syncNow() }
+                    } label: {
+                        HStack {
+                            Text(store.isSyncing ? "Syncing…" : "Sync Now")
+                            if store.isSyncing {
+                                Spacer()
+                                ProgressView()
+                            }
+                        }
                     }
+                    .disabled(store.isSyncing || !store.connection.isConnected)
 
                     Button("Disconnect and Forget", role: .destructive) {
                         store.forgetHost()
@@ -209,6 +224,11 @@ struct TVSettingsView: View {
             seen[core.id] = core
         }
         return seen.values.sorted { $0.displayName.localizedStandardCompare($1.displayName) == .orderedAscending }
+    }
+
+    private var lastSyncedText: String {
+        guard let date = store.lastSyncedAt else { return "Not yet" }
+        return date.formatted(.relative(presentation: .named))
     }
 
     private var appVersion: String {

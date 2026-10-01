@@ -104,6 +104,9 @@ import sys, time
 data = bytearray(open(sys.argv[1], "rb").read())
 data[-8:] = int(time.time() * 1000).to_bytes(8, "big")
 open(sys.argv[2], "wb").write(data)' "$SHOTS/shared-base.gb" "$SHOTS/SharedDemo.gb"
+# The saves beside the last run's game would otherwise attach to this one,
+# which has the same file name, and show up as conflicts on the TV.
+rm -f "$CONTAINER/Documents/SharedDemo".*
 cp "$SHOTS/SharedDemo.gb" "$CONTAINER/Documents/SharedDemo.gb"
 
 # Sharing on, the Allow prompt skipped, and a pinned port so curl can find it.

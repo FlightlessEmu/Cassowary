@@ -141,10 +141,7 @@ struct TVLibraryView: View {
                     .scaleEffect(0.7)
             }
 
-            if store.pendingUploads > 0 {
-                statusPill("\(store.pendingUploads) save\(store.pendingUploads == 1 ? "" : "s") to send",
-                           systemImage: "arrow.up.circle", tint: .secondary)
-            }
+            saveStatus
 
             if !store.conflicts.isEmpty {
                 // The one pill that can be pressed: a conflict waits on a choice.
@@ -167,6 +164,24 @@ struct TVLibraryView: View {
         // Lined up with the sidebar rows below.
         .padding(.horizontal, 24)
         .padding(.top, 20)
+    }
+
+    /// How the saves stand with the connected source, in one pill: being
+    /// synced, waiting to go, or when they last synced.
+    @ViewBuilder
+    private var saveStatus: some View {
+        if store.isSyncing {
+            statusPill("Syncing saves…", systemImage: "arrow.triangle.2.circlepath", tint: .secondary)
+        } else if store.pendingUploads > 0 {
+            statusPill("\(store.pendingUploads) save\(store.pendingUploads == 1 ? "" : "s") to send",
+                       systemImage: "arrow.up.circle", tint: .secondary)
+        } else if case .connected = store.connection, let date = store.lastSyncedAt {
+            // Redrawn each minute so "2 minutes ago" stays true.
+            TimelineView(.periodic(from: .now, by: 60)) { _ in
+                statusPill("Saves synced \(date.formatted(.relative(presentation: .named)))",
+                           systemImage: "checkmark.circle", tint: .green)
+            }
+        }
     }
 
     /// One fact about the link, in a capsule, so several can sit on a line

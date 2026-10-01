@@ -106,7 +106,19 @@ final class TVStore: ObservableObject {
     @Published private(set) var downloads: [String: Double] = [:]
     @Published private(set) var syncSummary: String?
     @Published private(set) var conflicts: [SaveConflict] = []
+    /// Saves the connected source has not had yet.
     @Published private(set) var pendingUploads = 0
+    /// Saves waiting for a source that is not the connected one: they are
+    /// for games only another device has.
+    @Published private(set) var savesWaitingElsewhere = 0
+    /// When saves last synced without an error. Kept across launches, so
+    /// the library can say how fresh its saves are.
+    @Published private(set) var lastSyncedAt: Date? =
+        UserDefaults.standard.object(forKey: TVStore.lastSyncedKey) as? Date
+    /// True while a sync is running.
+    @Published private(set) var isSyncing = false
+    private var syncsRunning = 0
+    private static let lastSyncedKey = "cassowary.tv.lastSyncedAt"
     @Published private(set) var cacheBytes: Int64 = 0
     @Published private(set) var artwork: [String: UIImage] = [:]
     @Published private(set) var libraryIsLoading = false
@@ -807,6 +819,14 @@ final class TVStore: ObservableObject {
 
     func syncNow() async {
         guard let client else { return }
+        // Several can overlap (the reconnect loop, leaving a game, Sync Now),
+        // so count them rather than flip one flag.
+        syncsRunning += 1
+        isSyncing = true
+        defer {
+            syncsRunning -= 1
+            isSyncing = syncsRunning > 0
+        }
 
         // Pick up games added on the phone since the last look.
         try? await refreshLibrary()
@@ -816,9 +836,13 @@ final class TVStore: ObservableObject {
         // game from elsewhere wait for its own source.
         let result = await SaveSyncEngine.sync(games: locations.filter { hostGameIDs.contains($0.id) },
                                                with: client)
-        pendingUploads = SaveIndexStore.shared.pendingCount()
+        let pending = SaveIndexStore.shared.pendingCount(forGames: hostGameIDs)
+        pendingUploads = pending
+        savesWaitingElsewhere = SaveIndexStore.shared.pendingCount() - pending
         conflicts = ConflictStore.shared.conflicts
-        syncSummary = result.summary
+        // "Already in sync" is not news: the status line says when it last
+        // synced instead.
+        syncSummary = result.movedAny ? result.summary : nil
         refreshPlayInfo()
 
         // One failed sync can be a hiccup — the phone's app may have just been
@@ -834,6 +858,8 @@ final class TVStore: ObservableObject {
             }
         } else {
             syncFailures = 0
+            lastSyncedAt = Date()
+            UserDefaults.standard.set(lastSyncedAt, forKey: Self.lastSyncedKey)
             if case .failed = connection, let host {
                 connection = .connected(host)
             }

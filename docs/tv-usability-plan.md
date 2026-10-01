@@ -157,5 +157,8 @@ says how to launch with each.
   store the phone uses.
 - **WP6 — Delete a save slot on the TV**, removing the vault copy and
   telling the phone, so the slot does not come back on the next sync.
-- **WP7 — Sync you can see:** when the last sync happened, what is being
-  sent, a failure that says what to do, and Sync Now feedback.
+- **WP7 — Done. Sync you can see:** the library says "Syncing saves…",
+  "N saves to send" or "Saves synced 2 minutes ago"; Settings adds the last
+  sync time, saves waiting for another device, and a Sync Now that shows it
+  is working. Two bugs that left saves "to send" for ever are fixed (see
+  the commit).
