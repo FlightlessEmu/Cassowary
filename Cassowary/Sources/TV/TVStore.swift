@@ -368,6 +368,17 @@ final class TVStore: ObservableObject {
 
     /// Whether a game's source is the one right now. The demo game has no
     /// source, so it is always available.
+    /// False only when the game's own source is connected and no longer
+    /// lists it: then it cannot be downloaded again, and its saves have
+    /// nowhere to go. Unknown counts as still there.
+    func sourceStillHas(_ game: LocalGame) -> Bool {
+        guard let source = game.sourceDeviceID,
+              case .connected(let host) = connection,
+              source == host.deviceID
+        else { return true }
+        return hostGameIDs.contains(game.id)
+    }
+
     func isSourceAvailable(for game: LocalGame) -> Bool {
         guard let source = game.sourceDeviceID else { return true }
         guard case .connected(let host) = connection else { return false }
@@ -599,6 +610,42 @@ final class TVStore: ObservableObject {
         state.games[game.id] = updated
         saveState()
         updateCacheSize()
+    }
+
+    /// Forgets a game its source no longer has: the download, its saves on
+    /// this TV and their records, its play history, art and any conflict.
+    /// Without this its saves waited for that source for ever.
+    func forget(_ game: LocalGame) {
+        guard game.sourceDeviceID != nil else { return }
+        let fm = FileManager.default
+        try? fm.removeItem(at: SharingPaths.cachedGameFolder(id: game.id))
+        let vaultROM = vaultROMURL(gameID: game.id)
+        for kind in SaveKind.allStateKinds {
+            let state = SaveStore.saveStateURL(for: vaultROM, kind: kind)
+            try? fm.removeItem(at: state)
+            try? fm.removeItem(at: SaveStore.screenshotURL(forStateURL: state))
+        }
+        for battery in SaveStore.batterySaveURLs(forROMName: vaultROM.lastPathComponent) {
+            try? fm.removeItem(at: battery.url)
+        }
+        SaveStore.deletePlayInfo(gameID: game.id)
+        for key in SaveIndexStore.shared.allRecords().keys where key.hasPrefix(game.id + "|") {
+            SaveIndexStore.shared.remove(gameID: game.id, kind: String(key.dropFirst(game.id.count + 1)))
+        }
+        for conflict in ConflictStore.shared.conflicts where conflict.gameID == game.id {
+            ConflictStore.shared.remove(id: conflict.id)
+        }
+        conflicts = ConflictStore.shared.conflicts
+        try? fm.removeItem(at: artworkURL(gameID: game.id))
+        artwork[game.id] = nil
+
+        state.games[game.id] = nil
+        saveState()
+        updateCacheSize()
+        let pending = SaveIndexStore.shared.pendingCount(forGames: hostGameIDs)
+        pendingUploads = pending
+        savesWaitingElsewhere = SaveIndexStore.shared.pendingCount() - pending
+        note("Forgot \(game.title).")
     }
 
     func playableURL(for game: LocalGame) -> URL? {
@@ -879,6 +926,14 @@ final class TVStore: ObservableObject {
         // synced instead.
         syncSummary = result.movedAny ? result.summary : nil
         refreshPlayInfo()
+
+        #if DEBUG
+        // Forgets every game the source no longer has, to check forgetting
+        // without a remote. Only set from the command line.
+        if UserDefaults.standard.bool(forKey: "cassowary.testForgetGone") {
+            games.filter { !sourceStillHas($0) }.forEach(forget)
+        }
+        #endif
 
         // One failed sync can be a hiccup — the phone's app may have just been
         // put away and brought back. Two in a row means the link is really

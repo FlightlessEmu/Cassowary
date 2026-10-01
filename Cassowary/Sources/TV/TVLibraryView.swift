@@ -65,6 +65,8 @@ struct TVLibraryView: View {
     /// for during it is dropped.
     @State private var readyToOfferConflicts = false
     @State private var selection: Selection = .all
+    /// A game waiting on "Forget it?" before its saves here go.
+    @State private var gameToForget: TVStore.LocalGame?
     @State private var searchText = ""
     @State private var sort: SortOption = .title
     /// Which sidebar row has the focus, so the highlight can be drawn here
@@ -88,6 +90,18 @@ struct TVLibraryView: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             }
+        }
+        .confirmationDialog("Forget \(gameToForget?.title ?? "this game")?",
+                            isPresented: Binding(get: { gameToForget != nil },
+                                                 set: { if !$0 { gameToForget = nil } }),
+                            titleVisibility: .visible) {
+            Button("Forget Game", role: .destructive) {
+                if let game = gameToForget { store.forget(game) }
+                gameToForget = nil
+            }
+            Button("Cancel", role: .cancel) { gameToForget = nil }
+        } message: {
+            Text("\(gameToForget?.sourceName ?? "The phone") no longer has it, so it cannot be downloaded again. Its saves on this Apple TV go too.")
         }
         .sheet(item: $presentedConflict, onDismiss: {
             if resolvedOne {
@@ -436,7 +450,13 @@ struct TVLibraryView: View {
             }
             .buttonStyle(.card)
             .contextMenu {
-                if game.isDownloaded, game.sourceDeviceID != nil {
+                if !store.sourceStillHas(game) {
+                    // Gone from the phone: it cannot come back, so the only
+                    // thing left to do is let go of it.
+                    Button("Forget Game", role: .destructive) {
+                        gameToForget = game
+                    }
+                } else if game.isDownloaded, game.sourceDeviceID != nil {
                     Button("Remove Download", role: .destructive) {
                         store.removeDownload(game)
                     }
