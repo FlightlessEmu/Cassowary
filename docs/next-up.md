@@ -12,6 +12,25 @@ deleting it once it is done.
   Use the same bindings store, so a remap on one device could follow to the
   other later.
 
+- **Microphone input for the Nintendo DS.** Some DS games need it (blowing
+  out candles, talking to Nintendogs). The melonDS engine already asks for
+  it: `Mic_Start`, `Mic_Stop` and `Mic_ReadInput` in
+  `cores/melonDS/MelonDS/MelonDSPlatform.cpp` call `MelonDSHost`, whose
+  versions (`MelonDSHost.h`) do nothing and hand back silence. To do:
+  - have the core (`MelonDSGameCore.mm`) override those three, filling a
+    small buffer from an `AVAudioEngine` input tap, converted to the 16-bit
+    mono samples melonDS reads (check the rate it expects in its
+    `MicInputFrame` code);
+  - add `NSMicrophoneUsageDescription` to the app's Info.plist (through
+    `Cassowary/project.yml`), and only start the microphone when a game
+    asks, so nobody is prompted who never plays one that uses it;
+  - switch the audio session to play-and-record only while the microphone
+    is on, so game sound is not rerouted the rest of the time;
+  - add a "Blow" button for when there is no microphone (the Apple TV has
+    none an app can use, and a person may say no): it feeds the game loud
+    noise, which is what blowing sounds like to it. Put it in the phone's
+    on-screen controls for DS games and in the TV's game menu.
+
 ## Needs a real Apple TV
 
 None of these can be checked in the Simulator: it has no Siri Remote to
