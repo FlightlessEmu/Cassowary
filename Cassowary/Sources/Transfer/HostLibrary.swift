@@ -67,14 +67,32 @@ final class HostLibrary: ObservableObject {
         indexTask = Task { [weak self] in
             await Task.detached(priority: .utility) {
                 for candidate in candidates {
-                    if let existing = GameIndexStore.shared.record(forPath: candidate.path),
-                       existing.size == candidate.size,
-                       existing.modifiedAt == candidate.modifiedAt {
+                    let existing = GameIndexStore.shared.record(forPath: candidate.path)
+                    if var existing,
+                       existing.matches(size: candidate.size, modifiedAt: candidate.modifiedAt) {
+                        // The same file, though the app's folder may have
+                        // moved since (an update): keep the path current, as
+                        // the TV is served from it.
+                        if existing.path != candidate.path {
+                            existing.path = candidate.path
+                            GameIndexStore.shared.upsert(existing)
+                        }
                         continue
                     }
 
                     let url = URL(fileURLWithPath: candidate.path)
                     guard let hash = Hashing.sha256(ofFileAt: url) else { continue }
+
+                    // Saves go by the file's name, so a different game
+                    // under the same name would load the old one's. Move
+                    // the old game's saves aside, and bring back any this
+                    // game left when it was replaced before.
+                    if let existing, existing.sha256 != hash {
+                        SaveStore.setAsideSaves(romURL: url, gameID: existing.sha256)
+                    }
+                    if existing?.sha256 != hash {
+                        SaveStore.bringBackSetAsideSaves(romURL: url, gameID: hash)
+                    }
 
                     GameIndexStore.shared.upsert(GameRecord(sha256: hash,
                                                             path: candidate.path,

@@ -102,8 +102,12 @@ final class SaveIndexStore {
     }
 
     private func load() {
+        // Read with the dates the way they were written. A plain decoder
+        // expected numbers and failed, so every launch started with no
+        // versions at all: each save looked new again, and deletions were
+        // forgotten.
         guard let data = try? Data(contentsOf: SharingPaths.saveIndex),
-              let saved = try? JSONDecoder().decode([String: SaveVersionRecord].self, from: data)
+              let saved = try? TransferProtocol.decoder.decode([String: SaveVersionRecord].self, from: data)
         else { return }
         records = saved
     }
@@ -331,6 +335,95 @@ struct SaveStore {
         return try? Data(contentsOf: url)
     }
 
+    // MARK: - A game replaced by another of the same name
+
+    /// The name saves are kept under while set aside, so they can come back
+    /// beside a file of any name.
+    private static let setAsideBase = "game"
+
+    /// Moves a game's save states, their screenshots and its battery saves
+    /// out of the way, because the file at `romURL` is now a different
+    /// game. They are kept under the old game's ID (see
+    /// `SharingPaths.setAsideSaves`), never deleted.
+    static func setAsideSaves(romURL: URL, gameID: String) {
+        let fm = FileManager.default
+        let folder = SharingPaths.setAsideSaves(gameID: gameID)
+        let stand = folder.appendingPathComponent(setAsideBase)
+
+        var moves: [(from: URL, to: URL)] = []
+        for kind in SaveKind.allStateKinds {
+            let state = saveStateURL(for: romURL, kind: kind)
+            let kept = saveStateURL(for: stand, kind: kind)
+            moves.append((state, kept))
+            moves.append((screenshotURL(forStateURL: state), screenshotURL(forStateURL: kept)))
+        }
+        for save in batterySaveURLs(forROMName: romURL.lastPathComponent) {
+            let ext = (save.file as NSString).pathExtension
+            moves.append((save.url, folder
+                .appendingPathComponent("Battery Saves", isDirectory: true)
+                .appendingPathComponent(save.core, isDirectory: true)
+                .appendingPathComponent(setAsideBase)
+                .appendingPathExtension(ext)))
+        }
+
+        var moved = 0
+        for move in moves where fm.fileExists(atPath: move.from.path) {
+            try? fm.createDirectory(at: move.to.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try? fm.removeItem(at: move.to)
+            if (try? fm.moveItem(at: move.from, to: move.to)) != nil { moved += 1 }
+        }
+        if moved > 0 {
+            NSLog("[Cassowary] %@ is a different game now; set %d save file(s) aside", romURL.lastPathComponent, moved)
+        }
+    }
+
+    /// Puts back the saves set aside when this game's file was replaced,
+    /// now that it is back (under any name). A save already beside the file
+    /// is never overwritten; its set-aside copy stays where it is.
+    static func bringBackSetAsideSaves(romURL: URL, gameID: String) {
+        let fm = FileManager.default
+        let folder = SharingPaths.setAsideSaves(gameID: gameID)
+        guard fm.fileExists(atPath: folder.path) else { return }
+        let stand = folder.appendingPathComponent(setAsideBase)
+        let romBase = romURL.deletingPathExtension().lastPathComponent
+
+        var moves: [(from: URL, to: URL)] = []
+        for kind in SaveKind.allStateKinds {
+            let kept = saveStateURL(for: stand, kind: kind)
+            let state = saveStateURL(for: romURL, kind: kind)
+            moves.append((kept, state))
+            moves.append((screenshotURL(forStateURL: kept), screenshotURL(forStateURL: state)))
+        }
+        let batteryFolder = folder.appendingPathComponent("Battery Saves", isDirectory: true)
+        let cores = (try? fm.contentsOfDirectory(at: batteryFolder, includingPropertiesForKeys: nil,
+                                                 options: [.skipsHiddenFiles])) ?? []
+        for core in cores {
+            let files = (try? fm.contentsOfDirectory(at: core, includingPropertiesForKeys: nil,
+                                                     options: [.skipsHiddenFiles])) ?? []
+            for file in files {
+                moves.append((file, SharingPaths.batterySavesRoot
+                    .appendingPathComponent(core.lastPathComponent, isDirectory: true)
+                    .appendingPathComponent("Battery Saves", isDirectory: true)
+                    .appendingPathComponent(romBase)
+                    .appendingPathExtension(file.pathExtension)))
+            }
+        }
+
+        var moved = 0
+        for move in moves where fm.fileExists(atPath: move.from.path) && !fm.fileExists(atPath: move.to.path) {
+            try? fm.createDirectory(at: move.to.deletingLastPathComponent(), withIntermediateDirectories: true)
+            if (try? fm.moveItem(at: move.from, to: move.to)) != nil { moved += 1 }
+        }
+        if moved > 0 {
+            NSLog("[Cassowary] %@ is back; brought back %d save file(s)", romURL.lastPathComponent, moved)
+        }
+
+        // Gone once nothing is left in it.
+        let left = fm.enumerator(at: folder, includingPropertiesForKeys: [.isRegularFileKey])?
+            .contains { (($0 as? URL).flatMap { try? $0.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile }) == true } ?? false
+        if !left { try? fm.removeItem(at: folder) }
+    }
+
     /// Battery saves are named after the ROM and live under the core that
     /// wrote them: `Application Support/OpenEmu/<core>/Battery Saves/`.
     static func batterySaveURLs(forROMName romName: String) -> [(core: String, file: String, url: URL)] {
@@ -418,8 +511,10 @@ struct SaveStore {
 
         // Hashing every save on every scan would be wasteful; a file whose
         // size and date are unchanged is the file that was hashed last time.
+        // The saved date keeps whole seconds only, so compare to the second.
+        let unchanged = record.map { $0.size == Int64(size) && abs($0.modifiedAt.timeIntervalSince(modified)) < 1 } ?? false
         let hash: String
-        if let record, record.size == Int64(size), record.modifiedAt == modified {
+        if let record, unchanged {
             hash = record.hash
         } else {
             guard let fresh = Hashing.sha256(ofFileAt: url) else { return nil }
@@ -438,7 +533,7 @@ struct SaveStore {
                                             pending: true)
             SaveIndexStore.shared.set(updated, gameID: gameID, kind: kind)
             record = updated
-        } else if let existing = record, existing.size != Int64(size) || existing.modifiedAt != modified {
+        } else if let existing = record, !unchanged {
             let updated = SaveVersionRecord(version: existing.version,
                                             deviceID: existing.deviceID,
                                             hash: hash,

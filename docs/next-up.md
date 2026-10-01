@@ -55,9 +55,6 @@ press, and no real RetroAchievements account was used.
   its Info.plist alone, so that message means the core was missing from
   the build that was running. If it shows again, check
   `Cassowary.app/Contents/PlugIns/Cores/` in that build.
-- **Replacing a ROM with a different file of the same name** attaches the old
-  file's save states to the new game, since saves sit beside the ROM by name.
-  The sharing test hit this; it now clears them, but a person could too.
 
 ## Housekeeping
 

@@ -107,6 +107,15 @@ enum SharingPaths {
         return base
     }
 
+    /// Saves moved out of the way because the file they sat beside was
+    /// replaced by a different game of the same name. One folder per old
+    /// game, so they come back if that game does.
+    static func setAsideSaves(gameID: String) -> URL {
+        supportDirectory
+            .appendingPathComponent("Set Aside Saves", isDirectory: true)
+            .appendingPathComponent(gameID, isDirectory: true)
+    }
+
     /// Where the engine writes battery saves, one folder per core. On tvOS
     /// the engine's support folder is pointed at the caches directory (see
     /// the TV app's launch), because tvOS refuses to create folders inside
@@ -139,6 +148,24 @@ struct GameRecord: Codable, Hashable {
     var systemName: String
 
     var url: URL { URL(fileURLWithPath: path) }
+
+    /// A path with the app's own folder taken off the front. iOS moves that
+    /// folder (its name has an ID in it) when the app is reinstalled or
+    /// updated, so a full path saved before an update no longer matches the
+    /// same file after it. Mac Catalyst's folder does not move.
+    static func pathInApp(_ path: String) -> String {
+        guard let range = path.range(of: "/Containers/Data/Application/") else { return path }
+        let rest = path[range.upperBound...]
+        guard let slash = rest.firstIndex(of: "/") else { return path }
+        return String(rest[slash...])
+    }
+
+    /// Whether the file still looks the way it did when it was hashed. The
+    /// saved date keeps whole seconds only, so the file's own date is
+    /// compared to the second.
+    func matches(size: Int64, modifiedAt date: Date) -> Bool {
+        self.size == size && abs(modifiedAt.timeIntervalSince(date)) < 1
+    }
 }
 
 /// The games this device can serve, remembered across launches so the big
@@ -168,11 +195,18 @@ final class GameIndexStore {
 
     func record(forPath path: String) -> GameRecord? {
         lock.lock(); defer { lock.unlock() }
+        let inApp = GameRecord.pathInApp(path)
         return recordsByHash.values.first { $0.path == path }
+            ?? recordsByHash.values.first { GameRecord.pathInApp($0.path) == inApp }
     }
 
     func upsert(_ record: GameRecord) {
         lock.lock()
+        // A file replaced by a different game: the old game is no longer at
+        // that path. Left in, two records claimed one file, and which one a
+        // lookup by path found was down to chance.
+        let inApp = GameRecord.pathInApp(record.path)
+        recordsByHash = recordsByHash.filter { GameRecord.pathInApp($0.value.path) != inApp }
         recordsByHash[record.sha256] = record
         lock.unlock()
         save()
@@ -198,8 +232,11 @@ final class GameIndexStore {
     }
 
     private func load() {
+        // Read with the dates the way they were written. A plain decoder
+        // expected numbers, failed on every launch, and so every game was
+        // hashed again each time the app opened.
         guard let data = try? Data(contentsOf: SharingPaths.gameIndex),
-              let records = try? JSONDecoder().decode([GameRecord].self, from: data)
+              let records = try? TransferProtocol.decoder.decode([GameRecord].self, from: data)
         else { return }
         recordsByHash = Dictionary(uniqueKeysWithValues: records.map { ($0.sha256, $0) })
     }
