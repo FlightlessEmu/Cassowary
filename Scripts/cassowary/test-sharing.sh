@@ -19,8 +19,9 @@
 #   Scripts/cassowary/test-sharing.sh --tv       only the Apple TV half
 #   Scripts/cassowary/test-sharing.sh --skip-build
 #
-# CASSOWARY_TEST_PHONE and CASSOWARY_TEST_TV name the simulators to use
-# instead of the shared defaults. CASSOWARY_TEST_DIRECT=1 has the TV connect
+# It runs on simulators of its own, Cassowary-Test-Phone and Cassowary-Test-TV,
+# created the first time; CASSOWARY_TEST_PHONE and CASSOWARY_TEST_TV name
+# others. The phone's game folder is emptied first, so name spare ones. CASSOWARY_TEST_DIRECT=1 has the TV connect
 # to the phone by address instead of finding it with Bonjour, for when the
 # Mac's own name resolution is misbehaving (it is shared by the simulators).
 #
@@ -46,10 +47,10 @@ done
 # The simulators are shared by every worktree on this Mac, so a game left in
 # one by other work can change what the test sees. Set these to run on a
 # simulator of your own; it is created if it does not exist.
-PHONE_NAME="${CASSOWARY_TEST_PHONE:-Cassowary-iPhone-17}"
+PHONE_NAME="${CASSOWARY_TEST_PHONE:-Cassowary-Test-Phone}"
 PHONE_TYPE="com.apple.CoreSimulator.SimDeviceType.iPhone-17"
 PHONE_RUNTIME="com.apple.CoreSimulator.SimRuntime.iOS-26-5"
-TV_NAME="${CASSOWARY_TEST_TV:-Cassowary-TV}"
+TV_NAME="${CASSOWARY_TEST_TV:-Cassowary-Test-TV}"
 TV_TYPE="com.apple.CoreSimulator.SimDeviceType.Apple-TV-4K-3rd-generation-1080p"
 TV_RUNTIME="com.apple.CoreSimulator.SimRuntime.tvOS-26-5"
 PORT=8765
@@ -72,12 +73,13 @@ fail() { print -- "FAIL  $1"; failures+=("$1") }
 # The UDID of a simulator, creating and booting it when needed.
 simulator_udid() {
   local name=$1 type=$2 runtime=$3
-  if ! xcrun simctl list devices | grep -q "$name"; then
+  # Matched whole: Cassowary-TV is not Cassowary-TV-closecheck.
+  if ! xcrun simctl list devices | grep -qF "$name ("; then
     print -u2 -- "creating simulator $name"
     xcrun simctl create "$name" "$type" "$runtime" >/dev/null
   fi
   local udid
-  udid=$(xcrun simctl list devices available | sed -n "s/.*$name (\([0-9A-F-]\{36\}\)).*/\1/p" | head -1)
+  udid=$(xcrun simctl list devices available | sed -n "s/^ *$name (\([0-9A-F-]\{36\}\)).*/\1/p" | head -1)
   [[ -n "$udid" ]] || { print -u2 -- "error: no simulator named $name"; exit 1; }
   xcrun simctl boot "$udid" 2>/dev/null || true
   xcrun simctl bootstatus "$udid" -b >/dev/null 2>&1 || true
@@ -112,9 +114,9 @@ import sys, time
 data = bytearray(open(sys.argv[1], "rb").read())
 data[-8:] = int(time.time() * 1000).to_bytes(8, "big")
 open(sys.argv[2], "wb").write(data)' "$SHOTS/shared-base.gb" "$SHOTS/SharedDemo.gb"
-# The saves beside the last run's game would otherwise attach to this one,
-# which has the same file name, and show up as conflicts on the TV.
-rm -f "$CONTAINER/Documents/SharedDemo".*
+# Only this game: anything else left here (another test's game, last run's
+# saves under the same name) changes what the TV picks and finds.
+rm -rf "$CONTAINER/Documents/"*
 cp "$SHOTS/SharedDemo.gb" "$CONTAINER/Documents/SharedDemo.gb"
 
 # Sharing on, the Allow prompt skipped, and a pinned port so curl can find it.

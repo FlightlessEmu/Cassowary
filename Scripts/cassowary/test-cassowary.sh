@@ -18,6 +18,11 @@
 # Usage:
 #   Scripts/cassowary/test-cassowary.sh [--device-id <udid>] [--skip-build]
 #                                       [--ipad | --ipad-pro]
+#
+# It runs on a simulator of its own, Cassowary-Test-Phone, created the first
+# time: the shared ones collect games from other work, and a stray one once
+# made it boot the wrong game. The test empties the app's game folder on
+# whichever simulator it uses, so --device-id should name a spare one.
 
 set -euo pipefail
 
@@ -27,8 +32,8 @@ setopt NULL_GLOB 2>/dev/null || true
 BUNDLE_ID=org.cassowary.Cassowary
 DEVICE_ID=""
 SKIP_BUILD=0
-DEVICE_NAME=""
-DEVICE_TYPE=""
+DEVICE_NAME="Cassowary-Test-Phone"
+DEVICE_TYPE="com.apple.CoreSimulator.SimDeviceType.iPhone-17"
 RUNTIME="com.apple.CoreSimulator.SimRuntime.iOS-26-5"
 APP="build/cassowary-simulator/app/Build/Products/Debug-iphonesimulator/Cassowary.app"
 SHOTS="build/cassowary-test-shots"
@@ -51,10 +56,11 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-# --ipad and --ipad-pro boot the same Simulator device the run script uses,
-# creating it first if this is the first time.
-if [[ -n "$DEVICE_NAME" && -z "$DEVICE_ID" ]]; then
-  if ! xcrun simctl list devices | grep -q "$DEVICE_NAME"; then
+# The named simulator (the test's own, or the iPad the run script uses), created
+# first if this is the first time. The name is matched whole, so
+# Cassowary-Test-Phone never picks up a Cassowary-Test-Phone-2.
+if [[ -z "$DEVICE_ID" ]]; then
+  if ! xcrun simctl list devices | grep -qF "$DEVICE_NAME ("; then
     print -- "creating simulator $DEVICE_NAME"
     xcrun simctl create "$DEVICE_NAME" "$DEVICE_TYPE" "$RUNTIME" >/dev/null
   fi
@@ -69,16 +75,6 @@ if [[ -n "$DEVICE_NAME" && -z "$DEVICE_ID" ]]; then
     xcrun simctl boot "$DEVICE_ID" 2>/dev/null || true
   fi
   xcrun simctl bootstatus "$DEVICE_ID" -b >/dev/null 2>&1 || true
-fi
-
-if [[ -z "$DEVICE_ID" ]]; then
-  DEVICE_ID=$(xcrun simctl list devices available \
-    | sed -n 's/.*(\([0-9A-F-]\{36\}\)) (Booted).*/\1/p' \
-    | head -1)
-  if [[ -z "$DEVICE_ID" ]]; then
-    print -u2 -- "error: no booted simulator; boot one or pass --device-id"
-    exit 1
-  fi
 fi
 
 print -- "using simulator $DEVICE_ID"
@@ -103,7 +99,9 @@ xcrun simctl terminate "$DEVICE_ID" "$BUNDLE_ID" 2>/dev/null || true
 xcrun simctl install "$DEVICE_ID" "$APP"
 
 CONTAINER=$(xcrun simctl get_app_container "$DEVICE_ID" "$BUNDLE_ID" data)
-rm -f "$CONTAINER/Documents/"*.gb
+# Only the test ROM: the app boots the first game, and anything else here
+# (a disc, a game from another test) could come first.
+rm -rf "$CONTAINER/Documents/"*
 cp "$SHOTS/input-test.gb" "$CONTAINER/Documents/"
 
 # Average brightness of the middle of the screen, which is where the game is.

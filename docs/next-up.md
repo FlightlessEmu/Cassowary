@@ -10,14 +10,13 @@ deleting it once it is done.
 - **Try the microphone with real games.** DS (Nintendogs, or any game that
   asks you to blow): the app listens only while a game asks, asks for
   permission the first time, and the phone and Mac use the real microphone.
-  Holding the DS pad's Mic button, or the Blow button (phone top bar, TV
-  game menu), blows instead. NES and Famicom Disk System (Pols Voice in
-  Zelda, Kid Icarus): the Famicom's microphone is a Mic button on the pad
-  and a Blow row in the TV menu, never the real microphone, since those
+  Holding the DS pad's Mic button, or Blow (in the phone's More menu and
+  the TV game menu), blows instead. NES and Famicom Disk System (Pols Voice
+  in Zelda, Kid Icarus): the Famicom's microphone is a Mic button on the
+  pad and a Blow row in the TV menu, never the real microphone, since those
   games cannot say when they listen. `check-nes-microphone.sh` checks the
   NES cores with a test ROM; the Disk System path was not run (it needs
-  the FDS BIOS). The Mac build was not checked: it needs the new
-  `device.audio-input` entitlement to hear anything.
+  the FDS BIOS).
 
 ## Needs a real Apple TV
 
@@ -61,10 +60,14 @@ press, and no real RetroAchievements account was used.
 - **If every TV check in test-sharing.sh fails at once**, the Mac's Bonjour
   may have stopped resolving the phone (the simulators share it; it happened
   on 1 October). `CASSOWARY_TEST_DIRECT=1` connects by address instead.
-- **Run the tests on simulators of their own.** Every worktree shares the
-  default ones, and other work leaves games in them (a PlayStation disc once
-  made the input test boot the wrong game). `test-cassowary.sh --device-id`
-  and `CASSOWARY_TEST_PHONE` / `CASSOWARY_TEST_TV` for `test-sharing.sh` do it.
+- **The tests have simulators of their own**, Cassowary-Test-Phone and
+  Cassowary-Test-TV, made on first use, and empty the phone's game folder
+  before they start. Point them at another simulator only if it is a spare.
+- **Xcode's build caches fill the disk.** Every worktree gets its own
+  (about 2 to 7 GB each), and they stay after the worktree is gone. On
+  1 October the disk filled and broke a build; clearing the caches of
+  folders that no longer exist freed about 50 GB. Check
+  `~/Library/Developer/Xcode/DerivedData` after removing worktrees.
 - **`chore/core-upstream-maintenance`** (another session's branch) uses
   `cores/upstream.json` as the core list where `main` now uses
   `Scripts/cassowary/cores.txt`, and keeps the four removed cores. Decide

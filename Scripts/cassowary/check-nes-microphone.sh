@@ -8,7 +8,10 @@
 # Uses the app the last simulator build made.
 #
 # Usage:
-#   Scripts/cassowary/check-nes-microphone.sh --device-id <simulator udid>
+#   Scripts/cassowary/check-nes-microphone.sh [--device-id <simulator udid>]
+#
+# The simulator is the tests' own, Cassowary-Test-Phone, unless --device-id
+# names another.
 #
 # The simulator's games are moved aside while it runs and put back after.
 # A microphone prompt left unanswered on that simulator (by a DS check, say)
@@ -19,8 +22,18 @@
 set -uo pipefail
 cd "$(dirname "$0")/../.."
 
-[[ ${1:-} == --device-id && -n ${2:-} ]] || { echo "usage: $0 --device-id <udid>" >&2; exit 2; }
-DEVICE=$2
+if [[ ${1:-} == --device-id && -n ${2:-} ]]; then
+  DEVICE=$2
+elif [[ $# -eq 0 ]]; then
+  NAME=Cassowary-Test-Phone
+  xcrun simctl list devices | grep -qF "$NAME (" ||
+    xcrun simctl create "$NAME" com.apple.CoreSimulator.SimDeviceType.iPhone-17 >/dev/null
+  DEVICE=$(xcrun simctl list devices available | sed -n "s/^ *$NAME (\([0-9A-F-]\{36\}\)).*/\1/p" | head -1)
+  xcrun simctl boot "$DEVICE" 2>/dev/null
+  xcrun simctl bootstatus "$DEVICE" -b >/dev/null 2>&1
+else
+  echo "usage: $0 [--device-id <udid>]" >&2; exit 2
+fi
 BUNDLE=org.cassowary.Cassowary
 APP=build/cassowary-simulator/app/Build/Products/Debug-iphonesimulator/Cassowary.app
 SHOTS=build/nes-microphone-check
