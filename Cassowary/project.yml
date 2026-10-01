@@ -137,6 +137,10 @@ targets:
         # cover art downloads started failing on the Mac with "Check your
         # connection." — the sandbox refused every request before it left.
         com.apple.security.network.client: true
+        # And may not accept one without this: sharing the library with an
+        # Apple TV listens for the TV, and without it the TV could never
+        # pair with the Mac.
+        com.apple.security.network.server: true
         # The Mupen64Plus N64 core runs a JIT (MAP_JIT) for its CPU emulation.
         com.apple.security.cs.allow-jit: true
         # Cores and their helper dylibs are ad-hoc signed in local builds, and

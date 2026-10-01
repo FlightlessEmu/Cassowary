@@ -75,9 +75,16 @@ struct DeviceIdentity: Hashable {
 #elseif os(macOS)
         return Host.current().localizedName ?? "This Mac"
 #elseif targetEnvironment(macCatalyst)
-        // Foundation's Host is not available in Mac Catalyst, so the Mac app
-        // running on the Mac says what it is instead.
-        return "This Mac"
+        // Foundation's Host is not available in Mac Catalyst, and the
+        // device's name reads "This Mac" for every Mac. The network name is
+        // the computer's name, lowercased and with dashes
+        // ("williams-macbook-pro.local"), so undo what can be undone; it is
+        // what tells two Macs apart on the TV's list.
+        let host = ProcessInfo.processInfo.hostName
+            .replacingOccurrences(of: ".local", with: "")
+            .replacingOccurrences(of: "-", with: " ")
+            .capitalized
+        return host.isEmpty || host == "localhost" ? "This Mac" : host
 #else
         return UIDevice.current.name
 #endif
