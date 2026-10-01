@@ -103,8 +103,8 @@ final class MicrophoneCapture: ObservableObject {
         case .granted:
             break
         case .undetermined:
-            AVAudioApplication.requestRecordPermission { granted in
-                Task { @MainActor [weak self] in
+            AVAudioApplication.requestRecordPermission { [weak self] granted in
+                Task { @MainActor in
                     if granted, self?.isListening == true { self?.beginCapture() }
                 }
             }

@@ -247,8 +247,9 @@ final class DiagnosticsStore: NSObject, ObservableObject {
     }
 
     /// `DateFormatter` is safe to use from more than one thread on Apple
-    /// platforms; the payloads are handled off the main actor.
-    nonisolated(unsafe) private static let formatter: DateFormatter = {
+    /// platforms (the compiler knows it), and the payloads are handled off
+    /// the main actor.
+    nonisolated private static let formatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "yyyyMMdd-HHmmss"

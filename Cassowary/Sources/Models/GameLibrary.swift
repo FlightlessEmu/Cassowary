@@ -57,7 +57,7 @@ struct SystemInfo: Hashable {
     init(plugin: OESystemPlugin) {
         identifier = plugin.systemIdentifier
         name = plugin.systemName
-        icon = plugin.systemIcon as? UIImage
+        icon = plugin.systemIcon
         extensions = plugin.supportedTypeExtensions
     }
 }

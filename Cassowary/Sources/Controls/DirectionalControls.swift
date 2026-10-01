@@ -31,6 +31,7 @@ import OpenEmuKit
 ///
 /// `GameSession` is the real one. The Settings test pad uses
 /// `PreviewPressHandler`, which records presses instead of emulating.
+@MainActor
 protocol ControlPressHandler {
     func press(_ button: OESystemKey)
     func release(_ button: OESystemKey)

@@ -61,26 +61,27 @@ extension GameSession: OEGameCoreOwner {
     /// there is nothing to store.
     nonisolated func setDisplayModes(_ displayModes: [[String: Any]]) { }
 
-    func setRemoteContextID(_ contextID: OEContextID) {
+    nonisolated func setRemoteContextID(_ contextID: OEContextID) {
         // macOS uses this to hand a CAContext to the host process. In-process,
         // the layer is already available through `videoLayer`.
     }
 
-    /// The core is shaking a controller. Play it on the device.
-    func didChangeRumble(_ enabled: Bool, forPlayer player: UInt) {
-        rumble.setRumbling(enabled, forPlayer: player)
+    /// The core is shaking a controller. Play it on the device. Cores report
+    /// this from their own thread, and the rumble state lives on the main one.
+    nonisolated func didChangeRumble(_ enabled: Bool, forPlayer player: UInt) {
+        onMain { $0.rumble.setRumbling(enabled, forPlayer: player) }
     }
 
     // MARK: - Actions
 
-    func saveState() { }
-    func loadState() { }
-    func quickSave() { }
-    func quickLoad() { }
-    func toggleFullScreen() { }
-    func toggleAudioMute() { }
-    func volumeDown() { }
-    func volumeUp() { }
+    nonisolated func saveState() { }
+    nonisolated func loadState() { }
+    nonisolated func quickSave() { }
+    nonisolated func quickLoad() { }
+    nonisolated func toggleFullScreen() { }
+    nonisolated func toggleAudioMute() { }
+    nonisolated func volumeDown() { }
+    nonisolated func volumeUp() { }
 
     /// The core asks to quit from its own thread; teardown belongs on the main
     /// actor, so hop there.
@@ -92,39 +93,56 @@ extension GameSession: OEGameCoreOwner {
         }
     }
 
-    func resetEmulation() {
-        helper.resetEmulation {}
+    nonisolated func resetEmulation() {
+        onMain { $0.helper.resetEmulation {} }
     }
 
     /// Swaps to another disc of a multi-disc game, numbered from 1. The core
     /// opens the lid, changes the disc and closes it again a moment later,
     /// the way a player would.
-    func setDisc(_ discNumber: UInt) {
-        guard discNumber >= 1, discNumber <= discCount else { return }
-        helper.setDisc(discNumber)
+    nonisolated func setDisc(_ discNumber: UInt) {
+        onMain { session in
+            guard discNumber >= 1, discNumber <= session.discCount else { return }
+            session.helper.setDisc(discNumber)
+        }
     }
 
-    func toggleEmulationPaused() {
-        isPaused.toggle()
-        setPaused(isPaused)
+    nonisolated func toggleEmulationPaused() {
+        onMain { session in
+            session.isPaused.toggle()
+            session.setPaused(session.isPaused)
+        }
     }
 
-    func takeScreenshot() { }
+    nonisolated func takeScreenshot() { }
 
     // The helper forwards these to the owner, so the owner acts on the core
     // itself. `rate` is the supported way to change execution speed; rewind and
     // frame stepping are driven by the host app's menu on macOS and are not
     // wired up in this first iOS build.
-    func fastForwardGameplay(_ enable: Bool) {
-        helper.gameCore?.rate = enable ? 4.0 : 1.0
+    nonisolated func fastForwardGameplay(_ enable: Bool) {
+        onMain { $0.helper.gameCore?.rate = enable ? 4.0 : 1.0 }
     }
 
-    func rewindGameplay(_ enable: Bool) { }
-    func stepGameplayFrameForward() { }
-    func stepGameplayFrameBackward() { }
+    nonisolated func rewindGameplay(_ enable: Bool) { }
+    nonisolated func stepGameplayFrameForward() { }
+    nonisolated func stepGameplayFrameBackward() { }
 
-    func nextDisplayMode() { }
-    func lastDisplayMode() { }
+    nonisolated func nextDisplayMode() { }
+    nonisolated func lastDisplayMode() { }
+
+    /// Runs `work` on the main actor: straight away when already there (the
+    /// app's own buttons call these), and on the next turn when a core calls
+    /// from its own thread.
+    private nonisolated func onMain(_ work: @escaping @MainActor (GameSession) -> Void) {
+        if Thread.isMainThread {
+            MainActor.assumeIsolated { work(self) }
+        } else {
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated { work(self) }
+            }
+        }
+    }
 
     // MARK: - RetroAchievements
 

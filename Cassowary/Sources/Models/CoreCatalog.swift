@@ -80,7 +80,7 @@ struct SystemEntry: Identifiable, Hashable {
         self.plugin = plugin
         self.id = plugin.systemIdentifier
         self.name = plugin.systemName
-        self.icon = plugin.systemIcon as? UIImage
+        self.icon = plugin.systemIcon
         self.extensions = plugin.supportedTypeExtensions
         self.cores = OECorePlugin.corePlugins(forSystemIdentifier: plugin.systemIdentifier)
             .map(CoreEntry.init(plugin:))

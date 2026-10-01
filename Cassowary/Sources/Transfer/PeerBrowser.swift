@@ -158,15 +158,12 @@ enum BonjourResolver {
         let connection = NWConnection(to: endpoint, using: parameters)
 
         return try await withCheckedThrowingContinuation { continuation in
-            var finished = false
-            let lock = NSLock()
+            // The ready, failed and timeout paths race on different threads;
+            // only the first may resume.
+            let once = Once()
 
-            func finish(_ result: Result<(host: String, port: UInt16)?, Error>) {
-                lock.lock()
-                let alreadyDone = finished
-                finished = true
-                lock.unlock()
-                guard !alreadyDone else { return }
+            @Sendable func finish(_ result: Result<(host: String, port: UInt16)?, Error>) {
+                guard once.claim() else { return }
                 connection.cancel()
                 continuation.resume(with: result)
             }
@@ -295,5 +292,20 @@ private final class ServiceResolver: NSObject, NetServiceDelegate {
         service?.stop()
         continuation?.resume(with: result)
         continuation = nil
+    }
+}
+
+/// A flag that can be claimed once, from any thread.
+private final class Once: @unchecked Sendable {
+    private let lock = NSLock()
+    private var claimed = false
+
+    /// True for the first caller only.
+    func claim() -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        guard !claimed else { return false }
+        claimed = true
+        return true
     }
 }

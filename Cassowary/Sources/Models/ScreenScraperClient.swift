@@ -330,7 +330,7 @@ enum ScreenScraperClient {
         let fileExtension = name.pathExtension
         let base = name.deletingPathExtension
 
-        var stripped = base
+        let stripped = base
             .replacingOccurrences(of: "\\([^)]*\\)", with: "", options: .regularExpression)
             .replacingOccurrences(of: "\\[[^\\]]*\\]", with: "", options: .regularExpression)
             .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)

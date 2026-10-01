@@ -55,11 +55,6 @@ press, and no real RetroAchievements account was used.
 - **Replacing a ROM with a different file of the same name** attaches the old
   file's save states to the new game, since saves sit beside the ROM by name.
   The sharing test hit this; it now clears them, but a person could too.
-- **Compiler warnings that will be errors in Swift 6**: `GameSession`'s and
-  `SystemBindingsForwarder`'s conformances cross into main-actor code
-  (`GameSession+Owner.swift`, `InputBindings.swift`), a non-`Sendable` local
-  function in `PeerBrowser.swift`, and an always-unused `??` in
-  `MediaClient.swift`.
 
 ## Housekeeping
 

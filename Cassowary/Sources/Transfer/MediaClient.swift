@@ -128,7 +128,7 @@ final class MediaClient {
         }
         defer { try? handle.close() }
 
-        var offset = Int64((try? fm.attributesOfItem(atPath: destination.path)[.size] as? Int) ?? 0) ?? 0
+        var offset = Int64((try? fm.attributesOfItem(atPath: destination.path)[.size] as? Int) ?? 0)
         if offset > size {
             // A stale partial file from a different game: start over.
             try? handle.truncate(atOffset: 0)

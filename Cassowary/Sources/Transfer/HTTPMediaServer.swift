@@ -372,7 +372,7 @@ final class HTTPMediaServer {
             return
         }
 
-        let total = Int64((try? FileManager.default.attributesOfItem(atPath: fileURL.path)[.size] as? Int) ?? 0) ?? 0
+        let total = Int64((try? FileManager.default.attributesOfItem(atPath: fileURL.path)[.size] as? Int) ?? 0)
         let start = response.fileOffset
         let length = min(response.fileLength ?? (total - start), total - start)
 

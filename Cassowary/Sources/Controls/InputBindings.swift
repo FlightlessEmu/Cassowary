@@ -72,7 +72,8 @@ enum InputBindings {
 /// The macOS app forwarded the same two calls across XPC; here the responder
 /// is in the same process. `OESystemBindings` keeps observers for as long as
 /// they are registered, so `GameSession` removes this one when it stops.
-@MainActor
+/// It only passes calls on and keeps nothing the main actor owns, so it is
+/// safe whichever thread the bindings call from.
 final class SystemBindingsForwarder: NSObject, OESystemBindingsObserver {
 
     private weak var responder: OESystemResponder?
