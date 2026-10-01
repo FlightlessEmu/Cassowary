@@ -52,7 +52,7 @@ struct TVPlayerView: View {
     let onClose: () -> Void
 
     @State private var session: GameSession?
-    @StateObject private var controllerMenuInput = ControllerMenuInput()
+    @StateObject private var controllerInput = TVControllerInput()
     @State private var buttonTap: Task<Void, Never>?
     @State private var tappedButton: String?
     @State private var menuButtonHorizontalPadding: CGFloat = 0
@@ -184,7 +184,7 @@ struct TVPlayerView: View {
             stopGame()
         }
         .onExitCommand {
-            guard !controllerMenuInput.shouldIgnoreExit else { return }
+            guard !controllerInput.shouldIgnoreExit else { return }
             // Back walks one level at a time: out of the filter or video list
             // to the menu, out of the menu to the game. Closing the game stays
             // a button on the menu, so a stray press can never throw a
@@ -493,9 +493,7 @@ struct TVPlayerView: View {
 
             ScrollView(.vertical) {
                 VStack(spacing: 12) {
-                    videoRow(title: "Upscaling: \(upscalingSummary(.metalFX))",
-                             selected: false) { }
-                        .disabled(true)
+                    videoSectionLabel("Upscaling: \(upscalingSummary(.metalFX))")
                     ForEach(upscalingChoices, id: \.self) { choice in
                         videoRow(title: metalFXTitle(choice),
                                  selected: metalFXChoice == choice) {
@@ -504,9 +502,7 @@ struct TVPlayerView: View {
                         .focused($videoFocus, equals: .metalFX(choice))
                     }
 
-                    videoRow(title: "Scaling: \(upscalingSummary(.integerScaling))",
-                             selected: false) { }
-                        .disabled(true)
+                    videoSectionLabel("Scaling: \(upscalingSummary(.integerScaling))")
                     ForEach(upscalingChoices, id: \.self) { choice in
                         videoRow(title: scalingTitle(choice),
                                  selected: scalingChoice == choice) {
@@ -515,8 +511,7 @@ struct TVPlayerView: View {
                         .focused($videoFocus, equals: .scaling(choice))
                     }
 
-                    videoRow(title: "Rumble: \(rumbleTitle)", selected: false) { }
-                        .disabled(true)
+                    videoSectionLabel("Rumble: \(rumbleTitle)")
                     ForEach(RumbleStrength.allCases) { strength in
                         videoRow(title: strength.title,
                                  selected: rumbleStrength == strength.rawValue) {
@@ -530,6 +525,15 @@ struct TVPlayerView: View {
             }
             .frame(maxHeight: 560)
         }
+    }
+
+    private func videoSectionLabel(_ title: String) -> some View {
+        Text(title)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .frame(width: 560, alignment: .leading)
+            .padding(.horizontal, 24)
+            .padding(.top, 12)
     }
 
     private var upscalingChoices: [UpscalingOptions.Choice] {
@@ -556,7 +560,7 @@ struct TVPlayerView: View {
     private var hintBanner: some View {
         Group {
             if showsHint, !isMenuOpen, errorMessage == nil {
-                Text(controllerMenuInput.hasGamepad
+                Text(controllerInput.hasGamepad
                      ? "Hold Menu or press Back on the remote for options"
                      : "Click to press A · Play/Pause is B · Back for the menu")
                     .font(.callout)
@@ -635,7 +639,7 @@ struct TVPlayerView: View {
                     }
                 }
             }
-            controllerMenuInput.start(session: session) { openMenu() }
+            controllerInput.start(session: session) { openMenu() }
             // The filter and upscaling switches remembered for this system.
             // Shared with the phone player: see `VideoSettings`.
             shaderName = shaderCatalog.resolvedShaderName(forSystem: systemID)
@@ -673,6 +677,17 @@ struct TVPlayerView: View {
                     openFilters()
                 }
             }
+
+            #if DEBUG
+            if TVScreenshotHooks.opensVideo {
+                Task {
+                    try? await Task.sleep(for: .seconds(4))
+                    openMenu()
+                    try? await Task.sleep(for: .seconds(2))
+                    openVideo()
+                }
+            }
+            #endif
 
             // Used to check the save-state list without a remote: saves into
             // Slot 1 so there is a filled slot to show, then opens the menu
@@ -738,7 +753,7 @@ struct TVPlayerView: View {
     /// finished stopping, so nothing can start a second core on top of the one
     /// that is still winding down.
     private func stopGame() {
-        controllerMenuInput.stop()
+        controllerInput.stop()
         cancelButtonTap()
         guard let session else { return }
         session.stop {
@@ -754,7 +769,7 @@ struct TVPlayerView: View {
     /// nothing.
     private func openMenu() {
         guard !isMenuOpen, !didClose, session != nil else { return }
-        controllerMenuInput.menuDidOpen()
+        controllerInput.menuDidOpen()
         cancelButtonTap()
         hideHint?.cancel()
         showsHint = false
@@ -786,7 +801,7 @@ struct TVPlayerView: View {
         withAnimation(.easeInOut(duration: 0.2)) { isMenuOpen = false }
         session?.setPaused(false)
         ControllerCapture.setInterfaceActive(false)
-        controllerMenuInput.setGameplayActive(true)
+        controllerInput.setGameplayActive(true)
     }
 
     private func menuButtonID(containing name: String) -> String? {
@@ -845,7 +860,7 @@ struct TVPlayerView: View {
         slots = session?.filledSlots ?? []
         withAnimation(.easeInOut(duration: 0.2)) { showingStates = true }
         Task { @MainActor in
-            stateFocus = slots.first.map { .load($0.kind) } ?? .save(SaveKind.state)
+            stateFocus = slots.first.map { StateFocus.load($0.kind) } ?? StateFocus.save(SaveKind.state)
         }
     }
 
@@ -991,7 +1006,7 @@ struct TVPlayerView: View {
     private func saveBeforeLeaving() {
         guard !didClose, let session, session.isRunning else { return }
         leftActive = true
-        controllerMenuInput.setGameplayActive(false)
+        controllerInput.setGameplayActive(false)
         session.setPaused(true)
         if session.raHardcoreActive {
             fileSavesAndRecordPlay()
@@ -1015,7 +1030,7 @@ struct TVPlayerView: View {
         // finishes the close, and only the first one counts.
         guard !didClose else { return }
         didClose = true
-        controllerMenuInput.stop()
+        controllerInput.stop()
         cancelButtonTap()
         // Nothing ran, nothing to save: closing before the core started goes
         // straight out. Hardcore refuses save states, so it does too.

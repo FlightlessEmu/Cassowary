@@ -33,6 +33,11 @@ struct TVSettingsView: View {
     @StateObject private var shaderCatalog = ShaderCatalog()
     @StateObject private var upscalingOptions = UpscalingOptions()
 
+    #if DEBUG
+    /// The system `TVScreenshotHooks.systemToOpen` asks for, pushed once.
+    @State private var screenshotSystemID: String?
+    #endif
+
     private let budgets: [(String, Int64)] = [
         ("1 GB", 1 * 1024 * 1024 * 1024),
         ("2 GB", 2 * 1024 * 1024 * 1024),
@@ -159,6 +164,13 @@ struct TVSettingsView: View {
             }
             .navigationTitle("Settings")
             .onAppear { catalog.refresh() }
+            #if DEBUG
+            .navigationDestination(item: $screenshotSystemID) { id in
+                TVSystemView(catalog: catalog, shaderCatalog: shaderCatalog,
+                             upscalingOptions: upscalingOptions, systemID: id)
+            }
+            .task { screenshotSystemID = TVScreenshotHooks.systemToOpen }
+            #endif
         }
     }
 
@@ -196,7 +208,7 @@ struct TVSettingsView: View {
         for core in catalog.systems.flatMap(\.cores) {
             seen[core.id] = core
         }
-        return seen.values.sorted { $0.displayName < $1.displayName }
+        return seen.values.sorted { $0.displayName.localizedStandardCompare($1.displayName) == .orderedAscending }
     }
 
     private var appVersion: String {

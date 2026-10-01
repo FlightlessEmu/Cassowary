@@ -32,6 +32,9 @@ import SwiftUI
 struct TVConflictView: View {
 
     let conflict: SaveConflict
+    /// Carries out the choice. The library files it and moves on to the next
+    /// conflict; the screenshot sample passes one that does nothing.
+    let resolve: (SaveSyncEngine.ConflictChoice) -> Void
 
     @ObservedObject private var store = TVStore.shared
     @Environment(\.dismiss) private var dismiss
@@ -56,17 +59,17 @@ struct TVConflictView: View {
 
                 HStack(spacing: 28) {
                     Button("Keep This Apple TV") {
-                        store.resolve(conflict, choice: .keepLocal)
+                        resolve(.keepLocal)
                         dismiss()
                     }
 
                     Button("Keep \(peerName)") {
-                        store.resolve(conflict, choice: .keepRemote)
+                        resolve(.keepRemote)
                         dismiss()
                     }
 
                     Button("Keep Both") {
-                        store.resolve(conflict, choice: .keepBoth)
+                        resolve(.keepBoth)
                         dismiss()
                     }
                 }
@@ -84,24 +87,41 @@ struct TVConflictView: View {
         store.state.lastHostName ?? "the phone"
     }
 
+    /// One copy: where it was written, when, and how big it is. Both cards
+    /// keep the same layout — one line per fact — so they can be compared at
+    /// a glance, and the newer one says so.
     private func versionCard(name: String, meta: TransferProtocol.SaveBlobMeta, isLocal: Bool) -> some View {
-        VStack(spacing: 12) {
+        let other = isLocal ? conflict.remote : conflict.local
+        return VStack(spacing: 14) {
             Image(systemName: isLocal ? "appletv" : "ipad.and.iphone")
                 .font(.system(size: 44))
                 .foregroundStyle(.secondary)
+                .frame(height: 56)
 
+            // One size for both names, so the cards match; a very long name
+            // shrinks rather than wraps.
             Text(name)
-                .font(.title3.weight(.semibold))
+                .font(.headline)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
 
             Text(meta.modifiedAt.formatted(date: .abbreviated, time: .shortened))
                 .font(.callout)
                 .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
 
             Text(meta.size.formatted(.byteCount(style: .file)))
                 .font(.caption)
                 .foregroundStyle(.secondary)
+
+            Text("Newer")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.green)
+                .opacity(meta.modifiedAt > other.modifiedAt ? 1 : 0)
         }
-        .frame(width: 320, height: 260)
+        .padding(.horizontal, 28)
+        .frame(width: 440, height: 340)
         .background(.quaternary, in: .rect(cornerRadius: 24))
     }
 }

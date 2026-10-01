@@ -114,7 +114,6 @@ struct TVSystemView: View {
                         }
                     }
                 }
-                .navigationTitle(system.name)
             } else {
                 ContentUnavailableView("No Longer Installed", systemImage: "exclamationmark.triangle")
             }

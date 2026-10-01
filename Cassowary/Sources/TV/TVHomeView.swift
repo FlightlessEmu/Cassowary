@@ -66,14 +66,17 @@ struct TVHomeView: View {
         case library, sources, settings
     }
 
-    /// The open tab. `cassowary.tvTab` (library, sources or settings) opens
-    /// on another one, for screenshots without a remote; normal launches
-    /// start on the library.
-    @State private var tab: Tab = UserDefaults.standard.string(forKey: "cassowary.tvTab")
-        .flatMap(Tab.init(rawValue:)) ?? .library
+    /// The open tab. Normal launches start on the library.
+    @State private var tab: Tab = Self.launchTab
+
+    #if DEBUG
+    /// The screenshot sample from `TVScreenshotHooks`, never a real conflict.
+    @State private var sampleConflict: SaveConflict?
+    @State private var didOpenScreenshotScreen = false
+    #endif
 
     var body: some View {
-        Group {
+        ZStack {
             if let playing, let url = store.playableURL(for: playing) {
                 TVPlayerView(game: playing,
                              url: url,
@@ -104,19 +107,37 @@ struct TVHomeView: View {
                         }
                         .tag(Tab.settings)
                 }
-                .sheet(item: $pickerRequest) { request in
-                    TVCorePickerView(catalog: coreCatalog, game: request.game, system: request.system) { plugin in
-                        pickerRequest = nil
-                        launch(request.game, core: plugin)
-                    }
-                }
             }
         }
+        .sheet(item: $pickerRequest) { request in
+            TVCorePickerView(catalog: coreCatalog, game: request.game, system: request.system) { plugin in
+                pickerRequest = nil
+                #if DEBUG
+                // The screenshot stand-in has no file to play.
+                if request.game.id == Self.standInGameID { return }
+                #endif
+                launch(request.game, core: plugin)
+            }
+        }
+        #if DEBUG
+        .sheet(item: $sampleConflict) { conflict in
+            TVConflictView(conflict: conflict) { _ in }
+        }
+        #endif
         .onAppear {
             store.start()
             coreCatalog.refresh()
             autoPlayIfAsked()
         }
+        #if DEBUG
+        .task {
+            // A sheet asked for during the first layout pass is dropped, so
+            // give the window a moment before presenting one.
+            try? await Task.sleep(for: .milliseconds(500))
+            guard !Task.isCancelled else { return }
+            openScreenshotScreenIfAsked()
+        }
+        #endif
         .onChange(of: playing?.id) { _, id in
             // No game in front means the controller is tvOS's again. While a
             // game is running it is the game's, until its own controls come up.
@@ -140,6 +161,53 @@ struct TVHomeView: View {
             autoPlayIfAsked()
         }
     }
+
+    private static var launchTab: Tab {
+        #if DEBUG
+        if TVScreenshotHooks.systemToOpen != nil { return .settings }
+        if let name = TVScreenshotHooks.tab, let tab = Tab(rawValue: name) { return tab }
+        #endif
+        return .library
+    }
+
+    #if DEBUG
+    private static let standInGameID = "screenshot-stand-in"
+
+    /// Opens the screen a `TVScreenshotHooks` flag asks for. The system
+    /// settings flag is handled by the Settings tab itself.
+    private func openScreenshotScreenIfAsked() {
+        guard !didOpenScreenshotScreen else { return }
+        didOpenScreenshotScreen = true
+
+        if let id = TVScreenshotHooks.corePickerSystem, let system = coreCatalog.system(forIdentifier: id) {
+            let game = store.games.first { $0.systemIdentifier == id }
+                ?? TVStore.LocalGame(id: Self.standInGameID, title: "Sample Game", fileName: "",
+                                     systemIdentifier: id, systemName: system.name, size: 0,
+                                     hasArtwork: false, playCount: 0, favorite: false)
+            pickerRequest = TVCorePickerRequest(game: game, system: system)
+        }
+
+        if TVScreenshotHooks.showsSampleConflict {
+            let now = Date()
+            let gameID = store.games.first?.id ?? Self.standInGameID
+            let kind = SaveKind.stateSlot(1)
+            let local = TransferProtocol.SaveBlobMeta(gameID: gameID, kind: kind, version: 2,
+                                                      deviceID: "sample-tv", hash: "sample-local",
+                                                      size: 65536, modifiedAt: now)
+            var remote = local
+            remote.deviceID = "sample-phone"
+            remote.hash = "sample-remote"
+            remote.modifiedAt = now.addingTimeInterval(-3600)
+            sampleConflict = SaveConflict(gameID: gameID, kind: kind, local: local, remote: remote,
+                                          heldFile: "", detectedAt: now)
+        }
+
+        if TVScreenshotHooks.opensVideo,
+           let game = store.games.first(where: { $0.isDownloaded && store.hasCore(for: $0) }) {
+            launch(game, core: coreCatalog.preferredCore(forSystemIdentifier: game.systemIdentifier)?.plugin)
+        }
+    }
+    #endif
 
     /// Play a game, asking which core when there is a real choice. The same
     /// rule as the phone's library: one core or a remembered default launches

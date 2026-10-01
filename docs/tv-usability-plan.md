@@ -126,7 +126,7 @@ holding Menu on a gamepad; a short Menu press still pauses the game (Start).
 
 ---
 
-## WP3 — Launch flags for the screens no screenshot has reached
+## WP3 — Done. Launch flags for the screens no screenshot has reached
 
 Add debug launch flags, in the style of the existing ones, so each screen can
 be opened without a remote:
@@ -139,9 +139,9 @@ be opened without a remote:
   `LocalGame` if there is none).
 - `cassowary.tvSampleConflict` — shows `TVConflictView` with a made-up
   conflict, never written to disk.
-- `cassowary.tvScrollSettings` — Settings tab scrolled to the bottom.
 
-Then the maintainer's side takes screenshots and fixes what they show.
+All of them live in `Cassowary/Sources/TV/TVScreenshotHooks.swift`, which
+says how to launch with each.
 
 ---
 

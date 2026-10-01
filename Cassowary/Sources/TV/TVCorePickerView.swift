@@ -83,14 +83,13 @@ struct TVCorePickerView: View {
                 } header: {
                     Text("Play \(game.title) with")
                 } footer: {
-                    Text("\(system.name) has \(system.cores.count) cores installed. The default is used automatically next time.")
+                    Text("\(system.name) has \(system.cores.count) core\(system.cores.count == 1 ? "" : "s") installed. The default is used automatically next time.")
                 }
 
                 Section {
                     Toggle("Remember as default", isOn: $rememberDefault)
                 }
             }
-            .navigationTitle(system.name)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }

@@ -140,6 +140,7 @@ final class TVStore: ObservableObject {
     // MARK: - Starting
 
     func start() {
+        conflicts = ConflictStore.shared.conflicts
         browser.start()
         importBundledDemos()
         // A killed app may have left newer saves in the disposable cache.

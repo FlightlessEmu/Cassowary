@@ -57,7 +57,13 @@ struct TVLibraryView: View {
     @ObservedObject private var store = TVStore.shared
     @StateObject private var coreCatalog = CoreCatalog()
 
-    @State private var showConflict = false
+    /// The save conflict on screen. Choosing a copy moves on to the next
+    /// one; pressing Back leaves the rest for the Resolve button.
+    @State private var presentedConflict: SaveConflict?
+    @State private var resolvedOne = false
+    /// Conflicts are offered only after the first layout pass: a sheet asked
+    /// for during it is dropped.
+    @State private var readyToOfferConflicts = false
     @State private var selection: Selection = .all
     @State private var searchText = ""
     @State private var sort: SortOption = .title
@@ -83,25 +89,42 @@ struct TVLibraryView: View {
                 }
             }
         }
-        .sheet(isPresented: $showConflict) {
-            if let conflict = store.conflicts.first {
-                TVConflictView(conflict: conflict)
+        .sheet(item: $presentedConflict, onDismiss: {
+            if resolvedOne {
+                resolvedOne = false
+                offerConflict()
+            }
+        }) { conflict in
+            TVConflictView(conflict: conflict) { choice in
+                store.resolve(conflict, choice: choice)
+                resolvedOne = true
             }
         }
-        .onAppear {
+        .task {
             store.start()
             coreCatalog.refresh()
+            try? await Task.sleep(for: .milliseconds(500))
+            guard !Task.isCancelled else { return }
+            readyToOfferConflicts = true
+            offerConflict()
         }
-        .onChange(of: store.conflicts.count) { _, count in
-            if count > 0 { showConflict = true }
+        .onChange(of: store.conflicts) { _, _ in
+            if readyToOfferConflicts, presentedConflict == nil { offerConflict() }
         }
+    }
+
+    /// Asks about the first waiting conflict, if there is one.
+    private func offerConflict() {
+        #if DEBUG
+        // A screenshot flag wants its own screen, not a real conflict.
+        if TVScreenshotHooks.asksForScreen { return }
+        #endif
+        presentedConflict = store.conflicts.first
     }
 
     // MARK: - Status line
 
-    /// Where the games are coming from, and what is waiting. The buttons that
-    /// used to live here are tabs now, because the focus engine could not be
-    /// trusted to reach them.
+    /// Where the games are coming from, and saves waiting for a decision.
     private var status: some View {
         HStack(spacing: 14) {
             switch store.connection {
@@ -121,6 +144,17 @@ struct TVLibraryView: View {
             if store.pendingUploads > 0 {
                 statusPill("\(store.pendingUploads) save\(store.pendingUploads == 1 ? "" : "s") to send",
                            systemImage: "arrow.up.circle", tint: .secondary)
+            }
+
+            if !store.conflicts.isEmpty {
+                // The one pill that can be pressed: a conflict waits on a choice.
+                Button {
+                    presentedConflict = store.conflicts.first
+                } label: {
+                    statusPill("Resolve \(store.conflicts.count) Save Conflict\(store.conflicts.count == 1 ? "" : "s")",
+                               systemImage: "exclamationmark.triangle.fill", tint: .orange)
+                }
+                .buttonStyle(.plain)
             }
 
             if let summary = store.syncSummary {
@@ -346,7 +380,7 @@ struct TVLibraryView: View {
 
     private func shelfHeading(_ title: String) -> some View {
         Text(title)
-            .font(.title3.weight(.semibold))
+            .font(.headline.weight(.semibold))
             .foregroundStyle(.secondary)
             .padding(.horizontal, 48)
     }
