@@ -61,6 +61,12 @@
 				<key>OEControlListKeyNameKey</key>
 				<string>OENESButtonSelect</string>
 			</dict>
+			<dict>
+				<key>OEControlListKeyLabelKey</key>
+				<string>Mic</string>
+				<key>OEControlListKeyNameKey</key>
+				<string>OENESButtonMicrophone</string>
+			</dict>
 		</array>
 		<array>
 			<dict>
@@ -114,6 +120,7 @@
 		<string>OENESButtonB</string>
 		<string>OENESButtonStart</string>
 		<string>OENESButtonSelect</string>
+		<string>OENESButtonMicrophone</string>
 	</array>
 	<key>OENumberOfPlayersKey</key>
 	<integer>4</integer>

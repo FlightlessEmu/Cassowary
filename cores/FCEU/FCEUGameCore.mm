@@ -448,8 +448,23 @@ static __weak FCEUGameCore *_current;
 # pragma mark - Input
 
 const int NESMap[] = {JOY_UP, JOY_DOWN, JOY_LEFT, JOY_RIGHT, JOY_A, JOY_B, JOY_START, JOY_SELECT};
+
+// FCEU's Famicom microphone (input.cpp). While it is on, the second pad's
+// Start is the microphone, as on a Famicom, whose second pad had no Start.
+extern bool replaceP2StartWithMicrophone;
+
 - (oneway void)didPushNESButton:(OENESButton)button forPlayer:(NSUInteger)player;
 {
+    // The microphone sat on the second pad, but whoever presses Mic means
+    // it. It is switched on only while held, so an NES game's second
+    // player keeps their Start.
+    if (button == OENESButtonMicrophone)
+    {
+        replaceP2StartWithMicrophone = true;
+        _pad |= JOY_START << 8;
+        return;
+    }
+
     int playerShift = 0;
     switch (player) {
         case 1:
@@ -471,6 +486,13 @@ const int NESMap[] = {JOY_UP, JOY_DOWN, JOY_LEFT, JOY_RIGHT, JOY_A, JOY_B, JOY_S
 
 - (oneway void)didReleaseNESButton:(OENESButton)button forPlayer:(NSUInteger)player;
 {
+    if (button == OENESButtonMicrophone)
+    {
+        _pad &= ~(JOY_START << 8);
+        replaceP2StartWithMicrophone = false;
+        return;
+    }
+
     int playerShift = 0;
     switch (player) {
         case 1:

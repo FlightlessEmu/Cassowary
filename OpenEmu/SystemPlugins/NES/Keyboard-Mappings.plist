@@ -18,5 +18,7 @@
 	<integer>40</integer>
 	<key>OENESButtonSelect</key>
 	<integer>229</integer>
+	<key>OENESButtonMicrophone</key>
+	<integer>16</integer>
 </dict>
 </plist>

@@ -313,6 +313,7 @@ final class GameSession: NSObject {
         helper.setHandleEvents(false)
         OEiOSGameControllerManager.shared.stop()
         rumble.stop()
+        MicrophoneCapture.shared.gameStopped()
         detachBindings()
         raState.reset()
 

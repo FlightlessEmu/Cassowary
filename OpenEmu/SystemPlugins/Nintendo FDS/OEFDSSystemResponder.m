@@ -27,6 +27,11 @@
 #import "OEFDSSystemResponder.h"
 #import "OEFDSSystemResponderClient.h"
 
+// The cores number buttons the NES way, where Mic follows Select
+// (OENESButtonMicrophone). Change Disk Side sits there in the FDS list, so
+// Mic is renumbered on the way through.
+static const OEFDSButton OEFDSNESButtonMicrophone = (OEFDSButton)8;
+
 @implementation OEFDSSystemResponder
 @dynamic client;
 
@@ -42,6 +47,7 @@
     switch(button)
     {
         case OEFDSButtonChangeSide : [self.client didPushFDSChangeSideButton]; break;
+        case OEFDSButtonMicrophone : [self.client didPushNESButton:OEFDSNESButtonMicrophone forPlayer:aKey.player]; break;
         default :
             [self.client didPushNESButton:button forPlayer:aKey.player];
             break;
@@ -55,6 +61,7 @@
     switch(button)
     {
         case OEFDSButtonChangeSide : [self.client didReleaseFDSChangeSideButton]; break;
+        case OEFDSButtonMicrophone : [self.client didReleaseNESButton:OEFDSNESButtonMicrophone forPlayer:aKey.player]; break;
         default :
             [self.client didReleaseNESButton:button forPlayer:aKey.player];
             break;

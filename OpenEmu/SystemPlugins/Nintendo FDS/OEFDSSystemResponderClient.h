@@ -39,6 +39,9 @@ typedef enum _OEFDSButton
     OEFDSButtonStart,
     OEFDSButtonSelect,
 	OEFDSButtonChangeSide,
+    // The Famicom's microphone, which the Disk System games Zelda and Kid
+    // Icarus listen to. Passed to the core as the NES Mic button.
+    OEFDSButtonMicrophone,
     OEFDSButtonCount
 } OEFDSButton;
 

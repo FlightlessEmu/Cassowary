@@ -7,11 +7,16 @@ deleting it once it is done.
 
 ## Still to build
 
-- **Try DS microphone input with a real game** (Nintendogs, or any game
-  that asks you to blow). It is built: the app listens only while a game
-  asks, and the phone and Mac use the real microphone after asking
-  permission; a Blow button (phone top bar, TV game menu) stands in where
-  there is none. The Mac build was not checked: it needs the new
+- **Try the microphone with real games.** DS (Nintendogs, or any game that
+  asks you to blow): the app listens only while a game asks, asks for
+  permission the first time, and the phone and Mac use the real microphone.
+  Holding the DS pad's Mic button, or the Blow button (phone top bar, TV
+  game menu), blows instead. NES and Famicom Disk System (Pols Voice in
+  Zelda, Kid Icarus): the Famicom's microphone is a Mic button on the pad
+  and a Blow row in the TV menu, never the real microphone, since those
+  games cannot say when they listen. `check-nes-microphone.sh` checks the
+  NES cores with a test ROM; the Disk System path was not run (it needs
+  the FDS BIOS). The Mac build was not checked: it needs the new
   `device.audio-input` entitlement to hear anything.
 - On a narrow phone the Blow button squeezes the game's title in the top
   bar to a few letters while a game listens.

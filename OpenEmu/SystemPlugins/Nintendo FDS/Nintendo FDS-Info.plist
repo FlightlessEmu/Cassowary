@@ -61,6 +61,12 @@
 				<key>OEControlListKeyNameKey</key>
 				<string>OEFDSButtonSelect</string>
 			</dict>
+			<dict>
+				<key>OEControlListKeyLabelKey</key>
+				<string>Mic</string>
+				<key>OEControlListKeyNameKey</key>
+				<string>OEFDSButtonMicrophone</string>
+			</dict>
 		</array>
 		<array>
 			<dict>
@@ -121,6 +127,7 @@
 		<string>OEFDSButtonStart</string>
 		<string>OEFDSButtonSelect</string>
 		<string>OEFDSButtonChangeSide</string>
+		<string>OEFDSButtonMicrophone</string>
 	</array>
 	<key>OENumberOfPlayersKey</key>
 	<integer>4</integer>

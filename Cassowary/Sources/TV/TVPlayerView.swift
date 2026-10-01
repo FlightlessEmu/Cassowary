@@ -327,6 +327,15 @@ struct TVPlayerView: View {
                         microphone.blow()
                     }
                     .focused($menuFocus, equals: .blow)
+                } else if let mic = menuButtonID(containing: "NESButtonMicrophone")
+                            ?? menuButtonID(containing: "FDSButtonMicrophone") {
+                    // The Famicom's microphone gives no sign when a game is
+                    // listening, so an NES or Disk System game always offers
+                    // it. Held for a moment: a game wants a shout, not a click.
+                    menuButton("Blow", systemImage: "wind") {
+                        tapButton(named: mic, for: .milliseconds(1500))
+                    }
+                    .focused($menuFocus, equals: .blow)
                 }
 
                 menuButton("Reset", systemImage: "arrow.counterclockwise") {
@@ -904,14 +913,14 @@ struct TVPlayerView: View {
         session?.layout?.allButtons.first { $0.id.contains(name) }?.id
     }
 
-    private func tapButton(named name: String) {
+    private func tapButton(named name: String, for duration: Duration = .milliseconds(150)) {
         guard let session else { return }
         cancelButtonTap()
         closeMenu()
         tappedButton = name
         session.pressButton(named: name)
         buttonTap = Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(150))
+            try? await Task.sleep(for: duration)
             guard !Task.isCancelled else { return }
             session.releaseButton(named: name)
             tappedButton = nil

@@ -36,6 +36,9 @@ typedef enum _OENESButton
     OENESButtonB,
     OENESButtonStart,
     OENESButtonSelect,
+    // The Famicom's second controller had a microphone; a few games listen
+    // for a shout or a blow (Pols Voice in Zelda, Kid Icarus).
+    OENESButtonMicrophone,
     OENESButtonCount
 } OENESButton;
 

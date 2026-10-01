@@ -43,6 +43,13 @@ final class MicrophoneCapture: ObservableObject {
 
     private var observer: NSObjectProtocol?
     private var blowTask: Task<Void, Never>?
+    private var stopTask: Task<Void, Never>?
+
+    /// How long a game must stay quiet before the microphone is let go.
+    /// melonDS stops listening after two frames without a read, and some
+    /// games read in bursts, so without this the microphone (and the Blow
+    /// button) would flicker on and off.
+    private static let stopDelay: Duration = .seconds(2)
 
     #if os(iOS)
     private let engine = AVAudioEngine()
@@ -87,10 +94,39 @@ final class MicrophoneCapture: ObservableObject {
     }
 
     private func listeningChanged() {
-        isListening = OEMicrophoneInput.shared.isListening
-        if !isListening { setBlowing(false) }
+        if OEMicrophoneInput.shared.isListening {
+            stopTask?.cancel()
+            stopTask = nil
+            guard !isListening else { return }
+            isListening = true
+            #if os(iOS)
+            beginCapture()
+            #endif
+        } else {
+            guard isListening, stopTask == nil else { return }
+            stopTask = Task { [weak self] in
+                try? await Task.sleep(for: Self.stopDelay)
+                guard !Task.isCancelled else { return }
+                self?.stopListening()
+            }
+        }
+    }
+
+    /// The game is closing: let go of the microphone now rather than after
+    /// the delay, and drop anything a held Mic button left behind.
+    func gameStopped() {
+        stopTask?.cancel()
+        OEMicrophoneInput.shared.stopListening()
+        stopListening()
+    }
+
+    private func stopListening() {
+        stopTask = nil
+        guard !OEMicrophoneInput.shared.isListening else { return }
+        isListening = false
+        setBlowing(false)
         #if os(iOS)
-        if isListening { beginCapture() } else { endCapture() }
+        endCapture()
         #endif
     }
 

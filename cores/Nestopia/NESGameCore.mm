@@ -647,11 +647,25 @@ NSUInteger NESControlValues[] = { Nes::Api::Input::Controllers::Pad::UP, Nes::Ap
 };
 - (oneway void)didPushNESButton:(OENESButton)button forPlayer:(NSUInteger)player
 {
+    // The microphone sat on the Famicom's second pad, but whoever presses
+    // Mic means it: the console reads it on the first port, from any pad.
+    if (button == OENESButtonMicrophone)
+    {
+        _controls->pad[0].mic = Nes::Api::Input::Controllers::Pad::MIC;
+        _controls->pad[1].mic = Nes::Api::Input::Controllers::Pad::MIC;
+        return;
+    }
     _controls->pad[player - 1].buttons |=  NESControlValues[button];
 }
 
 - (oneway void)didReleaseNESButton:(OENESButton)button forPlayer:(NSUInteger)player
 {
+    if (button == OENESButtonMicrophone)
+    {
+        _controls->pad[0].mic = 0;
+        _controls->pad[1].mic = 0;
+        return;
+    }
     _controls->pad[player - 1].buttons &= ~NESControlValues[button];
 }
 

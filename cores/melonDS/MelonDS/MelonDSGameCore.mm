@@ -636,6 +636,14 @@ private:
         return;
     }
 
+    // Holding Mic blows into the microphone, from the on-screen pad, a
+    // keyboard or a controller.
+    if (button == OENDSButtonMicrophone)
+    {
+        OEMicrophoneInput.sharedInput.blowing = YES;
+        return;
+    }
+
     const int bit = KeyBitForButton(button);
     if (bit < 0)
         return;
@@ -650,6 +658,12 @@ private:
     {
         std::lock_guard<std::mutex> guard(_inputLock);
         _lidClosed = NO;
+        return;
+    }
+
+    if (button == OENDSButtonMicrophone)
+    {
+        OEMicrophoneInput.sharedInput.blowing = NO;
         return;
     }
 
