@@ -610,20 +610,16 @@ for resource in "${RESOURCES[@]:-}"; do
 done
 
 # Mupen64Plus renders through the paraLLEl-RDP video plugin, which the core
-# loads from its own PlugIns directory at runtime. The plugin is built
-# separately (it needs MoltenVK and the parallel-rdp sources): see
-# build/spike/parallel-plugin/build.sh. Override the directory with
+# loads from its own PlugIns directory at runtime. Apple devices have no
+# OpenGL, so without it the core cannot draw at all. It is built by
+# build-n64-video.sh, here when it is missing. Override the directory with
 # MUPEN_PARALLEL_PLUGIN_DIR when the plugin lives somewhere else.
 if [[ "$CORE" == Mupen64Plus ]]; then
-  case "$PLATFORM" in
-    simulator) MUPEN_PLUGIN_PLATFORM="simulator" ;;
-    device)    MUPEN_PLUGIN_PLATFORM="device" ;;
-    catalyst)  MUPEN_PLUGIN_PLATFORM="catalyst" ;;
-    tvos)      MUPEN_PLUGIN_PLATFORM="tvos" ;;
-    tvos-sim)  MUPEN_PLUGIN_PLATFORM="tvos-sim" ;;
-    *)         MUPEN_PLUGIN_PLATFORM="macos" ;;
-  esac
-  MUPEN_PLUGIN_SRC="${MUPEN_PARALLEL_PLUGIN_DIR:-$PWD/build/spike/parallel-plugin/build-$MUPEN_PLUGIN_PLATFORM}"
+  MUPEN_PLUGIN_SRC="${MUPEN_PARALLEL_PLUGIN_DIR:-$PWD/build/n64-video/$PLATFORM}"
+  if [[ -z "${MUPEN_PARALLEL_PLUGIN_DIR:-}" && ! -f "$MUPEN_PLUGIN_SRC/mupen64plus-video-parallel.dylib" ]]; then
+    ./Scripts/cassowary/build-n64-video.sh --$PLATFORM ||
+      print -u2 -- "warning: the N64 video plugin did not build; N64 games will not run"
+  fi
   if [[ -f "$MUPEN_PLUGIN_SRC/mupen64plus-video-parallel.dylib" ]]; then
     mkdir -p "$PLUGIN_DIR/PlugIns"
     cp -f "$MUPEN_PLUGIN_SRC/mupen64plus-video-parallel.dylib" "$PLUGIN_DIR/PlugIns/"

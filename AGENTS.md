@@ -91,6 +91,13 @@ the Simulator, `build/cassowary-plugins-device/` for a phone, and
 `build/cassowary-plugins-catalyst/` for the Mac. The first run is slow; later
 runs are quick.
 
+The Nintendo 64 core also needs its video plugin: Apple devices have no
+OpenGL, so it draws through paraLLEl-RDP and MoltenVK. Building Mupen64Plus
+builds the plugin when it is missing (`Scripts/cassowary/build-n64-video.sh`),
+from sources `Scripts/prepare-n64-video.sh` fetches at pinned revisions into
+`cores/Mupen64Plus/deps/`. MoltenVK makes the first build for each device
+kind slow; the result is kept in `build/n64-video/`.
+
 A `--device` build is signed and installed through `devicectl`, so it needs an
 Apple ID in Xcode and a paired phone with Developer Mode on. See
 [`Cassowary/README.md`](Cassowary/README.md).

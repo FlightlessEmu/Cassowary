@@ -577,6 +577,18 @@ static void MupenSetAudioSpeed(int percent)
     NSBundle *coreBundle = [NSBundle bundleForClass:[self class]];
     NSURL *dataURL = coreBundle.resourceURL;
 
+#if TARGET_OS_SIMULATOR
+    // The Simulator's software GPU refuses a texture view the N64 renderer
+    // needs (MoltenVK aborts in MTLSimBuffer), so the app would stop dead.
+    if (error) {
+        *error = [NSError errorWithDomain:OEGameCoreErrorDomain code:OEGameCoreCouldNotLoadROMError userInfo:@{
+            NSLocalizedDescriptionKey: @"Nintendo 64 games can't run in the Simulator.",
+            NSLocalizedRecoverySuggestionErrorKey: @"Its graphics don't support the N64 renderer. Try a real iPhone, iPad, Apple TV or Mac.",
+        }];
+    }
+    return NO;
+#endif
+
 #if TARGET_OS_IPHONE
     // These devices have no OpenGL, so the GLideN64 fallback below cannot
     // draw, and the app stops dead when a core asks for it. Without the
