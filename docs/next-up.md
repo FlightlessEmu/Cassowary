@@ -24,6 +24,14 @@ deleting it once it is done.
 None of these can be checked in the Simulator: it has no Siri Remote to
 press, and no real RetroAchievements account was used.
 
+- **N64 on real devices**: Banjo-Kazooie crashed the TV app (the device
+  builds had no N64 video plugin). The TV and iPhone now have it; check a
+  game plays on both, and on the Mac. N64 cannot run in the Simulator at
+  all (its GPU refuses the renderer), so only a device shows it working.
+- **Two sources at once**: with the phone and the Mac both sharing, the TV
+  connects to both (Sources lists them under Connected). A game on both is
+  listed once and downloads from either; long-press a source to disconnect
+  or forget just that one. Pairing the Mac needs Allow on the Mac once.
 - **The Siri Remote as a controller**: swipes and clicks on the touch surface
   for the d-pad, click for A, Play/Pause for B, in a Game Boy or NES game.
   Also held sideways.
