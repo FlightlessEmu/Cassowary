@@ -41,7 +41,6 @@ final public class GameAudio2 {
     private let engine = AVAudioEngine()
     private var src: AVAudioSourceNode?
     private weak var gameCore: OEGameCore!
-    private var isDefaultOutputDevice = true
     private var isRunning = false
     
     public init(withCore gameCore: OEGameCore) {
@@ -69,7 +68,7 @@ final public class GameAudio2 {
         
         updateSourceNode()
         connectNodes()
-        setOutputDeviceID(outputDeviceID)
+        reconnectOutput()
         
         engine.prepare()
         // per the following, we need to wait before resuming to allow devices to start 🤦🏻‍♂️
@@ -189,7 +188,7 @@ final public class GameAudio2 {
                 guard let self = self else { return }
                 
                 log.debug("AVAudioEngine configuration change")
-                self.setOutputDeviceID(self.outputDeviceID)
+                self.reconnectOutput()
             }
     }
     
@@ -200,20 +199,7 @@ final public class GameAudio2 {
         }
     }
     
-    /// There is one output, so there is nothing to look up.
-    private var defaultAudioOutputDeviceID: OEPlatformAudioDeviceID { 0 }
-    
-    func setOutputDeviceID(_ newOutputDeviceID: OEPlatformAudioDeviceID) {
-        let id: OEPlatformAudioDeviceID
-        if newOutputDeviceID == 0 {
-            id = defaultAudioOutputDeviceID
-            isDefaultOutputDevice = true
-            log.debug("Using default audio device \(id)")
-        } else {
-            id = newOutputDeviceID
-            isDefaultOutputDevice = false
-        }
-        
+    private func reconnectOutput() {
         engine.stop()
 
         connectNodes()
@@ -223,6 +209,4 @@ final public class GameAudio2 {
             performResumeAudio()
         }
     }
-    
-    var outputDeviceID: OEPlatformAudioDeviceID { 0 }
 }

@@ -30,81 +30,21 @@ import argparse
 import json
 import os
 import re
+import subprocess
 import sys
 
-# Which build phase a source file belongs to.
-SOURCE_PHASES = {'PBXSourcesBuildPhase'}
-FRAMEWORK_PHASES = {'PBXFrameworksBuildPhase'}
+def read_project(path):
+    """Let macOS decode Xcode's OpenStep property list."""
+    return json.loads(subprocess.check_output(
+        ['plutil', '-convert', 'json', '-o', '-', path]))['objects']
 
 
-def object_span(text, object_id):
-    """Return the span of `ID /* name */ = { ... };`, matching braces."""
-    # Most entries are indented with two tabs, but hand-added entries (e.g.
-    # BSNES's debugger.c build files) sometimes use spaces instead.
-    pattern = r'^[ \t]+' + re.escape(object_id) + r'(?: /\* [^*]* \*/)? = \{'
-    for m in re.finditer(pattern, text, re.M):
-        start = m.start()
-        i = text.index('{', m.start())
-        depth = 0
-        while i < len(text):
-            ch = text[i]
-            if ch == '{':
-                depth += 1
-            elif ch == '}':
-                depth -= 1
-                if depth == 0:
-                    return start, i + 1
-            i += 1
-    return None
+def find_target(objects, name):
+    return next((key for key, value in objects.items()
+                 if value.get('isa') == 'PBXNativeTarget' and value.get('name') == name), None)
 
 
-def object_body(text, object_id):
-    span = object_span(text, object_id)
-    return text[span[0]:span[1]] if span else None
-
-
-def find_target(text, name):
-    for m in re.finditer(r'^\t\t([0-9A-Za-z]{20,}) /\* ' + re.escape(name) + r' \*/ = \{', text, re.M):
-        body = object_body(text, m.group(1))
-        if body and 'isa = PBXNativeTarget;' in body:
-            return m.group(1)
-    return None
-
-
-def build_settings(text, target_id):
-    """Return the resolved Debug build settings for a target."""
-    body = object_body(text, target_id)
-    m = re.search(r'buildConfigurationList = ([0-9A-Za-z]{20,})', body)
-    if m is None:
-        return {}
-
-    list_body = object_body(text, m.group(1))
-    debug_id = None
-    for config_id, name in re.findall(r'([0-9A-Za-z]{20,}) /\* ([^*]+) \*/', list_body):
-        if name.strip() == 'Debug':
-            debug_id = config_id
-            break
-    if debug_id is None:
-        return {}
-
-    config_body = object_body(text, debug_id)
-    # Pull out the buildSettings dictionary.
-    m = re.search(r'buildSettings = \{\n(.*?)\n\t\t\t\};', config_body, re.S)
-    if m is None:
-        return {}
-
-    settings = {}
-    for line in m.group(1).splitlines():
-        line = line.strip()
-        if not line or line.startswith('//'):
-            continue
-        m = re.match(r'([A-Za-z_][A-Za-z0-9_]*) = (.*);$', line)
-        if m:
-            settings[m.group(1)] = m.group(2).strip('"')
-    return settings
-
-
-def file_reference_paths(text):
+def file_reference_paths(objects):
     """Map every PBXFileReference id to its path relative to the project.
 
     A file reference's path is only part of the story: groups above it can
@@ -113,46 +53,14 @@ def file_reference_paths(text):
     whose path is just `cpu.cpp`. Walking the group tree is what turns that back
     into the real path.
     """
-    # group id -> (own path component, child ids, source tree)
-    groups = {}
-    for m in re.finditer(r'^\t\t([0-9A-Za-z]{20,}) /\* [^*]+ \*/ = \{\n\t\t\tisa = PBXGroup;', text, re.M):
-        body = object_body(text, m.group(1))
-        if body is None:
-            continue
-        path = re.search(r'\n\t\t\tpath = ([^;]+);', body)
-        tree = re.search(r'\n\t\t\tsourceTree = ([^;]+);', body)
-        children = re.search(r'children = \((.*?)\n\t\t\t\);', body, re.S)
-        child_ids = re.findall(r'([0-9A-Za-z]{20,}) /\* [^*]+ \*/,', children.group(1)) if children else []
-        groups[m.group(1)] = (
-            path.group(1).strip('"') if path else '',
-            child_ids,
-            tree.group(1).strip('"') if tree else '<group>',
-        )
-
-    # file reference id -> (own path component, sourceTree)
-    files = {}
-    for m in re.finditer(r'^\t\t([0-9A-Za-z]{20,}) /\* [^*]+ \*/ = \{isa = PBXFileReference;', text, re.M):
-        body = object_body(text, m.group(1))
-        if body is None:
-            continue
-        path = re.search(r'path = ([^;]+);', body)
-        name = re.search(r'name = ([^;]+);', body)
-        tree = re.search(r'sourceTree = ([^;]+);', body)
-        component = (path.group(1).strip('"') if path
-                     else (name.group(1).strip('"') if name else None))
-        files[m.group(1)] = (component, tree.group(1).strip('"') if tree else '<group>')
-
-    # Which group holds each child, so the tree can be walked downwards.
-    parent_of = {}
-    for group_id, (_, child_ids, _) in groups.items():
-        for child_id in child_ids:
-            parent_of[child_id] = group_id
+    groups = {key: value for key, value in objects.items() if value.get('isa') == 'PBXGroup'}
+    files = {key: value for key, value in objects.items() if value.get('isa') == 'PBXFileReference'}
+    parent_of = {child: key for key, group in groups.items() for child in group.get('children', [])}
 
     def resolve(object_id):
-        entry = files.get(object_id)
-        if entry is None:
-            return None
-        own, source_tree = entry
+        entry = files[object_id]
+        own = entry.get('path', entry.get('name'))
+        source_tree = entry.get('sourceTree', '<group>')
 
         # A file reference whose source tree is the project root already
         # carries its full path; the groups above it must not be prepended.
@@ -171,10 +79,11 @@ def file_reference_paths(text):
         current = object_id
         while current in parent_of:
             group_id = parent_of[current]
-            component, _, group_tree = groups.get(group_id, ('', [], '<group>'))
+            group = groups[group_id]
+            component = group.get('path', '')
             if component:
                 parts.append(component)
-                if group_tree in ('SOURCE_ROOT', '<absolute>'):
+                if group.get('sourceTree') in ('SOURCE_ROOT', '<absolute>'):
                     break
             current = group_id
         return '/'.join(reversed(parts)) if parts else None
@@ -182,7 +91,7 @@ def file_reference_paths(text):
     return {object_id: resolve(object_id) for object_id in files}
 
 
-def dependent_target_ids(text, target_id):
+def dependent_target_ids(objects, target_id):
     """Return the targets this one depends on, transitively.
 
     A core can split itself across targets: VirtualJaguar's plugin target
@@ -200,66 +109,36 @@ def dependent_target_ids(text, target_id):
             continue
         seen.add(current)
 
-        body = object_body(text, current)
-        if body is None:
-            continue
-
-        # `dependencies = ( ... );` holds PBXTargetDependency ids.
-        m = re.search(r'\n\t\t\tdependencies = \((.*?)\n\t\t\t\);', body, re.S)
-        if m is None:
-            continue
-
-        for dependency_id in re.findall(r'([0-9A-Za-z]{20,}) /\* PBXTargetDependency \*/', m.group(1)):
-            dep_body = object_body(text, dependency_id)
-            if dep_body is None:
-                continue
-            target = re.search(r'target = ([0-9A-Za-z]{20,})', dep_body)
-            if target is None:
-                continue
-            dep_id = target.group(1)
-            if dep_id not in seen:
+        for dependency_id in objects.get(current, {}).get('dependencies', []):
+            dep_id = objects[dependency_id].get('target')
+            if dep_id and dep_id not in seen:
                 found.append(dep_id)
                 pending.append(dep_id)
 
     return found
 
 
-def phase_files(text, target_id, phase_isa, file_paths):
+def phase_files(objects, target_id, phase_isa, file_paths):
     """Return (path, compiler flags) for the target's build phases of a kind.
 
     A build file can carry its own `COMPILER_FLAGS`. rcheevos needs them, for
     example, to be compiled single-threaded with ROM hashing turned on. They
     are per-file, so they cannot come from the target's settings.
     """
-    body = object_body(text, target_id)
     entries = []
-
-    for phase_id in re.findall(r'([0-9A-Za-z]{20,}) /\* [^*]+ \*/,', body):
-        phase_body = object_body(text, phase_id)
-        if phase_body is None or f'isa = {phase_isa};' not in phase_body:
+    for phase_id in objects[target_id].get('buildPhases', []):
+        phase = objects[phase_id]
+        if phase.get('isa') != phase_isa:
             continue
-
-        for build_file_id in re.findall(r'([0-9A-Za-z]{20,}) /\* [^*]+ \*/,', phase_body):
-            build_body = object_body(text, build_file_id)
-            if build_body is None:
-                continue
-            m = re.search(r'fileRef = ([0-9A-Za-z]{20,})', build_body)
-            if m is None:
-                continue
-            path = file_paths.get(m.group(1))
-            if not path:
-                continue
-
-            flags = ''
-            m = re.search(r'COMPILER_FLAGS = "([^"]*)"', build_body)
-            if m:
-                flags = m.group(1)
-            entries.append((path, flags))
-
+        for build_file_id in phase.get('files', []):
+            build_file = objects[build_file_id]
+            path = file_paths.get(build_file.get('fileRef'))
+            if path:
+                entries.append((path, build_file.get('settings', {}).get('COMPILER_FLAGS', '')))
     return entries
 
 
-def framework_system_libraries(text, target_id):
+def framework_system_libraries(objects, target_id):
     """Return -l names for system libraries in the target's Frameworks phase.
 
     A core can link usr/lib stubs such as libz (Bliss uses it for minizip).
@@ -267,14 +146,15 @@ def framework_system_libraries(text, target_id):
     their basenames still say what to link. Frameworks are deliberately not
     mapped: Cocoa/OpenGL/Carbon do not exist on iOS.
     """
-    body = object_body(text, target_id)
     libs = []
-    for phase_id in re.findall(r'([0-9A-Za-z]{20,}) /\* [^*]+ \*/,', body):
-        phase_body = object_body(text, phase_id)
-        if phase_body is None or 'isa = PBXFrameworksBuildPhase;' not in phase_body:
+    for phase_id in objects[target_id].get('buildPhases', []):
+        phase = objects[phase_id]
+        if phase.get('isa') != 'PBXFrameworksBuildPhase':
             continue
-        for _, comment in re.findall(r'([0-9A-Za-z]{20,}) /\* ([^*]+) \*/,', phase_body):
-            m = re.match(r'lib([A-Za-z0-9_]+)(?:\.\d[\w.]*)?\.(?:dylib|tbd) in ', comment)
+        for build_file_id in phase.get('files', []):
+            reference = objects.get(objects[build_file_id].get('fileRef'), {})
+            name = reference.get('name') or os.path.basename(reference.get('path', ''))
+            m = re.fullmatch(r'lib([A-Za-z0-9_]+)(?:\.\d[\w.]*)?\.(?:dylib|tbd)', name)
             if m and m.group(1) not in libs:
                 libs.append(m.group(1))
     return libs
@@ -373,15 +253,13 @@ def discover_header_dirs(core_dir):
     return sorted(found), sorted(quoted)
 
 
-def resolved_settings(project_path, target_name, core_dir):
+def resolved_settings(project_path, target_name):
     """Ask xcodebuild for the target's build settings.
 
     Xcode expands `$(SRCROOT)`, `$(inherited)` and the project's own defaults,
     and it knows about settings defined in xcconfig files. Reimplementing that
     from the project file is a losing game, so the real thing is used.
     """
-    import subprocess
-
     try:
         result = subprocess.run(
             ['xcodebuild', '-project', project_path, '-target', target_name,
@@ -439,15 +317,15 @@ def main():
 
     project_path = os.path.join(core_dir, projects[0])
     pbxproj = os.path.join(project_path, 'project.pbxproj')
-    text = open(pbxproj, encoding='utf-8', errors='ignore').read()
+    objects = read_project(pbxproj)
 
     # The target is usually named after the core. Fall back to the only target
     # if that does not match (e.g. picodrive lives in target Picodrive).
-    target_id = find_target(text, args.core)
+    target_id = find_target(objects, args.core)
     target_name = args.core
     if target_id is None:
-        targets = re.findall(r'^\t\t([0-9A-Za-z]{20,}) /\* ([^*]+) \*/ = \{\n\t\t\tisa = PBXNativeTarget;',
-                             text, re.M)
+        targets = [(key, value['name']) for key, value in objects.items()
+                   if value.get('isa') == 'PBXNativeTarget']
         if len(targets) == 1:
             target_id, target_name = targets[0]
         else:
@@ -455,15 +333,15 @@ def main():
                   f'{", ".join(n for _, n in targets)}', file=sys.stderr)
             return 1
 
-    settings = resolved_settings(project_path, target_name, core_dir)
-    file_paths = file_reference_paths(text)
+    settings = resolved_settings(project_path, target_name)
+    file_paths = file_reference_paths(objects)
 
     # Source paths are relative to the project directory. Targets the core
     # depends on contribute their sources too (see dependent_target_ids).
     # Named excluded targets stay out (see --exclude-target).
     excluded_ids = set()
     for name in args.exclude_target:
-        excluded_id = find_target(text, name)
+        excluded_id = find_target(objects, name)
         if excluded_id is None:
             print(f'warning: --exclude-target {name}: no such target', file=sys.stderr)
         else:
@@ -471,10 +349,10 @@ def main():
 
     sources = []
     seen_sources = set()
-    for owner in [target_id] + dependent_target_ids(text, target_id):
+    for owner in [target_id] + dependent_target_ids(objects, target_id):
         if owner in excluded_ids:
             continue
-        for path, flags in phase_files(text, owner, 'PBXSourcesBuildPhase', file_paths):
+        for path, flags in phase_files(objects, owner, 'PBXSourcesBuildPhase', file_paths):
             full = os.path.normpath(os.path.join(core_dir, path))
             if full in seen_sources:
                 continue
@@ -505,18 +383,18 @@ def main():
         c_standard = ''
     if cxx_standard == 'compiler-default':
         cxx_standard = ''
-    frameworks = [p for p, _ in phase_files(text, target_id, 'PBXFrameworksBuildPhase', file_paths)]
-    libraries = framework_system_libraries(text, target_id)
+    frameworks = [p for p, _ in phase_files(objects, target_id, 'PBXFrameworksBuildPhase', file_paths)]
+    libraries = framework_system_libraries(objects, target_id)
 
     # Data files from the target's Resources phase. Localizations arrive as
     # *.lproj paths, which the build script copies as a folder of their own, so
     # they are left out here.
     resources = []
     seen_resources = set()
-    for owner in [target_id] + dependent_target_ids(text, target_id):
+    for owner in [target_id] + dependent_target_ids(objects, target_id):
         if owner in excluded_ids:
             continue
-        for path, _ in phase_files(text, owner, 'PBXResourcesBuildPhase', file_paths):
+        for path, _ in phase_files(objects, owner, 'PBXResourcesBuildPhase', file_paths):
             if '.lproj/' in path:
                 continue
             full = os.path.normpath(os.path.join(core_dir, path))

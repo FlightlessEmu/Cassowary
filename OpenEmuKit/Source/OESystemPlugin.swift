@@ -168,39 +168,4 @@ public class OESystemPlugin: OEPlugin {
     public var supportedTypeExtensions: [String] {
         return controller.fileTypes
     }
-    
-    // MARK: -
-    
-    override public var isOutOfSupport: Bool {
-        // system plugins are shipped inside the application bundle;
-        // all plugins located in the application support directory must be removed
-        let bundleURL = bundle.bundleURL
-        let fm = FileManager.default
-        let systemsDirectory = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-            .appendingPathComponent("OpenEmu", isDirectory: true)
-            .appendingPathComponent(Self.pluginFolder, isDirectory: true)
-        if bundleURL.isSubpath(of: systemsDirectory) {
-            return true
-        }
-        
-        return false
-    }
-}
-
-private extension URL {
-    
-    func isSubpath(of url: URL) -> Bool {
-        let parentPathComponents = url.standardized.pathComponents
-        let ownPathComponents = standardized.pathComponents
-        
-        let ownPathCount = ownPathComponents.count
-        
-        for i in 0 ..< parentPathComponents.count {
-            if i >= ownPathCount || parentPathComponents[i] != ownPathComponents[i] {
-                return false
-            }
-        }
-        
-        return true
-    }
 }

@@ -213,7 +213,7 @@ struct LibraryView: View {
             }
         }
         .sheet(item: $pickerRequest) { request in
-            CorePickerSheet(catalog: catalog, game: request.game, system: request.system) { plugin in
+            CorePickerSheet(catalog: catalog, gameTitle: request.game.title, system: request.system) { plugin in
                 pickerRequest = nil
                 playing = ActiveGame(game: request.game, core: plugin, slot: request.slot)
             }

@@ -23,7 +23,6 @@
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import Foundation
-import CoreAudio
 
 import UIKit
 
@@ -47,12 +46,6 @@ public typealias OEPlatformResponder = NSObject
 
 /// The application delegate protocol the helper conforms to.
 public typealias OEPlatformApplicationDelegate = NSObjectProtocol
-
-/// The identifier of an audio output device.
-///
-/// Here for source compatibility: the device has exactly one output, so the
-/// value is always zero.
-public typealias OEPlatformAudioDeviceID = UInt32
 
 extension OEPlatformBitmapImage {
     /// Build a bitmap from a `CGImage`.

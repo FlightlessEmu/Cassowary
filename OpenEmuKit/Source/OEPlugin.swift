@@ -23,12 +23,10 @@
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import Foundation
-internal import os.log
 
 public enum OEGameCorePluginError: Int, CustomNSError {
     case alreadyLoaded = -1000
     case invalid = -1001
-    case outOfSupport = -1002
     
     public static var errorDomain: String { "org.openemu.OpenEmuKit.OEPlugin" }
 }
@@ -36,9 +34,7 @@ public enum OEGameCorePluginError: Int, CustomNSError {
 public class OEPlugin: NSObject {
     
     private static var pluginClasses: Set<String> = []
-    private static var allPluginsByType: [String: NSMutableDictionary] = [:]
-    private static var pluginsForPathsByType: [String: NSMutableDictionary] = [:]
-    private static var pluginsForNamesByType: [String: NSMutableDictionary] = [:]
+    private static var allPluginsByType: [String: [String: Result<OEPlugin, Error>]] = [:]
     
     public private(set) var url: URL
     public private(set) var name: String
@@ -47,24 +43,6 @@ public class OEPlugin: NSObject {
     public private(set) var infoDictionary: [String: Any]
     public private(set) var version: String
     public private(set) var displayName: String
-    
-    private class func pluginsForNames(createIfNeeded create: Bool) -> NSMutableDictionary? {
-        var plugins = pluginsForNamesByType[Self.pluginType]
-        if plugins == nil && create {
-            plugins = [:]
-            pluginsForNamesByType[Self.pluginType] = plugins
-        }
-        return plugins
-    }
-    
-    private class func pluginsForPaths(createIfNeeded create: Bool) -> NSMutableDictionary? {
-        var plugins = pluginsForPathsByType[Self.pluginType]
-        if plugins == nil && create {
-            plugins = [:]
-            pluginsForPathsByType[Self.pluginType] = plugins
-        }
-        return plugins
-    }
     
     private class var pluginType: String {
         return NSStringFromClass(self)
@@ -86,16 +64,16 @@ public class OEPlugin: NSObject {
     
     required init(bundleAtURL bundleURL: URL, name: String?) throws {
         guard let bundle = Bundle(url: bundleURL),
-              let infoDictionary = bundle.infoDictionary
+              let infoDictionary = bundle.infoDictionary,
+              infoDictionary["CFBundleIdentifier"] is String
         else {
             throw OEGameCorePluginError.invalid
         }
         
         let name = name ?? (bundleURL.lastPathComponent as NSString).deletingPathExtension
         
-        let existing = Self.pluginsForNames(createIfNeeded: false)?[name]
-                    ?? Self.pluginsForPaths(createIfNeeded: false)?[bundleURL.path]
-        if existing != nil {
+        let loaded = Self.allPluginsByType[Self.pluginType]?.values.compactMap { try? $0.get() } ?? []
+        if loaded.contains(where: { $0.name == name || $0.url == bundle.bundleURL }) {
             throw OEGameCorePluginError.alreadyLoaded
         }
         
@@ -113,78 +91,27 @@ public class OEPlugin: NSObject {
         
         super.init()
         
-        if isOutOfSupport {
-            // plugin must be removed
-            os_log(.default, log: .default, "Removing out-of-support plugin %{public}@", bundleURL.path)
-            
-            let fm = FileManager.default
-            do {
-                try fm.removeItem(at: bundleURL)
-            } catch {
-                os_log(.error, log: .default, "Error when removing out-of-support plugin: %{public}@", error as NSError)
-            }
-            
-            throw OEGameCorePluginError.outOfSupport
-        }
-        
-        Self.pluginsForPaths(createIfNeeded: true)![bundleURL.path] = self
-        Self.pluginsForNames(createIfNeeded: true)![name] = self
+        Self.allPluginsByType[Self.pluginType, default: [:]][name] = .success(self)
     }
     
     deinit {
         bundle.unload()
     }
     
-    public class func plugin(bundleAtURL bundleURL: URL, forceReload reload: Bool = false) throws -> Self? {
-        var plugins = allPluginsByType[Self.pluginType]
-        if plugins == nil {
-            plugins = NSMutableDictionary()
-            allPluginsByType[Self.pluginType] = plugins
-        }
-        
+    public class func plugin(bundleAtURL bundleURL: URL) throws -> Self? {
         let pluginName = (bundleURL.lastPathComponent as NSString).deletingPathExtension
-        var ret = plugins?[pluginName] as? NSObject
-        
-        if reload {
-            // Will override a previous failed attempt at loading a plugin
-            if ret == NSNull() {
-                ret = nil
-            }
-            // A plugin was already successfully loaded
-            else if ret != nil {
-                throw OEGameCorePluginError.alreadyLoaded
-            }
+        if let cached = allPluginsByType[Self.pluginType]?[pluginName] {
+            // Failed loads throw once, then stay absent until the app restarts.
+            return (try? cached.get()) as? Self
         }
-        
-        // No plugin with such name, attempt to actually load the file at the given url
-        if ret == nil {
-            var err: Error?
-            
-            do {
-                ret = try Self.init(bundleAtURL: bundleURL, name: pluginName)
-            } catch {
-                err = error
-            }
-            
-            // If ret is still nil at this point, it means the plugin can't be loaded
-            if ret == nil {
-                ret = NSNull()
-            }
-            
-            Self.willChangeValue(forKey: "allPlugins")
-            plugins?[pluginName] = ret
-            Self.didChangeValue(forKey: "allPlugins")
-            
-            if let error = err {
-                throw error
-            }
+
+        let result: Result<OEPlugin, Error> = Result {
+            try Self.init(bundleAtURL: bundleURL, name: pluginName)
         }
-        
-        if ret == NSNull() {
-            ret = nil
-        }
-        
-        return ret as? Self
+        Self.willChangeValue(forKey: "allPlugins")
+        allPluginsByType[Self.pluginType, default: [:]][pluginName] = result
+        Self.didChangeValue(forKey: "allPlugins")
+        return try result.get() as? Self
     }
     
     public class func registerClass() {
@@ -198,8 +125,7 @@ public class OEPlugin: NSObject {
             assertionFailure("\(pluginType) must be registered with +registerClass")
             return []
         }
-        var plugins = allPluginsByType[Self.pluginType]
-        if plugins == nil {
+        if allPluginsByType[Self.pluginType] == nil {
             let fm = FileManager.default
 
             // Load plugins from the app bundle only. The macOS app also looked in
@@ -212,23 +138,10 @@ public class OEPlugin: NSObject {
             for bundleURL in bundledPluginURLs ?? [] where bundleURL.pathExtension == Self.pluginExtension {
                 _ = try? plugin(bundleAtURL: bundleURL)
             }
-            
-            plugins = allPluginsByType[Self.pluginType]
         }
         
-        let val = plugins?.allValues.compactMap { $0 as? OEPlugin } ?? []
-        let set = Set(val)
-        let ret = Array(set).sorted { $0.displayName.caseInsensitiveCompare($1.displayName) == .orderedAscending }
-        
-        return ret
-    }
-    
-    var isDeprecated: Bool {
-        return isOutOfSupport
-    }
-    
-    var isOutOfSupport: Bool {
-        return false
+        let loaded = allPluginsByType[Self.pluginType]?.values.compactMap { try? $0.get() } ?? []
+        return loaded.sorted { $0.displayName.caseInsensitiveCompare($1.displayName) == .orderedAscending }
     }
 }
 

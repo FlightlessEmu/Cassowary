@@ -110,7 +110,7 @@ struct TVHomeView: View {
             }
         }
         .sheet(item: $pickerRequest) { request in
-            TVCorePickerView(catalog: coreCatalog, game: request.game, system: request.system) { plugin in
+            CorePickerSheet(catalog: coreCatalog, gameTitle: request.game.title, system: request.system) { plugin in
                 pickerRequest = nil
                 #if DEBUG
                 // The screenshot stand-in has no file to play.

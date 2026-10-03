@@ -33,7 +33,7 @@ This file is the source of truth for what each term means *in this codebase*. If
 | **OpenEmu-SDK** | Shared protocols and types that both the app and core plugins import. Treat as a public ABI — breaking changes ripple to every core. |
 | **OpenEmuKit** | Rendering, audio, and plugin loading, shared with the cores. |
 | **OpenEmu-Shaders** | The Metal shader library used by the renderer. |
-| **Vendor/** | Third-party C libraries (XADMaster, UniversalDetector, rcheevos) plus the prebuilt frameworks `OpenEmuKit` links. |
+| **Vendor/** | The rcheevos C library, used by the cores and the RetroAchievements login client. |
 | **flattened core** | A core directory that used to be a git submodule but has been committed as plain tracked files. Do not try to `git submodule init` these — they are flat on purpose. |
 
 ## Features

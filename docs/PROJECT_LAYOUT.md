@@ -13,7 +13,7 @@ looks the way it does. Read this before moving files around.
 | **Shared engine** | `OpenEmu-SDK/`, `OpenEmuKit/`, `OpenEmu-Shaders/` | The engine Cassowary is built on. SDK = protocols/types, Kit = rendering/audio/UI, Shaders = the Metal library. |
 | **Cores** | `cores/` | One directory per emulator backend (30 in all). `cores/upstream.json` records upstream sources and the 26 staged cores. See the list below. |
 | **System plugins** | `OpenEmu/SystemPlugins/` | The per-system bundles, and the responder-client headers the cores include. The iOS build compiles these directly. |
-| **Vendored** | `Vendor/`, `OpenEmu/XADMaster.framework` | Third-party C libraries and the prebuilt archive framework `OpenEmuKit` links. |
+| **Vendored** | `Vendor/` | The rcheevos C library for RetroAchievements. |
 | **Automation** | `Scripts/` | Build, verify, and install scripts. `Scripts/cassowary/` is the iOS side. |
 | **Documentation** | `docs/` | Design docs, ADRs, audits, and guides. See [`README.md`](README.md) for the index. |
 | **Config / meta** | `.github/` | CI and issue templates. |

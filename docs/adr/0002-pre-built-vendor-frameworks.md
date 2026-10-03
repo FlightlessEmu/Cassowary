@@ -2,7 +2,12 @@
 
 ## Status
 
-Accepted
+Retired
+
+The macOS ROM importer that used XADMaster and UniversalDetector has been
+removed. Cassowary neither imports nor links either library, so their source
+trees and prebuilt frameworks have been removed too. The decision below is
+kept as historical context.
 
 ## Context
 

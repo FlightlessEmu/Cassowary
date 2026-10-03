@@ -133,9 +133,9 @@ be opened without a remote:
 
 - `cassowary.tvOpenVideo` — like `testOpenFilters`, but opens the Video list.
 - `cassowary.tvOpenSystem <systemIdentifier>` — Settings tab, then pushes
-  `TVSystemView` for that system.
+  `SystemCoresView` for that system.
 - `cassowary.tvOpenCorePicker <systemIdentifier>` — presents
-  `TVCorePickerView` for the first game of that system (or a made-up
+  `CorePickerSheet` for the first game of that system (or a made-up
   `LocalGame` if there is none).
 - `cassowary.tvSampleConflict` — shows `TVConflictView` with a made-up
   conflict, never written to disk.

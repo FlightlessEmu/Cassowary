@@ -18,7 +18,7 @@ to check, and known rough edges.
 with a [template](adr/template.md).
 
 - [0001 — Monorepo with flattened cores](adr/0001-monorepo-with-flattened-cores.md)
-- [0002 — Pre-built vendor frameworks](adr/0002-pre-built-vendor-frameworks.md)
+- [0002 — Pre-built vendor frameworks (retired)](adr/0002-pre-built-vendor-frameworks.md)
 - [0003 — Claude tooling split](adr/0003-claude-tooling-split.md)
 - [0004 — Core update channel ownership](adr/0004-core-update-channel-ownership.md)
 

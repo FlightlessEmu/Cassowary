@@ -135,10 +135,11 @@ final class HTTPMediaServer {
             listener = try NWListener(using: parameters)
         }
 
+        let txt = serviceTXT.filter { "\($0.key)=\($0.value)".utf8.count < 255 }
         listener.service = NWListener.Service(name: serviceName,
                                               type: TransferProtocol.serviceType,
                                               domain: nil,
-                                              txtRecord: serviceTXT.isEmpty ? nil : PeerBrowser.txtData(serviceTXT))
+                                              txtRecord: serviceTXT.isEmpty ? nil : NWTXTRecord(txt).data)
 
         listener.stateUpdateHandler = { [weak self] state in
             guard let self else { return }

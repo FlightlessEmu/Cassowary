@@ -155,10 +155,10 @@ struct TVSettingsView: View {
                 Section {
                     ForEach(catalog.systems) { system in
                         NavigationLink {
-                            TVSystemView(catalog: catalog,
-                                         shaderCatalog: shaderCatalog,
-                                         upscalingOptions: upscalingOptions,
-                                         systemID: system.id)
+                            SystemCoresView(catalog: catalog,
+                                            shaderCatalog: shaderCatalog,
+                                            upscalingOptions: upscalingOptions,
+                                            systemID: system.id)
                         } label: {
                             HStack(spacing: 12) {
                                 SystemIconView(system: system, size: 32)
@@ -206,8 +206,8 @@ struct TVSettingsView: View {
             .onAppear { catalog.refresh() }
             #if DEBUG
             .navigationDestination(item: $screenshotSystemID) { id in
-                TVSystemView(catalog: catalog, shaderCatalog: shaderCatalog,
-                             upscalingOptions: upscalingOptions, systemID: id)
+                SystemCoresView(catalog: catalog, shaderCatalog: shaderCatalog,
+                                upscalingOptions: upscalingOptions, systemID: id)
             }
             .navigationDestination(item: $screenshotBindingsID) { id in
                 ControllerBindingsView(systemID: id,

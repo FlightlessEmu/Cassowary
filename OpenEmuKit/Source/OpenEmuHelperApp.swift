@@ -218,11 +218,7 @@ extension OSLog {
     }
     
     private func setup3dVideo() -> GameRenderer {
-        do {
-            return try MTL3DGameRenderer(withDevice: _device, gameCore: gameCore)
-        } catch {
-            fatalError("Unable to create MTL3DGameRenderer")
-        }
+        MTL3DGameRenderer(withDevice: _device, gameCore: gameCore)
     }
     
     
@@ -440,7 +436,7 @@ extension OSLog {
 
 // MARK: - OEGameCoreHelper methods
 
-@objc extension OpenEmuHelperApp: OEGameCoreHelper {
+@objc extension OpenEmuHelperApp {
     
     public func setVolume(_ volume: Float) {
         gameCore.perform {
@@ -488,12 +484,6 @@ extension OSLog {
     
     public func setEffectsMode(_ mode: OEGameCoreEffectsMode) {
         _effectsMode = mode
-    }
-    
-    public func setAudioOutputDeviceID(_ deviceID: OEPlatformAudioDeviceID) {
-        gameCore.perform {
-            self._gameAudio.setOutputDeviceID(deviceID)
-        }
     }
     
     public func setOutputBounds(_ rect: CGRect) {

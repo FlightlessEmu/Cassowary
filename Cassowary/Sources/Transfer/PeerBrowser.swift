@@ -101,21 +101,6 @@ final class PeerBrowser: ObservableObject {
         browser = nil
         hosts = []
     }
-
-    // MARK: - TXT records
-
-    /// Encodes a Bonjour TXT record by hand: each entry is a length byte
-    /// followed by its UTF-8. Foundation's helper is deprecated.
-    nonisolated static func txtData(_ values: [String: String]) -> Data {
-        var data = Data()
-        for (key, value) in values {
-            let entry = Array("\(key)=\(value)".utf8)
-            guard entry.count < 255 else { continue }
-            data.append(UInt8(entry.count))
-            data.append(contentsOf: entry)
-        }
-        return data
-    }
 }
 
 /// Turns a Bonjour endpoint into an address URLSession can use.

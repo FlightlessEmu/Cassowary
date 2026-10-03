@@ -395,7 +395,6 @@ if [[ $APP_ONLY -eq 0 ]]; then
       print -u2 -- "warning: ${pair%%:*} did not build; it will be missing from the app"
     fi
   done
-  WANT_PRODUCTS=()
 
   # Stage what was built — nothing else. A broken controller in any staged
   # plugin crashes the library at startup, so the husk check below stays:
@@ -406,49 +405,31 @@ if [[ $APP_ONLY -eq 0 ]]; then
   mkdir -p "$PLUGINS_DIR/Cores" "$PLUGINS_DIR/Systems"
   rm -rf "$PLUGINS_DIR"/Cores/*.oecoreplugin
   rm -rf "$PLUGINS_DIR"/Systems/*.oesystemplugin
-  # A fresh checkout has no PlugIns/Cores or PlugIns/Systems yet. Without
-  # them, the first cp below would create the directory as a copy of the
-  # first plugin and spill that plugin's files next to the other bundles.
-  mkdir -p "$PLUGINS_DIR/Cores" "$PLUGINS_DIR/Systems"
-  if [[ ${#WANT_PRODUCTS[@]} -gt 0 ]]; then
-    for product in "${WANT_PRODUCTS[@]}"; do
-      kind=Cores
-      case "$product" in *.oesystemplugin) kind=Systems ;; esac
-      src="build/cassowary-plugins-$MODE/$product"
-      if [[ -d "$src" ]]; then
-        cp -R "$src" "$PLUGINS_DIR/$kind/"
-      else
-        print -u2 -- "error: $src missing; its build step failed"
-        exit 1
-      fi
-    done
-  else
-    # Cores and system plugins are staged from that mode's own output
-    # directory, so a device build never picks up Simulator binaries, and a
-    # TV build never picks up the phone's.
-    staged=0
-    for src in "$CORE_OUT"/*.oecoreplugin; do
-      [[ -d "$src" ]] || continue
-      cp -R "$src" "$PLUGINS_DIR/Cores/"
-      staged=$((staged + 1))
-    done
-    [[ $staged -gt 0 ]] || {
-      print -u2 -- "error: no core bundles in $CORE_OUT"
-      exit 1
-    }
-    print -- "staged $staged core bundles"
-    staged=0
-    for src in build/cassowary-plugins-$MODE/*.oesystemplugin; do
-      [[ -d "$src" ]] || continue
-      cp -R "$src" "$PLUGINS_DIR/Systems/"
-      staged=$((staged + 1))
-    done
-    [[ $staged -gt 0 ]] || {
-      print -u2 -- "error: no system plugins in build/cassowary-plugins-$MODE"
-      exit 1
-    }
-    print -- "staged $staged system plugins"
-  fi
+  # Cores and system plugins are staged from that mode's own output
+  # directory, so a device build never picks up Simulator binaries, and a
+  # TV build never picks up the phone's.
+  staged=0
+  for src in "$CORE_OUT"/*.oecoreplugin; do
+    [[ -d "$src" ]] || continue
+    cp -R "$src" "$PLUGINS_DIR/Cores/"
+    staged=$((staged + 1))
+  done
+  [[ $staged -gt 0 ]] || {
+    print -u2 -- "error: no core bundles in $CORE_OUT"
+    exit 1
+  }
+  print -- "staged $staged core bundles"
+  staged=0
+  for src in build/cassowary-plugins-$MODE/*.oesystemplugin; do
+    [[ -d "$src" ]] || continue
+    cp -R "$src" "$PLUGINS_DIR/Systems/"
+    staged=$((staged + 1))
+  done
+  [[ $staged -gt 0 ]] || {
+    print -u2 -- "error: no system plugins in build/cassowary-plugins-$MODE"
+    exit 1
+  }
+  print -- "staged $staged system plugins"
 
   # A staged plugin without an Info.plist is a husk from a failed build. It
   # scans as a bundle with an empty infoDictionary and crashes the app at

@@ -43,7 +43,7 @@ public class OECorePlugin: OEPlugin {
         for plugin in all {
             let id = plugin.bundleIdentifier
             if let existing = seen[id] {
-                os_log(.error, "OECorePlugin: CFBundleIdentifier collision — '%{public}@' is claimed by both '%{public}@' and '%{public}@'. The first one found will be used; remove the duplicate from ~/Library/Application Support/OpenEmu/Cores/ to restore correct behaviour.",
+                os_log(.error, "OECorePlugin: CFBundleIdentifier collision — '%{public}@' is claimed by both '%{public}@' and '%{public}@' in the app bundle.",
                        id, existing.url.lastPathComponent, plugin.url.lastPathComponent)
             } else {
                 seen[id] = plugin
@@ -150,97 +150,6 @@ public class OECorePlugin: OEPlugin {
         
         return allRequiredFiles
     }
-    
-    // MARK: -
-    
-    private var isMarkedDeprecatedInInfoPlist: Bool {
-        if infoDictionary[OEGameCoreDeprecatedKey] as? Bool != true {
-            return false
-        }
-        
-        func isValidVersionString(_ string: String) -> Bool {
-            if string.isEmpty { return false }
-            let validCharacters: Set<Character> = [".", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]
-            return Set(string).isSubset(of: validCharacters)
-        }
-        
-        guard let minMacOSVer = self.infoDictionary[OEGameCoreDeprecatedMinMacOSVersionKey] as? String,
-              isValidVersionString(minMacOSVer)
-        else { return true }
-        
-        let macOSVerComponents = minMacOSVer.components(separatedBy: ".")
-        if macOSVerComponents.count < 2 {
-            return true
-        }
-        let minMacOSVerParsed = OperatingSystemVersion(majorVersion: Int(macOSVerComponents[0])!,
-                                                       minorVersion: Int(macOSVerComponents[1])!,
-                                                       patchVersion: macOSVerComponents.count > 2 ? Int(macOSVerComponents[2])! : 0)
-        if ProcessInfo.processInfo.isOperatingSystemAtLeast(minMacOSVerParsed) {
-            return true
-        }
-        return false
-    }
-    
-    override public var isDeprecated: Bool {
-        if isOutOfSupport {
-            return true
-        }
-        return isMarkedDeprecatedInInfoPlist
-    }
-    
-    override public var isOutOfSupport: Bool {
-        // plugins deprecated 2017-11-04
-        let bundleFileName = bundle.bundleURL.lastPathComponent
-        let deprecatedPlugins = [
-            "Dolphin-Core.oecoreplugin",
-            "NeoPop.oecoreplugin",
-            "TwoMbit.oecoreplugin",
-            "VisualBoyAdvance.oecoreplugin",
-            "Yabause.oecoreplugin",
-        ]
-        if deprecatedPlugins.contains(bundleFileName) {
-            return true
-        }
-        
-        // beta-era plugins
-        if let appcastURL = infoDictionary["SUFeedURL"] as? String,
-           appcastURL.contains("openemu.org/update") {
-            return true
-        }
-        
-        // plugins marked as deprecated in the Info.plist keys
-        if isMarkedDeprecatedInInfoPlist,
-           let deadline = infoDictionary[OEGameCoreSupportDeadlineKey] as? Date,
-           Date().compare(deadline) == .orderedDescending {
-            // we are past the support deadline; return true to remove the core
-            prepareForRemoval()
-            return true
-        }
-        
-        // missing value for required key 'CFBundleIdentifier' in Info.plist
-        if infoDictionary["CFBundleIdentifier"] as? String == nil {
-            return true
-        }
-        
-        return false
-    }
-    
-    private func prepareForRemoval() {
-        let replacements = infoDictionary[OEGameCoreSuggestedReplacement] as? [String: String]
-        
-        let defaults = UserDefaults.standard
-        for systemIdentifier in systemIdentifiers {
-            let prefKey = "defaultCore." + systemIdentifier
-            if let currentCore = defaults.string(forKey: prefKey),
-               currentCore == bundleIdentifier {
-                if let replacement = replacements?[systemIdentifier] {
-                    defaults.set(replacement, forKey: prefKey)
-                } else {
-                    defaults.removeObject(forKey: prefKey)
-                }
-            }
-        }
-    }
 }
 
 public extension OECorePlugin {
@@ -250,52 +159,16 @@ public extension OECorePlugin {
         return options?[OEGameCoreRequiredFilesKey] as? [[String: Any]] ?? nil
     }
     
-    func requiresFiles(forSystemIdentifier systemIdentifier: String) -> Bool {
-        let options = coreOptions[systemIdentifier]
-        return options?[OEGameCoreRequiresFilesKey] as? Bool ?? false
-    }
-    
     func supportsCheatCode(forSystemIdentifier systemIdentifier: String) -> Bool {
         let options = coreOptions[systemIdentifier]
         return options?[OEGameCoreSupportsCheatCodeKey] as? Bool ?? false
     }
 
-    func supportsCheatSearch(forSystemIdentifier systemIdentifier: String) -> Bool {
-        guard supportsCheatCode(forSystemIdentifier: systemIdentifier) else { return false }
-        let options = coreOptions[systemIdentifier]
-        return options?[OEGameCoreSupportsCheatSearchKey] as? Bool ?? false
-    }
-
-    func hasGlitches(forSystemIdentifier systemIdentifier: String) -> Bool {
-        let options = coreOptions[systemIdentifier]
-        return options?[OEGameCoreHasGlitchesKey] as? Bool ?? false
-    }
-    
-    func saveStatesNotSupported(forSystemIdentifier systemIdentifier: String) -> Bool {
-        let options = coreOptions[systemIdentifier]
-        return options?[OEGameCoreSaveStatesNotSupportedKey] as? Bool ?? false
-    }
-    
-    func supportsMultipleDiscs(forSystemIdentifier systemIdentifier: String) -> Bool {
-        let options = coreOptions[systemIdentifier]
-        return options?[OEGameCoreSupportsMultipleDiscsKey] as? Bool ?? false
-    }
-    
     func supportsRewinding(forSystemIdentifier systemIdentifier: String) -> Bool {
         let options = coreOptions[systemIdentifier]
         return options?[OEGameCoreSupportsRewindingKey] as? Bool ?? false
     }
     
-    func supportsFileInsertion(forSystemIdentifier systemIdentifier: String) -> Bool {
-        let options = coreOptions[systemIdentifier]
-        return options?[OEGameCoreSupportsFileInsertionKey] as? Bool ?? false
-    }
-    
-    func supportsDisplayModeChange(forSystemIdentifier systemIdentifier: String) -> Bool {
-        let options = coreOptions[systemIdentifier]
-        return options?[OEGameCoreSupportsDisplayModeChangeKey] as? Bool ?? false
-    }
-
     func supportsRetroAchievements(forSystemIdentifier systemIdentifier: String) -> Bool {
         let options = coreOptions[systemIdentifier]
         return options?[OEGameCoreSupportsRetroAchievementsKey] as? Bool ?? false
@@ -309,28 +182,5 @@ public extension OECorePlugin {
     func rewindBufferSeconds(forSystemIdentifier systemIdentifier: String) -> Int {
         let options = coreOptions[systemIdentifier]
         return options?[OEGameCoreRewindBufferSecondsKey] as? Int ?? 0
-    }
-}
-
-public extension OECorePlugin.Architecture {
-    // swiftlint:disable:next identifier_name
-    static let x86_64 = "x86_64"
-    static let arm64 = "arm64"
-}
-
-public extension OECorePlugin {
-    typealias Architecture = String
-    
-    var architectures: [Architecture] {
-        var architectures: [Architecture] = []
-        let executableArchitectures = bundle.executableArchitectures as? [Int] ?? []
-        if executableArchitectures.contains(NSBundleExecutableArchitectureX86_64) {
-            architectures.append(.x86_64)
-        }
-        if #available(macOS 11.0, *),
-           executableArchitectures.contains(NSBundleExecutableArchitectureARM64) {
-            architectures.append(.arm64)
-        }
-        return architectures
     }
 }

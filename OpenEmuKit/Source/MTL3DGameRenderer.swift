@@ -23,28 +23,14 @@
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import Foundation
-import OpenEmuShaders
+import Metal
 import OpenEmuBase
-@_implementationOnly import Atomics
-internal import os.log
 
 final class MTL3DGameRenderer: GameRenderer {
     var surfaceSize: OEIntSize { gameCore.bufferSize }
     let gameCore: OEGameCore
     
-    private let device: MTLDevice
-    private let converter: MTLPixelConverter
-    private var buffer: PixelBuffer!
-    private var texture: MTLTexture!
-    
-    var renderingThreadCanProceed = DispatchSemaphore(value: 0)
-    var executeThreadCanProceed = DispatchSemaphore(value: 0)
-    
-    var isFPSLimiting = ManagedAtomic(0)
-    
-    init(withDevice device: MTLDevice, gameCore: OEGameCore) throws {
-        self.device      = device
-        self.converter   = try .init(device: device)
+    init(withDevice device: MTLDevice, gameCore: OEGameCore) {
         self.gameCore    = gameCore
         
         gameCore.createMetalTexture(device: device)
@@ -52,73 +38,17 @@ final class MTL3DGameRenderer: GameRenderer {
     
     func update() {
         precondition(gameCore.gameCoreRendering == .metal2, "Metal now supports 3D rendering")
-
-        let pixelFormat = gameCore.pixelFormat
-        let pixelType   = gameCore.pixelType
-        guard let pf = OEMTLPixelFormat(pixelFormat: pixelFormat, pixelType: pixelType) else {
-            fatalError("Invalid pixel format")
-        }
-
-        if buffer == nil {
-            let bufferSize  = gameCore.bufferSize
-            let bytesPerRow = gameCore.bytesPerRow
-            
-            buffer = PixelBuffer.makeBuffer(withDevice: device,
-                                            converter: converter,
-                                            format: pf,
-                                            height: Int(bufferSize.height),
-                                            bytesPerRow: bytesPerRow)
-        }
     }
 
     var canChangeBufferSize: Bool { true }
     
-    func willExecuteFrame() {
-        // A core that hands the app its own Metal texture draws that frame
-        // inside -executeFrame, on this very thread, so there is no rendering
-        // thread to hand over to and nothing to wait for. The semaphores below
-        // are for a core that renders on its own thread, which none of the
-        // Metal cores do — waiting on them here stops the frame loop after its
-        // first frame.
-    }
-    
-    func didExecuteFrame() {
-    }
-    
-    func resumeFPSLimiting() {
-        guard isFPSLimiting.load(ordering: .sequentiallyConsistent) != 1
-        else { return }
-        
-        isFPSLimiting.wrappingIncrement(ordering: .sequentiallyConsistent)
-    }
-    
-    func suspendFPSLimiting() {
-        guard isFPSLimiting.load(ordering: .sequentiallyConsistent) != 0
-        else { return }
-        
-        isFPSLimiting.wrappingDecrement(ordering: .sequentiallyConsistent)
-    }
+    // Metal cores provide their texture directly; no separate renderer thread.
+    func willExecuteFrame() { }
+    func didExecuteFrame() { }
+    func resumeFPSLimiting() { }
+    func suspendFPSLimiting() { }
     
     func prepareFrameForRender(commandBuffer: MTLCommandBuffer) -> MTLTexture? {
         return gameCore.metalTexture
-    }
-    
-    func willRenderFrameOnAlternateThread() {
-       
-    }
-    
-    func didRenderFrameOnAlternateThread() {
-        // Update the IOSurface.
-        //glFlushRenderAPPLE()
-        
-        // Do FPS limiting, but only once setup is over.
-        if isFPSLimiting.load(ordering: .sequentiallyConsistent) != 0 {
-            // Technically the above should be a glFinish(), but I'm hoping the GPU work
-            // is fast enough that it's not needed.
-            executeThreadCanProceed.signal()
-            
-            // Wait to be allowed to start next frame.
-            renderingThreadCanProceed.wait()
-        }
     }
 }
