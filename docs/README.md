@@ -24,10 +24,11 @@ with a [template](adr/template.md).
 
 ## Cores
 
-The shipped cores are listed in [`Scripts/cassowary/cores.txt`](../Scripts/cassowary/cores.txt).
+The shipped cores, and the upstream revision each one came from, are listed in [`cores/upstream.json`](../cores/upstream.json).
 
 | Doc | What's in it |
 |---|---|
+| [core-audit/upstream-maintenance.md](core-audit/upstream-maintenance.md) | Current upstream pins, Metal patch review, safe update workflow, and remaining provenance gaps. |
 | [core-audit/core-upscaling-investigation.md](core-audit/core-upscaling-investigation.md) | How upscaling could be added to the cores, bitmap ones first. |
 | [PS1_METAL_PLAN.md](PS1_METAL_PLAN.md) | Bringing up the two PlayStation cores, and where the Metal work goes. |
 

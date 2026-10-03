@@ -78,11 +78,6 @@ press, and no real RetroAchievements account was used.
   1 October the disk filled and broke a build; clearing the caches of
   folders that no longer exist freed about 50 GB. Check
   `~/Library/Developer/Xcode/DerivedData` after removing worktrees.
-- **`chore/core-upstream-maintenance`** (another session's branch) uses
-  `cores/upstream.json` as the core list where `main` now uses
-  `Scripts/cassowary/cores.txt`, and keeps the four removed cores. Decide
-  whether to merge it, adapt it, or delete it; it conflicts with `main` in
-  `build-cassowary.sh` and CI either way.
 - **In the Simulator, sign-ins are kept in the app's settings**, not the
   keychain: unsigned Simulator builds have no keychain. A device build always
   uses the keychain. Nothing to do, but worth knowing when a sign-in seems to

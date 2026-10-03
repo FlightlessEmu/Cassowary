@@ -9,8 +9,8 @@ MAME_DIR="$REPO_ROOT/cores/MAME"
 DEPS_DIR="$MAME_DIR/deps"
 SRC_DIR="$DEPS_DIR/mame"
 PATCH_FILE="$MAME_DIR/patches/mame-headless-clang21-apple.patch"
-REVISION="fac13e827b7b8cfa4ee4f5760198d31241e2a544"
-REMOTE="https://github.com/OpenEmu-Silicon/mame.git"
+REVISION=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["cores"]["MAME"]["revision"])' "$REPO_ROOT/cores/upstream.json")
+REMOTE=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["cores"]["MAME"]["url"])' "$REPO_ROOT/cores/upstream.json")
 
 mkdir -p "$DEPS_DIR"
 

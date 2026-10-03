@@ -58,8 +58,8 @@ with the video and RSP plugins unchanged. Cores already built keep
 their old bundles until they are rebuilt; delete
 `build/cassowary-plugins*` once to force that.
 
-The plugins are built by `Scripts/cassowary/build-n64-video.sh` (from
-sources `Scripts/prepare-n64-video.sh` fetches at pinned revisions), which
+The plugins are built by `Scripts/cassowary/build-n64-plugins.sh` (from the
+paraLLEl-RDP and MoltenVK revisions pinned in `cores/upstream.json`), which
 uses `-O2` as well and defines
 `-DUSE_SSE2NEON` for the RSP. cxd4's vector unit has SSE2 intrinsics
 (`vu.c`, `add.c`, `multiply.c`, `divide.c`) that go through `sse2neon`

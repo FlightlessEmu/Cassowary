@@ -93,10 +93,10 @@ runs are quick.
 
 The Nintendo 64 core also needs its video plugin: Apple devices have no
 OpenGL, so it draws through paraLLEl-RDP and MoltenVK. Building Mupen64Plus
-builds the plugin when it is missing (`Scripts/cassowary/build-n64-video.sh`),
-from sources `Scripts/prepare-n64-video.sh` fetches at pinned revisions into
-`cores/Mupen64Plus/deps/`. MoltenVK makes the first build for each device
-kind slow; the result is kept in `build/n64-video/`.
+checks the plugin too (`Scripts/cassowary/build-n64-plugins.sh`), built from
+the paraLLEl-RDP and MoltenVK revisions pinned in `cores/upstream.json` and
+fetched into `build/upstream/`. MoltenVK makes the first build for each device
+kind slow; the result is kept in `build/cassowary-n64-plugins-<platform>/`.
 
 A `--device` build is signed and installed through `devicectl`, so it needs an
 Apple ID in Xcode and a paired phone with Developer Mode on. See
@@ -128,9 +128,10 @@ been removed.
 The iOS build ships these cores. Cores that need OpenGL cannot run on iOS and
 are not included.
 
-The one authoritative list is
-[`Scripts/cassowary/cores.txt`](Scripts/cassowary/cores.txt): the build and CI
-both read it. This table is the human-friendly view of it; keep the two in step.
+The one authoritative list is [`cores/upstream.json`](cores/upstream.json):
+the build and CI both read it (`Scripts/upstream/core-upstream.py products`),
+and it records the upstream revision each core came from. This table is the
+human-friendly view of it; keep the two in step.
 
 | System | Core(s) |
 |--------|---------|
@@ -160,6 +161,20 @@ both read it. This table is the human-friendly view of it; keep the two in step.
 
 Which systems appear in the app is data-driven: every staged system plugin
 becomes a row, and every staged core appears in that system's core picker.
+
+Every core in `cores/` has an entry there, and the check fails when one is
+missing or left over.
+
+### Maintaining upstream cores
+
+Read [`docs/core-audit/upstream-maintenance.md`](docs/core-audit/upstream-maintenance.md)
+before updating emulator source. Keep upstream pins and source changes together.
+Use `Scripts/upstream/core-upstream.py prepare` to review an isolated merge that
+preserves local patches. Recover unknown baselines before attempting an update.
+After changing a core, run `build-cassowary.sh --rebuild-core <CoreName>` for each
+affected platform so the app contains the newly built plugin. Repeat the option
+for several cores; `--app-only` cannot rebuild cores. A compile is still not a
+runtime test.
 
 ---
 
@@ -287,8 +302,9 @@ project. A core needs:
    the SDK's `OEPixelFormat_*` equivalents.
 2. A build script that compiles its sources against the iOS SDK.
 3. A link step that produces the `.oecoreplugin` bundle.
-4. A line in `Scripts/cassowary/cores.txt`, which is what makes the app build
-   and CI pick it up.
+4. An entry in `cores/upstream.json` (`shipped`, its `product` bundle name,
+   and where its source came from), which is what makes the app build and CI
+   pick it up.
 
 Cores that render through Metal are the easiest port. Cores that need OpenGL
 cannot run on iOS at all.

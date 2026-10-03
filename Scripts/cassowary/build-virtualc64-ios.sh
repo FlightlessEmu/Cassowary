@@ -61,7 +61,12 @@ else
 fi
 
 print -- "configuring VCCore for $MODE..."
-cmake -B "$BUILD/cmake" -S cores/VirtualC64/VCCore "${CMAKE_ARGS[@]}" >/dev/null
+FRESH=()
+if [[ -f "$BUILD/cmake/CMakeCache.txt" ]] && ! grep -Fxq \
+  "CMAKE_HOME_DIRECTORY:INTERNAL=$PWD/cores/VirtualC64/VCCore" "$BUILD/cmake/CMakeCache.txt"; then
+  FRESH=(--fresh)
+fi
+cmake "${FRESH[@]}" -B "$BUILD/cmake" -S cores/VirtualC64/VCCore "${CMAKE_ARGS[@]}" >/dev/null
 
 print -- "building VCCore for $MODE..."
 cmake --build "$BUILD/cmake" --target VCCore -j "$(sysctl -n hw.ncpu)" >/dev/null

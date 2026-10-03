@@ -11,7 +11,7 @@ looks the way it does. Read this before moving files around.
 |---|---|---|
 | **App** | `Cassowary/` | The iOS/iPadOS/Catalyst front end. |
 | **Shared engine** | `OpenEmu-SDK/`, `OpenEmuKit/`, `OpenEmu-Shaders/` | The engine Cassowary is built on. SDK = protocols/types, Kit = rendering/audio/UI, Shaders = the Metal library. |
-| **Cores** | `cores/` | One directory per emulator backend (28 in all). See the list below. |
+| **Cores** | `cores/` | One directory per emulator backend (30 in all). `cores/upstream.json` records upstream sources and the 26 staged cores. See the list below. |
 | **System plugins** | `OpenEmu/SystemPlugins/` | The per-system bundles, and the responder-client headers the cores include. The iOS build compiles these directly. |
 | **Vendored** | `Vendor/`, `OpenEmu/XADMaster.framework` | Third-party C libraries and the prebuilt archive framework `OpenEmuKit` links. |
 | **Automation** | `Scripts/` | Build, verify, and install scripts. `Scripts/cassowary/` is the iOS side. |
@@ -29,7 +29,7 @@ because that is genuinely OpenEmu's code, used under its licenses.
 
 ## Why the cores live under `cores/`
 
-The 28 core directories were at the top level, which made the root hard to
+The original 28 core directories were at the top level, which made the root hard to
 read. They now live under `cores/`.
 
 Moving them means the cores sit one level deeper, so every core Xcode
@@ -76,7 +76,10 @@ All paths are relative to `cores/`.
 | Sega 32X (alt) | `picodrive/` |
 | Vectrex | `VecXGL/` |
 
-The authoritative, current list is [`Scripts/cassowary/cores.txt`](../Scripts/cassowary/cores.txt), which the build and CI both read.
+The authoritative build list and upstream inventory are in
+[`cores/upstream.json`](../cores/upstream.json). The app and CI read the same
+list. See [the maintenance guide](core-audit/upstream-maintenance.md) before
+updating emulator sources or local rendering patches.
 
 ---
 

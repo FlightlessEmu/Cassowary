@@ -18,5 +18,3 @@ profile
 *.moved-aside
 icon?
 
-# Fetched by Scripts/prepare-n64-video.sh at pinned revisions
-deps/

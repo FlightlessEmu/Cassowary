@@ -65,7 +65,12 @@ else
 fi
 
 print -- "configuring melonDS for $MODE (JIT $JIT)..."
-cmake -B "$BUILD/cmake" -S cores/melonDS/MelonDS "${CMAKE_ARGS[@]}" >/dev/null
+FRESH=()
+if [[ -f "$BUILD/cmake/CMakeCache.txt" ]] && ! grep -Fxq \
+  "CMAKE_HOME_DIRECTORY:INTERNAL=$PWD/cores/melonDS/MelonDS" "$BUILD/cmake/CMakeCache.txt"; then
+  FRESH=(--fresh)
+fi
+cmake "${FRESH[@]}" -B "$BUILD/cmake" -S cores/melonDS/MelonDS "${CMAKE_ARGS[@]}" >/dev/null
 
 print -- "building melonDS for $MODE..."
 cmake --build "$BUILD/cmake" --target core -j "$(sysctl -n hw.ncpu)" >/dev/null

@@ -20,6 +20,7 @@
 #   --tvos       build the Apple TV app for a real Apple TV
 #   --tvos-sim   build the Apple TV app for the Apple TV Simulator
 #   --app-only   skip the frameworks and plugins; just rebuild the app
+#   --rebuild-core NAME  rebuild and restage a changed core; repeat for several
 #
 # Device builds only:
 #
@@ -40,6 +41,7 @@ setopt NULL_GLOB 2>/dev/null || true
 MODE=simulator
 APP_ONLY=0
 SIGN=1
+REBUILD_CORES=()
 TEAM_ID=${DEVELOPMENT_TEAM:-}
 DEVICE_UDID=${CASSOWARY_DEVICE_UDID:-}
 
@@ -53,11 +55,24 @@ while [[ $# -gt 0 ]]; do
     --team)     TEAM_ID=${2:?--team needs a team ID}; shift 2 ;;
     --udid)     DEVICE_UDID=${2:?--udid needs a device UDID}; shift 2 ;;
     --no-sign)  SIGN=0; shift ;;
+    --rebuild-core) REBUILD_CORES+=("${2:?--rebuild-core needs a core name}"); shift 2 ;;
     *)
       print -u2 -- "unknown option: $1"
       exit 1
       ;;
   esac
+done
+
+if [[ $APP_ONLY -eq 1 && ${#REBUILD_CORES[@]} -gt 0 ]]; then
+  print -u2 -- "error: --rebuild-core needs a full build (drop --app-only)"
+  exit 1
+fi
+for core in "${REBUILD_CORES[@]}"; do
+  if ! python3 Scripts/upstream/core-upstream.py shipped | python3 -c \
+    'import json, sys; sys.exit(sys.argv[1] not in json.load(sys.stdin))' "$core"; then
+    print -u2 -- "error: $core is not a staged core"
+    exit 1
+  fi
 done
 
 # The UDIDs of the physical devices CoreDevice can see, one per line.
@@ -347,12 +362,12 @@ if [[ $APP_ONLY -eq 0 ]]; then
   ./Scripts/cassowary/build-all-system-plugins-ios.sh $PLUGIN_MODE_FLAG --keep-going
 
   # The cores to build, as source directory → product bundle name, from
-  # Scripts/cassowary/cores.txt — the one list of shipped cores.
+  # cores/upstream.json — the one list of shipped cores.
   #
   # tvOS attempts every core too. A core that does not compile against the
   # tvOS SDK is skipped with a warning and is simply not staged, and the
   # library says "No core on this Apple TV" for its systems.
-  CORES=(${(f)"$(grep -vE '^[[:space:]]*(#|$)' Scripts/cassowary/cores.txt)"})
+  CORES=("${(@f)$(python3 Scripts/upstream/core-upstream.py products)}")
 
   case "$MODE" in
     simulator) CORE_MODE_FLAG="" ;;
@@ -368,11 +383,15 @@ if [[ $APP_ONLY -eq 0 ]]; then
   # skipped for now.
   for pair in "${CORES[@]}"; do
     product="${pair#*:}.oecoreplugin"
-    if [[ -d "$CORE_OUT/$product" ]]; then
+    if [[ -d "$CORE_OUT/$product" && ${REBUILD_CORES[(Ie)${pair%%:*}]} -eq 0 ]]; then
       continue
     fi
-    print -- "building missing core ${pair%%:*}..."
+    print -- "building core ${pair%%:*}..."
     if ! ./Scripts/cassowary/build-core-ios.sh "${pair%%:*}" $CORE_MODE_FLAG; then
+      if [[ ${REBUILD_CORES[(Ie)${pair%%:*}]} -gt 0 ]]; then
+        print -u2 -- "error: requested rebuild of ${pair%%:*} failed"
+        exit 1
+      fi
       print -u2 -- "warning: ${pair%%:*} did not build; it will be missing from the app"
     fi
   done
