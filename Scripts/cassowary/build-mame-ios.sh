@@ -94,7 +94,7 @@ case "$PLATFORM" in
   catalyst) BUILDDIR=build-catalyst ;;
   tvos)     BUILDDIR=build-tvos ;;
   tvos-sim) BUILDDIR=build-tvos-sim ;;
-  *)        BUILDDIR=build ;;
+  simulator) BUILDDIR=build-simulator ;;
 esac
 
 ./Scripts/prepare-mame-core.sh

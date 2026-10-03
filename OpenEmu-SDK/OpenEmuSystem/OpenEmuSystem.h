@@ -36,6 +36,7 @@
 #import <OpenEmuSystem/NSResponder+OEHIDAdditions.h>
 #import <OpenEmuSystem/OEBindingMap.h>
 #import <OpenEmuSystem/OEBindingsController.h>
+#import <OpenEmuSystem/OECarbonKeyCodes_iOS.h>
 #import <OpenEmuSystem/OEDiscDescriptor.h>
 #import <OpenEmuSystem/OECUESheet.h>
 #import <OpenEmuSystem/OECloneCD.h>

@@ -21,6 +21,17 @@ fi
 
 cd "$SRC_DIR"
 
+# Keep the applied patch so an updated patch can replace it without resetting
+# any other edits in the downloaded source.
+APPLIED_PATCH=$(git rev-parse --git-path cassowary-apple.patch)
+if [ -f "$APPLIED_PATCH" ] && { ! cmp -s "$APPLIED_PATCH" "$PATCH_FILE" || [ "$(git rev-parse HEAD)" != "$REVISION" ]; }; then
+  if ! git apply --reverse --check "$APPLIED_PATCH"; then
+    echo "error: cached MAME patch has additional edits; leaving them untouched" >&2
+    exit 1
+  fi
+  git apply --reverse "$APPLIED_PATCH"
+fi
+
 # Existing checkouts may still point origin at the old stuartcarnie/mame remote;
 # repoint before fetching so the pinned revision resolves.
 git remote set-url origin "$REMOTE"
@@ -38,5 +49,7 @@ else
   git status --short >&2 || true
   exit 1
 fi
+
+cp "$PATCH_FILE" "$APPLIED_PATCH"
 
 echo "MAME source ready at $SRC_DIR"
