@@ -24,27 +24,25 @@
 
 import SwiftUI
 
-/// A system icon in a rounded tile, with a game-controller fallback.
+/// A system icon, with a game-controller fallback.
 ///
 /// Shared by the phone's library and settings and the TV's library: the same
-/// tile in both places, so a new system icon shows up everywhere at once.
+/// artwork in both places, so a new system icon shows up everywhere at once.
 struct SystemIconView: View {
 
     let system: SystemEntry
     var size: CGFloat = 44
 
     var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: size * 0.24, style: .continuous)
-                .fill(.quaternary)
+        Group {
             if let icon = system.icon {
                 Image(uiImage: icon)
                     .resizable()
+                    .interpolation(.none)
                     .scaledToFit()
-                    .padding(size * 0.14)
             } else {
                 Image(systemName: "gamecontroller")
-                    .font(.system(size: size * 0.42))
+                    .font(.system(size: size * 0.7))
                     .foregroundStyle(.secondary)
             }
         }

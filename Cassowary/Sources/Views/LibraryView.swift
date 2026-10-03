@@ -140,6 +140,21 @@ struct LibraryView: View {
                     // to not open.
                     NavigationStack(path: $path) {
                         compactSidebar
+                            // Swipe back to the games list last opened. The
+                            // links still offer the same navigation by tap.
+                            .simultaneousGesture(
+                                DragGesture(minimumDistance: 30)
+                                    .onEnded { drag in
+                                        guard path.isEmpty,
+                                              drag.translation.width < -60,
+                                              abs(drag.translation.width) > abs(drag.translation.height) * 1.5 else {
+                                            return
+                                        }
+                                        withAnimation {
+                                            path.append(selection ?? .all)
+                                        }
+                                    }
+                            )
                             .navigationDestination(for: LibrarySelection.self) { target in
                                 detail(for: target)
                                     .onAppear { selection = target }
@@ -412,14 +427,9 @@ struct LibraryView: View {
         Section("Systems") {
             ForEach(catalog.systems) { system in
                 sidebarRow(for: .system(system.id), linked: linked, count: gameCount(for: system.id)) {
-                    Label {
+                    HStack(spacing: 12) {
+                        SystemIconView(system: system, size: 24)
                         Text(system.name)
-                    } icon: {
-                        if let icon = system.icon {
-                            Image(uiImage: icon)
-                        } else {
-                            Image(systemName: "gamecontroller")
-                        }
                     }
                 }
             }
