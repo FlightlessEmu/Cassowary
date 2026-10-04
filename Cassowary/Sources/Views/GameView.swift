@@ -59,6 +59,9 @@ struct GameView: View {
     @State private var editingControls = false
     /// Whether editing the controls paused the game, so finishing resumes it.
     @State private var pausedForEditing = false
+    /// The bottom of the screen the on-screen controls take in portrait. The
+    /// game is drawn above it, so the controller never covers the picture.
+    @State private var controlsHeight: CGFloat = 0
     /// The disc in the drive, numbered from 1. Every game starts on its first.
     @State private var currentDisc: UInt = 1
 
@@ -115,12 +118,13 @@ struct GameView: View {
                         session.updateDisplayBounds(bounds)
                     }
                 )
+                .padding(.bottom, controlsHeight)
                 .ignoresSafeArea()
 
                 // The controls respect the safe area on every edge: in
                 // landscape that keeps them clear of the sensor housing, and
                 // on a foldable it keeps them clear of the system bars.
-                OnScreenControls(layout: layout, session: session, isEditing: $editingControls)
+                OnScreenControls(layout: layout, session: session, isEditing: $editingControls, reservedHeight: $controlsHeight)
 
                 if isPaused {
                     pausedOverlay(session: session)

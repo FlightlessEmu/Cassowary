@@ -55,6 +55,7 @@ struct SettingsView: View {
     @StateObject private var tester = PreviewPressHandler()
     @AppStorage("cassowary.padStyle") private var styleRaw: String = DPadStyle.buttons.rawValue
     @AppStorage("cassowary.buttonTheme") private var themeRaw: String = ButtonTheme.console.rawValue
+    @AppStorage(OnScreenControls.showsBodyKey) private var showsControllerBody = true
     @AppStorage(DirectionRepeat.enabledKey) private var repeatEnabled = false
     @AppStorage(DirectionRepeat.rateKey) private var repeatRate = DirectionRepeat.defaultRate
     @AppStorage(ButtonHaptics.enabledKey) private var hapticsEnabled = true
@@ -187,6 +188,13 @@ struct SettingsView: View {
                     Text((ButtonTheme(rawValue: themeRaw) ?? .console).blurb)
                         .font(.caption)
                         .foregroundStyle(.secondary)
+
+                    if selectedTheme == .console {
+                        Toggle("Controller Background", isOn: $showsControllerBody)
+                        Text("Draws the console's controller behind the buttons.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
 
 #if !targetEnvironment(macCatalyst)
                     if CHHapticEngine.capabilitiesForHardware().supportsHaptics {

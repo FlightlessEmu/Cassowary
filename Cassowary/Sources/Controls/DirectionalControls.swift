@@ -365,6 +365,9 @@ struct ThumbstickView: View {
                 }
             Circle()
                 .fill(active ? theme.padActive() : theme.faceBase())
+                // The knob is domed whether held or not: it tilts, it does
+                // not sink.
+                .moldedSurface(Circle(), pressed: false, theme: theme)
                 .overlay {
                     Circle().strokeBorder(theme.edge())
                 }
@@ -620,6 +623,7 @@ struct SplitButtonsPad: View {
                 HoldableButton(button: button, handler: handler, theme: theme, repeatsWhenHeld: true) { pressed in
                     ControlPadShape(cornerFactor: 0.22)
                         .fill(pressed ? theme.padActive() : (isSolid ? theme.padCap() : theme.padBase()))
+                        .moldedSurface(ControlPadShape(cornerFactor: 0.22), pressed: pressed, theme: theme)
                         .overlay {
                             // A solid pad draws its one outline on the body;
                             // loose caps each need their own.
@@ -663,6 +667,7 @@ struct FaceButtonView: View {
                 // A colored button darkens when pressed instead of swapping
                 // to the theme's pressed gray.
                 .brightness(fill != nil && pressed ? -0.15 : 0)
+                .moldedSurface(Circle(), pressed: pressed, theme: theme)
                 .overlay {
                     Circle()
                         .stroke(theme.edge(), lineWidth: 1)
@@ -697,11 +702,16 @@ struct ShoulderButtonView: View {
     let theme: ButtonTheme
     var size: CGFloat = 56
     var caption: String? = nil
+    /// The console's own button color and label color.
+    var fill: Color? = nil
+    var glyph: Color? = nil
 
     var body: some View {
         HoldableButton(button: button, handler: handler, theme: theme) { pressed in
             Capsule()
-                .fill(pressed ? theme.faceActive() : theme.faceBase())
+                .fill(fill ?? (pressed ? theme.faceActive() : theme.faceBase()))
+                .brightness(fill != nil && pressed ? -0.15 : 0)
+                .moldedSurface(Capsule(), pressed: pressed, theme: theme)
                 .overlay {
                     Capsule()
                         .stroke(theme.edge(), lineWidth: 1)
@@ -710,7 +720,7 @@ struct ShoulderButtonView: View {
                 .overlay {
                     Text(caption ?? button.label)
                         .font(.system(size: size * 0.26, weight: .semibold))
-                        .foregroundStyle(.white.opacity(pressed ? 1 : 0.9))
+                        .foregroundStyle((glyph ?? .white).opacity(pressed ? 1 : 0.9))
                 }
         }
     }
@@ -801,6 +811,32 @@ struct ControlPreview: View {
         .padding(.vertical, 4)
         .onAppear {
             PreviewButtons.all.forEach(handler.register)
+        }
+    }
+}
+
+extension View {
+
+    /// The Console theme's molded plastic: light catching the top, shade at
+    /// the bottom, and a rim. A pressed button flips the light, so it looks
+    /// pushed in. Other themes draw flat, as before.
+    @ViewBuilder
+    func moldedSurface<S: Shape>(_ shape: S, pressed: Bool, theme: ButtonTheme) -> some View {
+        if theme == .console {
+            overlay {
+                shape.fill(LinearGradient(
+                    colors: pressed
+                        ? [.black.opacity(0.22), .clear, .white.opacity(0.10)]
+                        : [.white.opacity(0.32), .clear, .black.opacity(0.22)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                ))
+            }
+            .overlay {
+                shape.stroke(.black.opacity(0.3), lineWidth: 1.5)
+            }
+        } else {
+            self
         }
     }
 }
