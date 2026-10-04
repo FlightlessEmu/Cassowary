@@ -121,6 +121,13 @@ struct LibraryView: View {
     @State private var showCompactSidebar = true
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
 
+    /// How far a left swipe on the iPhone's Library has pulled the games list
+    /// in from the right edge, or nil when no swipe is under way.
+    @State private var gamesPull: CGFloat?
+    /// Whether that swipe has been let go and is finishing on its own.
+    @State private var gamesPullSettling = false
+    @GestureState private var gamesPullActive = false
+
     @AppStorage(CoverArtSetting.automaticKey) private var downloadCoverArt = true
 
     @Environment(\.horizontalSizeClass) private var sizeClass
@@ -138,27 +145,42 @@ struct LibraryView: View {
                     // off selection state, which means tapping the
                     // already-selected row is a no-op and the library appears
                     // to not open.
-                    NavigationStack(path: $path) {
-                        compactSidebar
-                            // Swipe back to the games list last opened. The
-                            // links still offer the same navigation by tap.
-                            .simultaneousGesture(
-                                DragGesture(minimumDistance: 30)
-                                    .onEnded { drag in
-                                        guard path.isEmpty,
-                                              drag.translation.width < -60,
-                                              abs(drag.translation.width) > abs(drag.translation.height) * 1.5 else {
-                                            return
-                                        }
-                                        withAnimation {
-                                            path.append(selection ?? .all)
-                                        }
-                                    }
-                            )
-                            .navigationDestination(for: LibrarySelection.self) { target in
-                                detail(for: target)
-                                    .onAppear { selection = target }
+                    let width = geometry.size.width
+                    ZStack {
+                        NavigationStack(path: $path) {
+                            compactSidebar
+                                // Swipe back to the games list last opened.
+                                // The links still offer the same navigation
+                                // by tap.
+                                .simultaneousGesture(gamesPullGesture(width: width))
+                                .navigationDestination(for: LibrarySelection.self) { target in
+                                    detail(for: target)
+                                        .onAppear { selection = target }
+                                }
+                        }
+                        // The Library drifts left behind the games list, as
+                        // it does when the system pushes a page.
+                        .offset(x: -(gamesPull ?? 0) * 0.3)
+
+                        // A stand-in for the games list that follows the
+                        // finger. Once it covers the screen the real page is
+                        // pushed in its place, without a second animation.
+                        if let pull = gamesPull {
+                            NavigationStack {
+                                detail(for: selection ?? .all)
                             }
+                            .background(Color(uiColor: .systemBackground))
+                            .shadow(color: .black.opacity(0.2), radius: 10)
+                            .allowsHitTesting(false)
+                            .offset(x: width - pull)
+                        }
+                    }
+                    .onChange(of: gamesPullActive) { _, active in
+                        // The system took the touch away without an end,
+                        // such as for Control Center: put the list back.
+                        if !active, gamesPull != nil, !gamesPullSettling {
+                            withAnimation(.spring(duration: 0.3)) { gamesPull = nil }
+                        }
                     }
                 case .sideBySide(let sidebarWidth):
                     // A phone lying on its side: the systems list keeps a
@@ -487,6 +509,43 @@ struct LibraryView: View {
                 .badge(count)
                 .tag(target)
         }
+    }
+
+    /// The left swipe that drags the games list in over the iPhone's Library.
+    /// Let go past a third of the way, or with a flick, and it finishes;
+    /// otherwise it slides back out.
+    private func gamesPullGesture(width: CGFloat) -> some Gesture {
+        DragGesture(minimumDistance: 20)
+            .updating($gamesPullActive) { _, active, _ in active = true }
+            .onChanged { drag in
+                guard path.isEmpty, !gamesPullSettling else { return }
+                let distance = -drag.translation.width
+                if gamesPull == nil {
+                    // Only a sideways swipe starts it; an upward or downward
+                    // one is left to scroll the list.
+                    guard distance > 0,
+                          abs(drag.translation.width) > abs(drag.translation.height) * 1.5 else { return }
+                }
+                gamesPull = min(max(distance, 0), width)
+            }
+            .onEnded { drag in
+                guard let pull = gamesPull, !gamesPullSettling else { return }
+                let finishes = pull > width / 3 || -drag.predictedEndTranslation.width > width * 0.6
+                gamesPullSettling = true
+                withAnimation(.spring(duration: 0.3)) {
+                    gamesPull = finishes ? width : 0
+                } completion: {
+                    var transaction = Transaction()
+                    transaction.disablesAnimations = true
+                    withTransaction(transaction) {
+                        if finishes {
+                            path.append(selection ?? .all)
+                        }
+                        gamesPull = nil
+                        gamesPullSettling = false
+                    }
+                }
+            }
     }
 
     /// iPhone sidebar: links that push the detail every time they are tapped.
