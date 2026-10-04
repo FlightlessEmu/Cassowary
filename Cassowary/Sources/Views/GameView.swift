@@ -55,6 +55,10 @@ struct GameView: View {
     @State private var notice: String?
     @State private var raSignedIn = false
     @State private var showingAchievements = false
+    /// The on-screen controls are being moved around.
+    @State private var editingControls = false
+    /// Whether editing the controls paused the game, so finishing resumes it.
+    @State private var pausedForEditing = false
     /// The disc in the drive, numbered from 1. Every game starts on its first.
     @State private var currentDisc: UInt = 1
 
@@ -116,7 +120,7 @@ struct GameView: View {
                 // The controls respect the safe area on every edge: in
                 // landscape that keeps them clear of the sensor housing, and
                 // on a foldable it keeps them clear of the system bars.
-                OnScreenControls(layout: layout, session: session)
+                OnScreenControls(layout: layout, session: session, isEditing: $editingControls)
 
                 if isPaused {
                     pausedOverlay(session: session)
@@ -162,6 +166,15 @@ struct GameView: View {
         }
         .task {
             startGame()
+
+            // Opens the controls editor without tapping, for screenshots.
+            // Only set from the command line.
+            if UserDefaults.standard.bool(forKey: "cassowary.editControls") {
+                editingControls = true
+            }
+        }
+        .onChange(of: editingControls) { _, editing in
+            handleControlEditing(editing)
         }
         .onChange(of: scenePhase) { _, phase in
             handleScenePhase(phase)
@@ -310,6 +323,10 @@ struct GameView: View {
                     }
                     .pickerStyle(.menu)
 
+                    Button("Edit Controls Layout", systemImage: "arrow.up.and.down.and.arrow.left.and.right") {
+                        editingControls = true
+                    }
+
                     Divider()
                     Button("Close Game", role: .destructive) {
                         closeGame()
@@ -368,6 +385,24 @@ struct GameView: View {
         guard raSignedIn, let systemID = game.system?.identifier else { return false }
         guard let core else { return true }
         return core.supportsRetroAchievements(forSystemIdentifier: systemID)
+    }
+
+    /// Hold the game still while the controls are moved, since they cannot
+    /// press anything meanwhile. Hardcore mode limits pausing, so there the
+    /// game keeps running; a game the player already paused stays paused.
+    private func handleControlEditing(_ editing: Bool) {
+        guard let session else { return }
+        if editing {
+            if !isPaused, !session.raHardcoreActive {
+                session.setPaused(true)
+                pausedForEditing = true
+            }
+        } else if pausedForEditing {
+            pausedForEditing = false
+            if !isPaused {
+                session.setPaused(false)
+            }
+        }
     }
 
     /// Pause through RetroAchievements when hardcore is on: the server can

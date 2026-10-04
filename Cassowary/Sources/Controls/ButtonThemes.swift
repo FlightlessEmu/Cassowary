@@ -26,6 +26,7 @@ import SwiftUI
 
 /// The visual theme for the on-screen controls, picked in Settings → Controls.
 enum ButtonTheme: String, CaseIterable, Identifiable {
+    case console
     case glass
     case neon
     case retro
@@ -34,6 +35,7 @@ enum ButtonTheme: String, CaseIterable, Identifiable {
 
     var label: String {
         switch self {
+        case .console: return "Console"
         case .glass: return "Glass"
         case .neon: return "Neon"
         case .retro: return "Retro"
@@ -42,6 +44,7 @@ enum ButtonTheme: String, CaseIterable, Identifiable {
 
     var blurb: String {
         switch self {
+        case .console: return "Solid buttons in each console's own colors, like the real controller."
         case .glass: return "Translucent buttons that sit lightly over the game."
         case .neon: return "Dark pads with a colored glow when pressed."
         case .retro: return "Solid clicky buttons with a hard shadow."
@@ -53,6 +56,7 @@ enum ButtonTheme: String, CaseIterable, Identifiable {
     /// Unpressed directional fill (d-pad arms, stick base, cross).
     func padBase() -> Color {
         switch self {
+        case .console: return Color(white: 0.17)
         case .glass: return Color(white: 0.12).opacity(0.82)
         case .neon: return .black.opacity(0.55)
         case .retro: return Color(red: 0.24, green: 0.24, blue: 0.28)
@@ -62,6 +66,7 @@ enum ButtonTheme: String, CaseIterable, Identifiable {
     /// Pressed directional fill.
     func padActive() -> Color {
         switch self {
+        case .console: return Color(white: 0.30)
         case .glass: return Color(white: 0.25).opacity(0.92)
         case .neon: return .cyan.opacity(0.5)
         case .retro: return Color(red: 0.36, green: 0.36, blue: 0.42)
@@ -71,6 +76,7 @@ enum ButtonTheme: String, CaseIterable, Identifiable {
     /// Unpressed face-button fill.
     func faceBase() -> Color {
         switch self {
+        case .console: return Color(white: 0.17)
         case .glass: return Color(white: 0.12).opacity(0.82)
         case .neon: return .black.opacity(0.55)
         case .retro: return Color(red: 0.62, green: 0.16, blue: 0.22)
@@ -80,6 +86,7 @@ enum ButtonTheme: String, CaseIterable, Identifiable {
     /// Pressed face-button fill.
     func faceActive() -> Color {
         switch self {
+        case .console: return Color(white: 0.30)
         case .glass: return Color(white: 0.25).opacity(0.92)
         case .neon: return .pink.opacity(0.55)
         case .retro: return Color(red: 0.78, green: 0.24, blue: 0.30)
@@ -91,6 +98,7 @@ enum ButtonTheme: String, CaseIterable, Identifiable {
     /// without needing an outline of their own.
     func padCap() -> Color {
         switch self {
+        case .console: return Color(white: 0.22)
         case .glass: return Color(white: 0.16).opacity(0.82)
         case .neon: return .black.opacity(0.4)
         case .retro: return Color(red: 0.34, green: 0.34, blue: 0.40)
@@ -100,6 +108,7 @@ enum ButtonTheme: String, CaseIterable, Identifiable {
     /// Edge stroke drawn on pads and buttons. Clear when the theme has none.
     func edge() -> Color {
         switch self {
+        case .console: return .black.opacity(0.4)
         case .glass: return .white.opacity(0.18)
         case .neon: return .cyan.opacity(0.35)
         case .retro: return .black.opacity(0.35)
@@ -109,6 +118,7 @@ enum ButtonTheme: String, CaseIterable, Identifiable {
     /// Glow shadow while pressed. Clear when the theme has none.
     func pressGlow() -> Color {
         switch self {
+        case .console: return .clear
         case .glass: return .clear
         case .neon: return .cyan.opacity(0.8)
         case .retro: return .clear
@@ -117,28 +127,34 @@ enum ButtonTheme: String, CaseIterable, Identifiable {
 
     // MARK: - Press animation
 
-    /// How much a button shrinks while held. Retro stays full-size and
+    /// Whether the split d-pad is drawn as one solid pad rather than four
+    /// loose caps.
+    var hasSolidPad: Bool {
+        self == .console || self == .retro
+    }
+
+    /// How much a button shrinks while held. Console and Retro stay full-size and
     /// travels down instead (see `pressOffsetY`).
     var pressScale: CGFloat {
         switch self {
         case .glass, .neon: return 0.9
-        case .retro: return 1.0
+        case .console, .retro: return 1.0
         }
     }
 
-    /// How far a button travels down while held. Only Retro moves.
+    /// How far a button travels down while held. Console and Retro move.
     var pressOffsetY: CGFloat {
         switch self {
         case .glass, .neon: return 0
-        case .retro: return 2
+        case .console, .retro: return 2
         }
     }
 
-    /// Resting drop-shadow depth. Only Retro casts one.
+    /// Resting drop-shadow depth. Console and Retro cast one.
     var restShadowY: CGFloat {
         switch self {
         case .glass, .neon: return 0
-        case .retro: return 3
+        case .console, .retro: return 3
         }
     }
 }

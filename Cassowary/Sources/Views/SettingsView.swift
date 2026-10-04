@@ -54,7 +54,7 @@ struct SettingsView: View {
     @StateObject private var upscalingOptions = UpscalingOptions()
     @StateObject private var tester = PreviewPressHandler()
     @AppStorage("cassowary.padStyle") private var styleRaw: String = DPadStyle.buttons.rawValue
-    @AppStorage("cassowary.buttonTheme") private var themeRaw: String = ButtonTheme.glass.rawValue
+    @AppStorage("cassowary.buttonTheme") private var themeRaw: String = ButtonTheme.console.rawValue
     @AppStorage(DirectionRepeat.enabledKey) private var repeatEnabled = false
     @AppStorage(DirectionRepeat.rateKey) private var repeatRate = DirectionRepeat.defaultRate
     @AppStorage(ButtonHaptics.enabledKey) private var hapticsEnabled = true
@@ -74,7 +74,7 @@ struct SettingsView: View {
     @State private var didOpenLaunchPage = false
 
     private var selectedStyle: DPadStyle { DPadStyle(rawValue: styleRaw) ?? .buttons }
-    private var selectedTheme: ButtonTheme { ButtonTheme(rawValue: themeRaw) ?? .glass }
+    private var selectedTheme: ButtonTheme { ButtonTheme(rawValue: themeRaw) ?? .console }
 
     private var styleBinding: Binding<DPadStyle> {
         Binding(
@@ -85,7 +85,7 @@ struct SettingsView: View {
 
     private var themeBinding: Binding<ButtonTheme> {
         Binding(
-            get: { ButtonTheme(rawValue: themeRaw) ?? .glass },
+            get: { ButtonTheme(rawValue: themeRaw) ?? .console },
             set: { themeRaw = $0.rawValue }
         )
     }
@@ -184,7 +184,7 @@ struct SettingsView: View {
                             Text(theme.label).tag(theme)
                         }
                     }
-                    Text((ButtonTheme(rawValue: themeRaw) ?? .glass).blurb)
+                    Text((ButtonTheme(rawValue: themeRaw) ?? .console).blurb)
                         .font(.caption)
                         .foregroundStyle(.secondary)
 

@@ -548,16 +548,24 @@ struct SplitButtonsPad: View {
     let theme: ButtonTheme
     var buttonSize: CGFloat = 56
 
-    /// Retro is drawn as one solid pad; the other themes are four loose caps.
-    private var isSolid: Bool { theme == .retro }
+    /// Console and Retro are drawn as one solid pad; the other themes are
+    /// four loose caps.
+    private var isSolid: Bool { theme.hasSolidPad }
 
     /// Gap between the caps, and between a cap and the pad body.
-    private var gap: CGFloat {
-        max(buttonSize * (isSolid ? 0.05 : 0.14), isSolid ? 2 : 6)
+    private var gap: CGFloat { Self.gap(buttonSize: buttonSize, theme: theme) }
+
+    private static func gap(buttonSize: CGFloat, theme: ButtonTheme) -> CGFloat {
+        let solid = theme.hasSolidPad
+        return max(buttonSize * (solid ? 0.05 : 0.14), solid ? 2 : 6)
     }
 
     /// The square the whole control fills.
-    private var span: CGFloat { buttonSize * 3 + gap * 2 }
+    private var span: CGFloat { Self.span(buttonSize: buttonSize, theme: theme) }
+
+    static func span(buttonSize: CGFloat, theme: ButtonTheme) -> CGFloat {
+        buttonSize * 3 + gap(buttonSize: buttonSize, theme: theme) * 2
+    }
 
     /// Distance from the middle to an arm's centre.
     private var reach: CGFloat { buttonSize + gap }
@@ -641,11 +649,20 @@ struct FaceButtonView: View {
     let handler: any ControlPressHandler
     let theme: ButtonTheme
     var size: CGFloat = 56
+    /// The console's own button color, from its skin. Nil keeps the theme's.
+    var fill: Color? = nil
+    /// The console's own symbol color, like the PlayStation shapes.
+    var glyph: Color? = nil
+    /// Shorter text to draw instead of the plugin's label.
+    var caption: String? = nil
 
     var body: some View {
         HoldableButton(button: button, handler: handler, theme: theme) { pressed in
             Circle()
-                .fill(pressed ? theme.faceActive() : theme.faceBase())
+                .fill(fill ?? (pressed ? theme.faceActive() : theme.faceBase()))
+                // A colored button darkens when pressed instead of swapping
+                // to the theme's pressed gray.
+                .brightness(fill != nil && pressed ? -0.15 : 0)
                 .overlay {
                     Circle()
                         .stroke(theme.edge(), lineWidth: 1)
@@ -655,15 +672,45 @@ struct FaceButtonView: View {
                     // A button the plugin names with a shape — Start, Select,
                     // △, a C button — is drawn as that shape; the rest keep
                     // their own letters.
-                    if let symbol = ButtonGlyph.symbol(for: button) {
-                        Image(systemName: symbol)
-                            .font(.system(size: size * 0.4, weight: .semibold))
-                            .foregroundStyle(.white.opacity(pressed ? 1 : 0.9))
-                    } else {
-                        Text(button.label)
-                            .font(.system(size: size * 0.28, weight: .semibold))
-                            .foregroundStyle(.white.opacity(pressed ? 1 : 0.9))
+                    Group {
+                        if caption == nil, let symbol = ButtonGlyph.symbol(for: button) {
+                            Image(systemName: symbol)
+                                .font(.system(size: size * 0.4, weight: .semibold))
+                        } else {
+                            Text(caption ?? button.label)
+                                .font(.system(size: size * 0.28, weight: .semibold))
+                        }
                     }
+                    .foregroundStyle((glyph ?? .white).opacity(pressed ? 1 : 0.9))
+                    .shadow(color: fill != nil ? .black.opacity(0.35) : .clear, radius: 1, y: 1)
+                }
+        }
+    }
+}
+
+/// A shoulder button (L, R, Z…): a wide pill, the shape the real ones have
+/// when seen from the front.
+struct ShoulderButtonView: View {
+
+    let button: ControllerButton
+    let handler: any ControlPressHandler
+    let theme: ButtonTheme
+    var size: CGFloat = 56
+    var caption: String? = nil
+
+    var body: some View {
+        HoldableButton(button: button, handler: handler, theme: theme) { pressed in
+            Capsule()
+                .fill(pressed ? theme.faceActive() : theme.faceBase())
+                .overlay {
+                    Capsule()
+                        .stroke(theme.edge(), lineWidth: 1)
+                }
+                .frame(width: size * 1.45, height: size * 0.62)
+                .overlay {
+                    Text(caption ?? button.label)
+                        .font(.system(size: size * 0.26, weight: .semibold))
+                        .foregroundStyle(.white.opacity(pressed ? 1 : 0.9))
                 }
         }
     }
@@ -742,9 +789,13 @@ struct ControlPreview: View {
 
             Spacer(minLength: 16)
 
+            // The Console theme shows a Super Famicom's red A and yellow B,
+            // since there is no real system here to take colors from.
             VStack(spacing: 12) {
-                FaceButtonView(button: PreviewButtons.a, handler: handler, theme: theme, size: 56)
-                FaceButtonView(button: PreviewButtons.b, handler: handler, theme: theme, size: 56)
+                FaceButtonView(button: PreviewButtons.a, handler: handler, theme: theme, size: 56,
+                               fill: theme == .console ? Color(red: 0.84, green: 0.16, blue: 0.20) : nil)
+                FaceButtonView(button: PreviewButtons.b, handler: handler, theme: theme, size: 56,
+                               fill: theme == .console ? Color(red: 0.95, green: 0.74, blue: 0.10) : nil)
             }
         }
         .padding(.vertical, 4)

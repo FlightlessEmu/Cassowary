@@ -85,6 +85,11 @@ struct DirectionalButtons {
 /// per-system code.
 struct ControllerLayout {
 
+    /// The system plugin's identifier, such as `openemu.system.snes`. The
+    /// on-screen pad uses it to pick the console's skin and to remember where
+    /// the player moved the controls.
+    let systemIdentifier: String
+
     /// Buttons grouped the way the plugin groups them: a d-pad, then face
     /// buttons, then start/select. Used to draw the on-screen pad.
     let groups: [[ControllerButton]]
@@ -113,6 +118,7 @@ struct ControllerLayout {
     var hasButtons: Bool { !allButtons.isEmpty }
 
     init(systemPlugin: OESystemPlugin) {
+        self.systemIdentifier = systemPlugin.systemIdentifier
         let controller = systemPlugin.controller
         let descriptions = controller?.allKeyBindingsDescriptions ?? [:]
         let controlList = systemPlugin.infoDictionary[OEControlListKey] as? [[Any]] ?? []
