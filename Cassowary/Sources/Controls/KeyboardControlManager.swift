@@ -24,7 +24,6 @@
 
 import Foundation
 import GameController
-import OpenEmuSystem
 
 /// Runs the hardware keyboard while a game is running.
 ///
@@ -45,6 +44,7 @@ final class KeyboardControlManager {
 
     private var input: GCKeyboardInput?
     private var observers: [NSObjectProtocol] = []
+    private var isActive = true
 
     /// The keys currently down, so a source that repeats does not re-send.
     private var pressedKeys: Set<Int> = []
@@ -87,10 +87,21 @@ final class KeyboardControlManager {
         detach()
     }
 
+    /// A key can be released in another window, where neither source sees it.
+    /// Clear held keys and shortcut modifiers before accepting input again.
+    func setActive(_ active: Bool) {
+        isActive = active
+        if active {
+            attach()
+        } else {
+            releaseAll()
+        }
+    }
+
     // MARK: - Attaching
 
     private func attach() {
-        guard input == nil, let keyboard = GCKeyboard.coalesced?.keyboardInput else { return }
+        guard isActive, let keyboard = GCKeyboard.coalesced?.keyboardInput else { return }
 
         input = keyboard
         keyboard.keyChangedHandler = { [weak self] _, _, keyCode, pressed in
@@ -111,6 +122,8 @@ final class KeyboardControlManager {
 
     /// Handle one key transition.
     func handle(keyCode: Int, isDown: Bool) {
+        guard isActive else { return }
+
         if Self.shortcutModifiers.contains(keyCode) {
             if isDown {
                 heldShortcutModifiers.insert(keyCode)

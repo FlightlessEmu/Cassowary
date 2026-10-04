@@ -753,6 +753,7 @@ struct GameView: View {
     /// pause this method made is undone on the way back: a pause the player
     /// asked for stays put.
     private func handleScenePhase(_ phase: ScenePhase) {
+        keyboardInput?.setActive(phase == .active)
         guard let session, session.isRunning else { return }
 
         switch phase {

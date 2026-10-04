@@ -33,19 +33,57 @@ import UIKit
 /// swallow its events. UIKit delivers the same presses to a first responder,
 /// so this view sits behind the game and both sources feed the one manager,
 /// which ignores the duplicate.
-struct KeyboardKeyCaptureView: UIViewRepresentable {
+struct KeyboardKeyCaptureView: UIViewControllerRepresentable {
 
     /// Receives one transition: the HID usage and whether the key went down.
     let onKey: (Int, Bool) -> Void
 
-    func makeUIView(context: Context) -> KeyCaptureUIView {
-        let view = KeyCaptureUIView()
-        view.onKey = onKey
-        return view
+    func makeUIViewController(context: Context) -> KeyCaptureController {
+        let controller = KeyCaptureController()
+        controller.captureView.onKey = onKey
+        return controller
     }
 
-    func updateUIView(_ uiView: KeyCaptureUIView, context: Context) {
-        uiView.onKey = onKey
+    func updateUIViewController(_ controller: KeyCaptureController, context: Context) {
+        controller.captureView.onKey = onKey
+    }
+
+    final class KeyCaptureController: UIViewController {
+        let captureView = KeyCaptureUIView()
+        private var keyWindowObserver: NSObjectProtocol?
+
+        override func loadView() {
+            view = captureView
+        }
+
+        override func viewDidAppear(_ animated: Bool) {
+            super.viewDidAppear(animated)
+            // Presentations can take focus after a view is inserted. Wait for
+            // appearance, and reclaim it when this window becomes key again.
+            _ = captureView.becomeFirstResponder()
+            if keyWindowObserver == nil {
+                keyWindowObserver = NotificationCenter.default.addObserver(
+                    forName: UIWindow.didBecomeKeyNotification, object: view.window, queue: .main
+                ) { [weak self] _ in
+                    MainActor.assumeIsolated { _ = self?.captureView.becomeFirstResponder() }
+                }
+            }
+        }
+
+        override func viewWillDisappear(_ animated: Bool) {
+            super.viewWillDisappear(animated)
+            _ = captureView.resignFirstResponder()
+            if let keyWindowObserver {
+                NotificationCenter.default.removeObserver(keyWindowObserver)
+                self.keyWindowObserver = nil
+            }
+        }
+
+        deinit {
+            if let keyWindowObserver {
+                NotificationCenter.default.removeObserver(keyWindowObserver)
+            }
+        }
     }
 
     /// The invisible first responder itself.
@@ -61,15 +99,8 @@ struct KeyboardKeyCaptureView: UIViewRepresentable {
 
         override func didMoveToWindow() {
             super.didMoveToWindow()
-            guard window != nil else {
+            if window == nil {
                 releaseDeliveredKeys()
-                return
-            }
-
-            // The window is not key yet while the view is being inserted.
-            DispatchQueue.main.async { [weak self] in
-                guard let self, self.window != nil, !self.isFirstResponder else { return }
-                self.becomeFirstResponder()
             }
         }
 
@@ -105,11 +136,14 @@ struct KeyboardKeyCaptureView: UIViewRepresentable {
 
             for press in presses {
                 guard let key = press.key else { continue }
-                guard key.modifierFlags.intersection(UIKeyModifierFlags([.command, .control, .alternate])).isEmpty else {
+                let keyCode = Int(key.keyCode.rawValue)
+                // Always release a key we delivered, even if a shortcut
+                // modifier was pressed while that game key was held.
+                guard (!isDown && deliveredKeys.contains(keyCode)) ||
+                        key.modifierFlags.intersection(UIKeyModifierFlags([.command, .control, .alternate])).isEmpty else {
                     continue
                 }
 
-                let keyCode = Int(key.keyCode.rawValue)
                 if isDown {
                     deliveredKeys.insert(keyCode)
                 } else {
