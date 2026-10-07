@@ -71,6 +71,10 @@ struct ControllerSkin {
     var leftShoulder: [String] = []
     /// Shoulder buttons above the face buttons, inner one first.
     var rightShoulder: [String] = []
+    /// Buttons that sit with Start and Select, on the left and right of them:
+    /// a PlayStation pad's stick clicks, which have no place of their own.
+    var leftMiddle: [String] = []
+    var rightMiddle: [String] = []
     /// Shorter text for buttons whose plugin label is too long to fit.
     var captions: [String: String] = [:]
 
@@ -214,7 +218,9 @@ struct ControllerSkin {
                       glyphs: [rgb(0.25, 0.80, 0.62), rgb(0.92, 0.55, 0.80), rgb(0.95, 0.35, 0.40), rgb(0.50, 0.65, 0.98)]),
         body: playStationBody,
         leftShoulder: ["L2", "L1"],
-        rightShoulder: ["R1", "R2"]
+        rightShoulder: ["R1", "R2"],
+        leftMiddle: ["L3"],
+        rightMiddle: ["R3"]
     )
 
     private static let genesis = ControllerSkin(face: sixButton(top: ["X", "Y", "Z"], bottom: ["A", "B", "C"]), body: segaBody)
@@ -278,8 +284,11 @@ struct ControllerSkin {
         "openemu.system.saturn": ControllerSkin(
             face: sixButton(top: ["X", "Y", "Z"], bottom: ["A", "B", "C"]),
             body: saturnBody,
-            leftShoulder: ["L"],
-            rightShoulder: ["R"]
+            // The 3D pad's analog triggers sit with the shoulders, not in the
+            // face cluster.
+            leftShoulder: ["Trigger L", "L"],
+            rightShoulder: ["R", "Trigger R"],
+            captions: ["Trigger L": "L2", "Trigger R": "R2"]
         ),
         "openemu.system.sms": ControllerSkin(
             face: row(["Button 1/Start", "Button 2"]),

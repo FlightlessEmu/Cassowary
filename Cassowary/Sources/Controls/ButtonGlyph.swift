@@ -53,6 +53,9 @@ enum ButtonGlyph {
     /// Start, Select, and the console-specific controls that go with them.
     private static let systemSymbols: [String: String] = [
         "start": "play.fill",
+        // The PC Engine's Start, and its switch between two and six buttons.
+        "run": "play.fill",
+        "2/6 mode": "slider.horizontal.3",
         // A small oval: the shape the Select button has on the pads that
         // have one, and not a copy/share glyph.
         "select": "oval",

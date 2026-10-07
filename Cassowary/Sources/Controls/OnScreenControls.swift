@@ -42,10 +42,10 @@ struct OnScreenControls: View {
     let session: GameSession
     /// The pad is being rearranged: parts drag instead of pressing.
     @Binding var isEditing: Bool
-    /// How much of the bottom of the screen the pad takes in portrait,
-    /// measured to the screen's edge, so the game can be drawn above it.
-    /// Zero in landscape, where the game sits between the two grips.
-    @Binding var reservedHeight: CGFloat
+    /// How much of the screen the pad takes, measured to the screen's edges,
+    /// so the game can be drawn clear of it: the bottom in portrait, and
+    /// both sides in landscape, where the game sits between the two grips.
+    @Binding var reservedInsets: EdgeInsets
 
     @AppStorage("cassowary.padStyle") private var styleRaw: String = DPadStyle.buttons.rawValue
     @AppStorage("cassowary.buttonTheme") private var themeRaw: String = ButtonTheme.console.rawValue
@@ -61,11 +61,11 @@ struct OnScreenControls: View {
     @State private var dragging: ControlElement?
     @State private var dragTranslation: CGSize = .zero
 
-    init(layout: ControllerLayout, session: GameSession, isEditing: Binding<Bool>, reservedHeight: Binding<CGFloat>) {
+    init(layout: ControllerLayout, session: GameSession, isEditing: Binding<Bool>, reservedInsets: Binding<EdgeInsets>) {
         self.layout = layout
         self.session = session
         self._isEditing = isEditing
-        self._reservedHeight = reservedHeight
+        self._reservedInsets = reservedInsets
         self._placements = StateObject(wrappedValue: ControlPlacementStore(systemIdentifier: layout.systemIdentifier))
     }
 
@@ -94,13 +94,20 @@ struct OnScreenControls: View {
 
     /// How far the shell reaches above the controls.
     private static let shellTopMargin: CGFloat = 14
-    /// How far a landscape grip reaches around its column of controls.
+    /// How far a landscape grip reaches above its column of controls.
     private static let gripMargin: CGFloat = 18
+    /// In landscape, the space between a column of controls and each side of
+    /// its grip: the screen's edge on the outside, the game on the inside.
+    private static let gripInset: CGFloat = 22
     private static let space = "OnScreenControls"
 
     /// Where the two columns of controls sit, for the landscape grips.
     @State private var leftColumn: CGRect = .zero
     @State private var rightColumn: CGRect = .zero
+    /// How wide each column's controls are on their own. In landscape both
+    /// columns take the wider one's width, so each sits centred on its grip.
+    @State private var leftNatural: CGFloat = 0
+    @State private var rightNatural: CGFloat = 0
 
     var body: some View {
         GeometryReader { geometry in
@@ -108,7 +115,8 @@ struct OnScreenControls: View {
             // phone without covering the game on a large one.
             let portrait = geometry.size.height > geometry.size.width
             let parts = arrangement()
-            let buttonSize = fittedButtonSize(parts, in: geometry.size, portrait: portrait)
+            let buttonSize = fittedButtonSize(parts, in: geometry, portrait: portrait)
+            let insets = geometry.safeAreaInsets
             let place = Placing(size: geometry.size, portrait: portrait)
 
             ZStack {
@@ -117,13 +125,24 @@ struct OnScreenControls: View {
                 }
 
                 VStack(spacing: 18) {
-                    HStack(alignment: .bottom, spacing: 0) {
+                    // In portrait the shoulder rows share one top edge, and the
+                    // pads sit at the bottom; in landscape both columns end level.
+                    HStack(alignment: portrait ? .top : .bottom, spacing: 0) {
                         VStack(alignment: .leading, spacing: 16) {
+                            // In landscape the first half of Start and Select
+                            // sits over the left hand, like a Switch's minus.
+                            if !portrait, !parts.leftMiddle.isEmpty {
+                                movable(.system, place) {
+                                    middleRow(parts.leftMiddle, buttonSize: buttonSize)
+                                }
+                                .frame(maxWidth: .infinity, alignment: .trailing)
+                            }
                             if !parts.leftShoulder.isEmpty {
                                 movable(.leftShoulder, place) {
                                     shoulderRow(parts.leftShoulder, buttonSize: buttonSize)
                                 }
                             }
+                            if portrait { Spacer(minLength: 0) }
                             movable(.dpad, place) {
                                 directionalPad(buttonSize: buttonSize)
                                     .background {
@@ -134,15 +153,18 @@ struct OnScreenControls: View {
                                     }
                             }
                         }
+                        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { leftNatural = $0 }
+                        .frame(width: portrait ? nil : columnWidth)
                         .onGeometryChange(for: CGRect.self) { $0.frame(in: .named(Self.space)) } action: { leftColumn = $0 }
 
                         Spacer(minLength: 12)
 
                         VStack(alignment: .trailing, spacing: 16) {
-                            // In landscape Start and Select stay at the top of the
-                            // cluster, over the black bars rather than the game.
-                            if !portrait, !systemButtons.isEmpty {
-                                movable(.system, place) { systemBlock(buttonSize: buttonSize) }
+                            if !portrait, !parts.rightMiddle.isEmpty {
+                                movable(.system, place) {
+                                    middleRow(parts.rightMiddle, buttonSize: buttonSize)
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
                             }
                             if !parts.rightShoulder.isEmpty {
                                 movable(.rightShoulder, place) {
@@ -165,16 +187,26 @@ struct OnScreenControls: View {
                                     .frame(minHeight: padSpan(buttonSize: buttonSize))
                             }
                         }
+                        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { rightNatural = $0 }
+                        .frame(width: portrait ? nil : columnWidth)
                         .onGeometryChange(for: CGRect.self) { $0.frame(in: .named(Self.space)) } action: { rightColumn = $0 }
                     }
+                    // Keeps the left column's spacer from stretching the row.
+                    .fixedSize(horizontal: false, vertical: true)
 
                     // In portrait there is room below, so Start and Select sit in
                     // the middle, where a real controller keeps them.
-                    if portrait, !systemButtons.isEmpty {
-                        movable(.system, place) { systemBlock(buttonSize: buttonSize) }
+                    if portrait, !parts.leftMiddle.isEmpty || !parts.rightMiddle.isEmpty {
+                        movable(.system, place) {
+                            middleRow(parts.leftMiddle + parts.rightMiddle, buttonSize: buttonSize)
+                        }
                     }
                 }
-                .padding(.horizontal, 20)
+                // In landscape the controls sit a fixed distance from the
+                // screen's edges, reaching into the side margins the way a
+                // grip would, so the game keeps as much room as it can.
+                .padding(.leading, portrait ? 20 : Self.gripInset - insets.leading)
+                .padding(.trailing, portrait ? 20 : Self.gripInset - insets.trailing)
                 .padding(.bottom, 16)
                 .background {
                     // One shell across the bottom, reaching past the home
@@ -187,9 +219,12 @@ struct OnScreenControls: View {
                     }
                 }
                 .onGeometryChange(for: CGFloat.self) { proxy in
-                    portrait ? proxy.size.height + Self.shellTopMargin + geometry.safeAreaInsets.bottom : 0
+                    portrait ? proxy.size.height + Self.shellTopMargin + insets.bottom : 0
                 } action: { height in
-                    reservedHeight = height
+                    if portrait { reservedInsets = EdgeInsets(top: 0, leading: 0, bottom: height, trailing: 0) }
+                }
+                .onChange(of: portrait ? 0 : gripWidth, initial: true) { _, width in
+                    if !portrait { reservedInsets = EdgeInsets(top: 0, leading: width, bottom: 0, trailing: width) }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
             }
@@ -208,41 +243,43 @@ struct OnScreenControls: View {
         }
     }
 
+    /// How far each landscape grip reaches in from the screen's edge.
+    ///
+    /// Both grips match: as wide as the wider column of controls, with the
+    /// same space on either side of it. The game is drawn between them.
+    private var gripWidth: CGFloat {
+        guard let columnWidth else { return 0 }
+        return columnWidth + Self.gripInset * 2
+    }
+
+    /// The width both landscape columns share, once they have been measured.
+    private var columnWidth: CGFloat? {
+        let width = max(leftNatural, rightNatural)
+        return width > 0 ? width : nil
+    }
+
     /// The two landscape grips, one behind each hand's controls.
     ///
-    /// Each runs from its side of the screen and down past the bottom edge,
-    /// and stops where the game picture starts, so it never covers the game.
-    /// Beside a wide picture there is less room, so the grip is narrower and
-    /// the buttons reach past it, as they do with no shell at all.
+    /// Each runs from its side of the screen and down past the bottom edge.
+    /// They are the same size, start at the same height, and stop where the
+    /// game starts, so they never cover it.
     private func grips(_ style: ControllerSkin.Body, geometry: GeometryProxy) -> some View {
         let insets = geometry.safeAreaInsets
-        let screenWidth = geometry.size.width + insets.leading + insets.trailing
-        let screenHeight = geometry.size.height + insets.top + insets.bottom
-        let ratio = session.displayAspectRatio
-        let pictureWidth = min(screenWidth, screenHeight * ratio)
-        // The picture's edges, in this view's coordinates.
-        let pictureLeft = (screenWidth - pictureWidth) / 2 - insets.leading
-        let pictureRight = pictureLeft + pictureWidth
-
         let bottom = geometry.size.height + insets.bottom
+        let top = min(leftColumn.minY, rightColumn.minY) - Self.gripMargin
+        let width = gripWidth
         let leftOuter = -insets.leading
-        let leftInner = min(leftColumn.maxX + Self.gripMargin, pictureLeft)
         let rightOuter = geometry.size.width + insets.trailing
-        let rightInner = max(rightColumn.minX - Self.gripMargin, pictureRight)
         let radius: CGFloat = 36
 
         return ZStack {
-            if leftColumn != .zero, leftInner - leftOuter > radius {
-                let top = leftColumn.minY - Self.gripMargin
+            if width > radius {
                 ControllerBodyView(style: style, radii: RectangleCornerRadii(topTrailing: radius), showsDots: false)
-                    .frame(width: leftInner - leftOuter, height: bottom - top)
-                    .position(x: (leftOuter + leftInner) / 2, y: (top + bottom) / 2)
-            }
-            if rightColumn != .zero, rightOuter - rightInner > radius {
-                let top = rightColumn.minY - Self.gripMargin
+                    .frame(width: width, height: bottom - top)
+                    .position(x: leftOuter + width / 2, y: (top + bottom) / 2)
                 ControllerBodyView(style: style, radii: RectangleCornerRadii(topLeading: radius), showsDots: false)
-                    .frame(width: rightOuter - rightInner, height: bottom - top)
-                    .position(x: (rightInner + rightOuter) / 2, y: (top + bottom) / 2)
+                    .frame(width: width, height: bottom - top)
+                    .position(x: rightOuter - width / 2, y: (top + bottom) / 2)
             }
         }
     }
@@ -264,7 +301,8 @@ struct OnScreenControls: View {
     /// than `buttonSize(in:)`. A wide cluster like the N64's then fits a
     /// narrow phone, and a tall stack of shoulders and buttons fits a short
     /// landscape screen, with nothing tuned per device.
-    private func fittedButtonSize(_ parts: Arrangement, in size: CGSize, portrait: Bool) -> CGFloat {
+    private func fittedButtonSize(_ parts: Arrangement, in geometry: GeometryProxy, portrait: Bool) -> CGFloat {
+        let size = geometry.size
         let preferred = Self.buttonSize(in: size)
 
         // The d-pad is three buttons and two gaps across.
@@ -292,28 +330,48 @@ struct OnScreenControls: View {
             faceHeight += block.height + 0.2
         }
 
-        var rightWidth = max(faceWidth, shoulderWidth(parts.rightShoulder))
-        var rightHeight = faceHeight + (parts.rightShoulder.isEmpty ? 0 : shoulderHeight)
-        let leftWidth = max(padUnits, shoulderWidth(parts.leftShoulder))
-        let leftHeight = padUnits + (parts.leftShoulder.isEmpty ? 0 : shoulderHeight)
-        var belowHeight: CGFloat = 0
+        // A row of the small middle buttons, and the gap under it.
+        func middleRow(_ buttons: [ControllerButton]) -> CGSize {
+            buttons.isEmpty ? .zero : CGSize(width: CGFloat(buttons.count) * Self.systemScale * 1.2,
+                                             height: Self.systemScale + 0.3)
+        }
+        let leftMiddle = middleRow(parts.leftMiddle)
+        let rightMiddle = middleRow(parts.rightMiddle)
 
-        if !systemButtons.isEmpty {
-            let system = blockSize(systemButtons.count, scale: Self.systemScale)
-            if portrait {
-                belowHeight = system.height + 0.3
-            } else {
-                rightWidth = max(rightWidth, system.width)
-                rightHeight += system.height + 0.3
-            }
+        var rightWidth = max(faceWidth, shoulderWidth(parts.rightShoulder))
+        var rightHeight = max(faceHeight, padUnits) + (parts.rightShoulder.isEmpty ? 0 : shoulderHeight)
+        var leftWidth = max(padUnits, shoulderWidth(parts.leftShoulder))
+        var leftHeight = padUnits + (parts.leftShoulder.isEmpty ? 0 : shoulderHeight)
+
+        if portrait {
+            // Room left after the padding and the gap between the two sides,
+            // and above, the top bar, which the pad must not run under.
+            let below = middleRow(parts.leftMiddle + parts.rightMiddle).height
+            let across = (size.width - 52) / (leftWidth + rightWidth)
+            let down = (size.height - 32 - 70) / (max(leftHeight, rightHeight) + below)
+            return max(min(preferred, across, down), 30)
         }
 
-        // Room left after the padding, the gap between the two sides, and the
-        // top bar, which the pad must not run under.
-        let across = (size.width - 52) / (leftWidth + rightWidth)
-        let down = (size.height - 32 - 70) / (max(leftHeight, rightHeight) + belowHeight)
+        leftWidth = max(leftWidth, leftMiddle.width)
+        leftHeight += leftMiddle.height
+        rightWidth = max(rightWidth, rightMiddle.width)
+        rightHeight += rightMiddle.height
+
+        // In landscape the game is drawn between the grips, so each grip may
+        // only take what the game can spare: the game keeps at least most of
+        // its full height. Both grips are as wide as the wider column.
+        let insets = geometry.safeAreaInsets
+        let screenWidth = size.width + insets.leading + insets.trailing
+        let screenHeight = size.height + insets.top + insets.bottom
+        let fullPicture = min(screenWidth, screenHeight * session.displayAspectRatio)
+        let side = (screenWidth - fullPicture * Self.landscapePictureShare) / 2 - Self.gripInset * 2
+        let across = side / max(leftWidth, rightWidth)
+        let down = (size.height - 32 - 70) / max(leftHeight, rightHeight)
         return max(min(preferred, across, down), 30)
     }
+
+    /// How much of its full size the game keeps beside the landscape grips.
+    private static let landscapePictureShare: CGFloat = 0.82
 
     /// The on-screen pads report through this, so every touch press buzzes the
     /// phone at the strength picked in Settings → Controls. A physical
@@ -395,6 +453,11 @@ struct OnScreenControls: View {
         var face: [(spot: ControllerSkin.Spot, button: ControllerButton)] = []
         var leftShoulder: [ControllerButton] = []
         var rightShoulder: [ControllerButton] = []
+        /// The small buttons in the middle of the pad: Start, Select and the
+        /// like, split in two. In portrait they make one row; in landscape
+        /// each half sits over its own hand.
+        var leftMiddle: [ControllerButton] = []
+        var rightMiddle: [ControllerButton] = []
         /// Buttons the skin does not place, in the plugin's groups.
         var rest: [[ControllerButton]] = []
     }
@@ -403,7 +466,17 @@ struct OnScreenControls: View {
     /// left keeps the plain blocks, so nothing goes missing.
     private func arrangement() -> Arrangement {
         let groups = actionGroups()
-        guard let skin else { return Arrangement(rest: groups) }
+        // Start (or Pause) goes on the right and the rest on the left, the
+        // way a Switch puts plus and minus. A pad with neither just splits.
+        let system = systemButtons
+        let starts = system.filter { ["play.fill", "pause.fill"].contains(ButtonGlyph.symbol(for: $0)) }
+        let others = system.filter { button in !starts.contains { $0.id == button.id } }
+        let half = system.count / 2
+        let leftSystem = starts.isEmpty ? Array(system.prefix(half)) : others
+        let rightSystem = starts.isEmpty ? Array(system.dropFirst(half)) : starts
+        guard let skin else {
+            return Arrangement(leftMiddle: leftSystem, rightMiddle: rightSystem, rest: groups)
+        }
 
         var pool = groups.flatMap { $0 }
         func take(_ label: String) -> ControllerButton? {
@@ -418,6 +491,8 @@ struct OnScreenControls: View {
         parts.leftShoulder = skin.leftShoulder.compactMap(take)
         parts.rightShoulder = skin.rightShoulder.compactMap(take)
         parts.face = skin.face.compactMap { spot in take(spot.label).map { (spot, $0) } }
+        parts.leftMiddle = skin.leftMiddle.compactMap(take) + leftSystem
+        parts.rightMiddle = rightSystem + skin.rightMiddle.compactMap(take)
 
         let left = Set(pool.map(\.id))
         parts.rest = groups
@@ -476,8 +551,15 @@ struct OnScreenControls: View {
         }
     }
 
-    private func systemBlock(buttonSize: CGFloat) -> some View {
-        buttonBlock(systemButtons, buttonSize: buttonSize * Self.systemScale, spacing: Self.systemSpacing)
+    /// A row of the small middle buttons.
+    private func middleRow(_ buttons: [ControllerButton], buttonSize: CGFloat) -> some View {
+        HStack(spacing: Self.systemSpacing) {
+            ForEach(buttons) { button in
+                FaceButtonView(button: button, handler: pressHandler, theme: theme, size: buttonSize * Self.systemScale,
+                               fill: bodyStyle?.button, glyph: bodyStyle?.label,
+                               caption: skin?.captions[button.label])
+            }
+        }
     }
 
     /// One plugin group: a row for up to three buttons, a 2×2 grid for four
