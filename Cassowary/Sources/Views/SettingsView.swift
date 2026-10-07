@@ -229,7 +229,7 @@ struct SettingsView: View {
                         }
                         .padding(16)
                     }
-                    .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                    .padding(.vertical, 4)
                     .listRowBackground(Color.clear)
 
                     Text("Try it — press the pad. Feel only, not connected to a game.")
